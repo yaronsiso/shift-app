@@ -1,0 +1,15 @@
+{
+  "home": {
+    "title": "SHIFT",
+    "connected": "Connected to Supabase successfully",
+    "not_connected": "No connection to the server",
+    "placeholder_note": "Project scaffold (stage 2) — real app screens will be added in later stages"
+  },
+  "language": {
+    "select": "Select language",
+    "he": "Hebrew",
+    "ar": "Arabic",
+    "ru": "Russian",
+    "en": "English"
+  }
+}
