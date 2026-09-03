@@ -15,6 +15,14 @@
 //
 // פריסה:  supabase functions deploy generate-render
 // סודות:  supabase secrets set REPLICATE_API_TOKEN=...
+//
+// סשן 8: תוקן באג קריטי — כשל בלתי-צפוי (לא אחת מהשגיאות המוכרות למעלה)
+// היה משאיר רשומה תקועה לנצח על status="processing" בלי שום error_message,
+// כי שום דבר לא היה עוטף את השלבים "צריכת קרדיט → רישום ההדמיה → יצירת
+// קישור חתום" ברשת ביטחון. עכשיו כל מה שאחרי הוולידציה עטוף ב-try/catch
+// חיצוני אחד: כל שגיאה לא צפויה תירשם ביומן, תסמן את הרשומה כ-failed עם
+// פירוט השגיאה האמיתי, ותחזיר קרדיט אם כבר נצרך — כדי שלעולם לא נישאר
+// שוב בלי לדעת מה קרה.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { MATERIALS_BY_ID } from "../_shared/dictionary.ts";
@@ -132,166 +140,200 @@ Deno.serve(async (req) => {
     return json({ error: "forbidden_image_path" }, 403);
   }
 
-  // --- 3+4. עיבוד הערות ובניית הפרומפט --------------------------------
-  let job;
+  // --- מכאן ואילך: רשת ביטחון אחת סביב כל השלבים שנוגעים בכסף/ברשת -----
+  // אם משהו לא צפוי ייזרק בכל שלב שלמטה (ולא נתפס כבר ספציפית), הוא
+  // ייתפס ב-catch החיצוני, יירשם ביומן, יסמן את הרשומה כנכשלת (אם כבר
+  // נוצרה), ויחזיר קרדיט (אם כבר נצרך) — במקום להשאיר הכל תקוע.
+  let renderId: string | undefined;
+  let creditConsumed = false;
+
   try {
-    const resolved = await resolveFreeTextNotes(
-      body.selections,
-      MATERIALS_BY_ID,
-      replicateToken,
-    );
-    job = buildRenderJob(body.roomTypeCode, resolved);
-  } catch (e) {
-    if (e instanceof PromptBuildError) {
-      return json({ error: "bad_selection", detail: e.message }, 400);
+    // --- 3+4. עיבוד הערות ובניית הפרומפט --------------------------------
+    let job;
+    try {
+      const resolved = await resolveFreeTextNotes(
+        body.selections,
+        MATERIALS_BY_ID,
+        replicateToken,
+      );
+      job = buildRenderJob(body.roomTypeCode, resolved);
+    } catch (e) {
+      if (e instanceof PromptBuildError) {
+        return json({ error: "bad_selection", detail: e.message }, 400);
+      }
+      throw e; // שגיאה לא צפויה — תיתפס למטה.
     }
-    console.error("prompt build failed", e);
-    return json({ error: "prompt_build_failed" }, 500);
-  }
 
-  // --- 5. צריכת קרדיט (אטומית) -----------------------------------------
-  const { data: creditRows, error: creditErr } = await supabase
-    .rpc("consume_render_credit");
+    // --- 5. צריכת קרדיט (אטומית) -----------------------------------------
+    const { data: creditRows, error: creditErr } = await supabase
+      .rpc("consume_render_credit");
 
-  if (creditErr) {
-    console.error("consume_render_credit failed", creditErr);
-    return json({ error: "credit_check_failed" }, 500);
-  }
+    if (creditErr) {
+      throw new Error(`consume_render_credit failed: ${creditErr.message}`);
+    }
 
-  const credit = Array.isArray(creditRows) ? creditRows[0] : creditRows;
-  if (!credit?.allowed) {
-    return json({
-      error: "quota_exhausted",
-      reason: credit?.reason ?? "unknown",
-      freeRemaining: credit?.free_remaining ?? 0,
-    }, 402); // Payment Required — האפליקציה תפתח Paywall.
-  }
+    const credit = Array.isArray(creditRows) ? creditRows[0] : creditRows;
+    if (!credit?.allowed) {
+      return json({
+        error: "quota_exhausted",
+        reason: credit?.reason ?? "unknown",
+        freeRemaining: credit?.free_remaining ?? 0,
+      }, 402); // Payment Required — האפליקציה תפתח Paywall.
+    }
+    creditConsumed = true;
 
-  // --- רישום ההדמיה לפני הקריאה, כדי שתמיד יהיה למה להחזיר קרדיט -------
-  const { data: renderRow, error: insErr } = await supabase
-    .from("renders")
-    .insert({
-      user_id: userId,
-      room_type: body.roomTypeCode,
-      category: job.prompt.includes("exterior") ? "exterior" : "interior",
-      before_image_path: body.beforeImagePath,
-      style_selections: job.resolvedSelections,
-      prompt: job.prompt,
-      negative_prompt: job.negativePrompt,
-      prompt_strength: job.promptStrength,
-      status: "processing",
-      credit_source: credit.reason,
-    })
-    .select("id")
-    .single();
+    // --- רישום ההדמיה לפני הקריאה, כדי שתמיד יהיה למה להחזיר קרדיט -------
+    const { data: renderRow, error: insErr } = await supabase
+      .from("renders")
+      .insert({
+        user_id: userId,
+        room_type: body.roomTypeCode,
+        category: job.prompt.includes("exterior") ? "exterior" : "interior",
+        before_image_path: body.beforeImagePath,
+        style_selections: job.resolvedSelections,
+        prompt: job.prompt,
+        negative_prompt: job.negativePrompt,
+        prompt_strength: job.promptStrength,
+        status: "processing",
+        credit_source: credit.reason,
+      })
+      .select("id")
+      .single();
 
-  if (insErr || !renderRow) {
-    console.error("render insert failed", insErr);
-    return json({ error: "render_record_failed" }, 500);
-  }
-  const renderId = renderRow.id as string;
+    if (insErr || !renderRow) {
+      throw new Error(`render insert failed: ${insErr?.message}`);
+    }
+    renderId = renderRow.id as string;
 
-  const fail = async (code: string, detail?: string, status = 502) => {
-    await supabase.from("renders")
-      .update({ status: "failed", error_message: detail ?? code })
-      .eq("id", renderId);
-    // החזר קרדיט — הכישלון אינו באשמת המשתמש.
-    await supabase.rpc("refund_render_credit", { p_render_id: renderId });
-    return json({ error: code, detail, renderId }, status);
-  };
+    const fail = async (code: string, detail?: string, status = 502) => {
+      await supabase.from("renders")
+        .update({ status: "failed", error_message: detail ?? code })
+        .eq("id", renderId);
+      // החזר קרדיט — הכישלון אינו באשמת המשתמש.
+      await supabase.rpc("refund_render_credit", { p_render_id: renderId });
+      return json({ error: code, detail, renderId }, status);
+    };
 
-  // --- 6. קריאה ל-Replicate --------------------------------------------
-  // כתובת חתומה וזמנית לתמונת המקור, כדי ש-Replicate יוכל להוריד אותה
-  // מבלי שה-bucket יהיה ציבורי.
-  const { data: signed, error: signErr } = await supabase.storage
-    .from("renders")
-    .createSignedUrl(body.beforeImagePath, 600);
+    // --- 6. קריאה ל-Replicate --------------------------------------------
+    // כתובת חתומה וזמנית לתמונת המקור, כדי ש-Replicate יוכל להוריד אותה
+    // מבלי שה-bucket יהיה ציבורי.
+    const { data: signed, error: signErr } = await supabase.storage
+      .from("renders")
+      .createSignedUrl(body.beforeImagePath, 600);
 
-  if (signErr || !signed?.signedUrl) {
-    return await fail("image_url_failed", String(signErr), 500);
-  }
+    if (signErr || !signed?.signedUrl) {
+      return await fail("image_url_failed", String(signErr), 500);
+    }
 
-  let prediction;
-  try {
-    const res = await fetch("https://api.replicate.com/v1/predictions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${replicateToken}`,
-        "Content-Type": "application/json",
-        Prefer: "wait",
-      },
-      body: JSON.stringify({
-        ...(REPLICATE_VERSION
-          ? { version: REPLICATE_VERSION }
-          : { model: REPLICATE_MODEL }),
-        input: {
-          image: signed.signedUrl,
-          prompt: job.prompt,
-          negative_prompt: job.negativePrompt,
-          prompt_strength: job.promptStrength,
-          guidance_scale: job.guidanceScale,
-          num_inference_steps: job.numInferenceSteps,
+    let prediction;
+    try {
+      const res = await fetch("https://api.replicate.com/v1/predictions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${replicateToken}`,
+          "Content-Type": "application/json",
+          Prefer: "wait",
         },
-      }),
-    });
+        body: JSON.stringify({
+          ...(REPLICATE_VERSION
+            ? { version: REPLICATE_VERSION }
+            : { model: REPLICATE_MODEL }),
+          input: {
+            image: signed.signedUrl,
+            prompt: job.prompt,
+            negative_prompt: job.negativePrompt,
+            prompt_strength: job.promptStrength,
+            guidance_scale: job.guidanceScale,
+            num_inference_steps: job.numInferenceSteps,
+          },
+        }),
+      });
 
-    if (!res.ok) {
-      return await fail("replicate_error", await res.text());
+      if (!res.ok) {
+        return await fail("replicate_error", await res.text());
+      }
+      prediction = await res.json();
+    } catch (e) {
+      return await fail("replicate_unreachable", String(e));
     }
-    prediction = await res.json();
+
+    if (prediction?.status === "failed" || prediction?.error) {
+      return await fail("generation_failed", String(prediction?.error ?? ""));
+    }
+
+    const outputUrl = Array.isArray(prediction?.output)
+      ? prediction.output[0]
+      : prediction?.output;
+
+    if (!outputUrl) {
+      return await fail("no_output", "המודל לא החזיר תמונה");
+    }
+
+    // --- 7. שמירת התוצאה --------------------------------------------------
+    // מורידים את התמונה ל-Storage שלנו: הקישור של Replicate פג אחרי זמן קצר.
+    let afterPath: string | null = null;
+    try {
+      const imgRes = await fetch(outputUrl);
+      if (imgRes.ok) {
+        const bytes = new Uint8Array(await imgRes.arrayBuffer());
+        afterPath = `${userId}/${renderId}.png`;
+        const { error: upErr } = await supabase.storage
+          .from("renders")
+          .upload(afterPath, bytes, {
+            contentType: "image/png",
+            upsert: true,
+          });
+        if (upErr) {
+          console.error("upload failed", upErr);
+          afterPath = null;
+        }
+      }
+    } catch (e) {
+      console.error("could not persist output image", e);
+    }
+
+    await supabase.from("renders").update({
+      status: "succeeded",
+      after_image_path: afterPath,
+      replicate_prediction_id: prediction?.id ?? null,
+    }).eq("id", renderId);
+
+    return json({
+      renderId,
+      afterImagePath: afterPath,
+      // גיבוי זמני למקרה שההעלאה ל-Storage נכשלה.
+      outputUrl: afterPath ? null : outputUrl,
+      freeRemaining: credit.free_remaining,
+      creditSource: credit.reason,
+      protectedElements: job.protectedLabels,
+      promptStrength: job.promptStrength,
+    });
   } catch (e) {
-    return await fail("replicate_unreachable", String(e));
-  }
+    // --- רשת הביטחון: כל שגיאה לא צפויה מגיעה לכאן -----------------------
+    const detail = e instanceof Error ? `${e.message}` : String(e);
+    console.error("generate-render: uncaught error", detail, e);
 
-  if (prediction?.status === "failed" || prediction?.error) {
-    return await fail("generation_failed", String(prediction?.error ?? ""));
-  }
-
-  const outputUrl = Array.isArray(prediction?.output)
-    ? prediction.output[0]
-    : prediction?.output;
-
-  if (!outputUrl) {
-    return await fail("no_output", "המודל לא החזיר תמונה");
-  }
-
-  // --- 7. שמירת התוצאה --------------------------------------------------
-  // מורידים את התמונה ל-Storage שלנו: הקישור של Replicate פג אחרי זמן קצר.
-  let afterPath: string | null = null;
-  try {
-    const imgRes = await fetch(outputUrl);
-    if (imgRes.ok) {
-      const bytes = new Uint8Array(await imgRes.arrayBuffer());
-      afterPath = `${userId}/${renderId}.png`;
-      const { error: upErr } = await supabase.storage
-        .from("renders")
-        .upload(afterPath, bytes, {
-          contentType: "image/png",
-          upsert: true,
-        });
-      if (upErr) {
-        console.error("upload failed", upErr);
-        afterPath = null;
+    if (renderId) {
+      try {
+        await supabase.from("renders")
+          .update({
+            status: "failed",
+            error_message: `internal: ${detail}`.slice(0, 500),
+          })
+          .eq("id", renderId);
+      } catch (updateErr) {
+        console.error("failed to mark render as failed", updateErr);
       }
     }
-  } catch (e) {
-    console.error("could not persist output image", e);
+
+    if (creditConsumed && renderId) {
+      try {
+        await supabase.rpc("refund_render_credit", { p_render_id: renderId });
+      } catch (refundErr) {
+        console.error("failed to refund credit", refundErr);
+      }
+    }
+
+    return json({ error: "internal_error", detail, renderId }, 500);
   }
-
-  await supabase.from("renders").update({
-    status: "succeeded",
-    after_image_path: afterPath,
-    replicate_prediction_id: prediction?.id ?? null,
-  }).eq("id", renderId);
-
-  return json({
-    renderId,
-    afterImagePath: afterPath,
-    // גיבוי זמני למקרה שההעלאה ל-Storage נכשלה.
-    outputUrl: afterPath ? null : outputUrl,
-    freeRemaining: credit.free_remaining,
-    creditSource: credit.reason,
-    protectedElements: job.protectedLabels,
-    promptStrength: job.promptStrength,
-  });
 });
