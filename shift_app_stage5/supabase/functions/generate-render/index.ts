@@ -34,8 +34,17 @@ import {
 } from "../_shared/note_resolver.ts";
 
 // המודל שננעל בשלב 3. ראו claude/07.
+//
+// סשן 8: adirik/interior-design הוא מודל קהילתי (לא רשמי) בלי גרסת "latest"
+// מסומנת — קריאה דרך /v1/models/{owner}/{name}/predictions (בלי version)
+// מחזירה 404. חייבים לנעול גרסה מדויקת ולקרוא ל-/v1/predictions הקלאסי.
+// ברירת המחדל למטה היא מחרוזת ה-version המדויקת שמופיעה בדוגמת ה-HTTP
+// הרשמית בעמוד replicate.com/adirik/interior-design (אומת ידנית ב-3.9.2026
+// אחרי שהגרסה הקודמת חדלה לעבוד) — אפשר לדרוס אותה בעתיד עם הסוד
+// REPLICATE_MODEL_VERSION בלי לגעת בקוד, אם Replicate יפרסמו גרסה חדשה.
 const REPLICATE_MODEL = "adirik/interior-design";
-const REPLICATE_VERSION = Deno.env.get("REPLICATE_MODEL_VERSION") ?? "";
+const REPLICATE_VERSION = Deno.env.get("REPLICATE_MODEL_VERSION") ??
+  "adirik/interior-design:76604baddc85b1b4616e1c6475eca080da339c8875bd4996705440484a6eac38";
 
 const CORS = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") ?? "*",
@@ -235,17 +244,13 @@ Deno.serve(async (req) => {
     let prediction;
     try {
       console.log(`[${userId}] שלב 7: שולח בקשה ל-Replicate...`);
-      // סשן 8: ל-Replicate יש שתי דרכים שונות ליצור prediction, ואסור לערבב
-      // ביניהן:
-      //   1) POST /v1/predictions + שדה "version" (hash מדויק של גרסת מודל).
-      //   2) POST /v1/models/{owner}/{name}/predictions בלי version בכלל —
-      //      Replicate מריץ אוטומטית את הגרסה העדכנית ביותר של המודל.
-      // הקוד הישן שלח ל-(1) עם שדה "model" (לא "version") כשלא היה
-      // REPLICATE_MODEL_VERSION מוגדר — Replicate דוחה את זה עכשיו בפירוש
-      // (422: "version is required" + "Additional property model is not
-      // allowed"). זו בדיוק השגיאה שגילינו בבדיקה האחרונה. עוברים ל-(2)
-      // כברירת מחדל — אין יותר צורך לנהל hash של גרסה בכלל — ושומרים את
-      // (1) כאפשרות מפורשת אם מישהו כן ירצה לנעול גרסה ספציפית בעתיד.
+      // סשן 8: ל-Replicate יש שתי דרכים ליצור prediction: (1) POST
+      // /v1/predictions + שדה "version" מדויק, או (2) POST
+      // /v1/models/{owner}/{name}/predictions בלי version (רק לגרסת "latest"
+      // מסומנת — לא קיימת אצל adirik/interior-design, ניסינו וקיבלנו 404).
+      // REPLICATE_VERSION תמיד מוגדר עכשיו (ברירת מחדל קבועה למעלה בקובץ),
+      // אז בפועל תמיד נבחר ב-(1); ה-fallback ל-(2) נשאר כרשת ביטחון בלבד
+      // למקרה שמישהו ינקה את הערך הזה בטעות בעתיד.
       const replicateUrl = REPLICATE_VERSION
         ? "https://api.replicate.com/v1/predictions"
         : `https://api.replicate.com/v1/models/${REPLICATE_MODEL}/predictions`;
