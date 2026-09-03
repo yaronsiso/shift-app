@@ -57,7 +57,7 @@
     },
     {
       "name": "code_assets",
-      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/code_assets-2.0.0",
+      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/code_assets-1.2.1",
       "packageUri": "lib/",
       "languageVersion": "3.10"
     },
@@ -120,6 +120,12 @@
       "rootUri": "file:///root/.pub-cache/hosted/pub.dev/ffi-2.2.0",
       "packageUri": "lib/",
       "languageVersion": "3.7"
+    },
+    {
+      "name": "ffi_leak_tracker",
+      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/ffi_leak_tracker-0.1.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
     },
     {
       "name": "file",
@@ -231,7 +237,7 @@
     },
     {
       "name": "hooks",
-      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/hooks-2.2.0",
+      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/hooks-2.0.2",
       "packageUri": "lib/",
       "languageVersion": "3.10"
     },
@@ -375,19 +381,19 @@
     },
     {
       "name": "meta",
-      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/meta-1.19.0",
+      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/meta-1.18.3",
       "packageUri": "lib/",
       "languageVersion": "3.5"
     },
     {
       "name": "mime",
-      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/mime-1.0.6",
+      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/mime-2.1.0",
       "packageUri": "lib/",
       "languageVersion": "3.2"
     },
     {
       "name": "objective_c",
-      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/objective_c-9.6.0",
+      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/objective_c-9.5.0",
       "packageUri": "lib/",
       "languageVersion": "3.10"
     },
@@ -483,7 +489,7 @@
     },
     {
       "name": "record_use",
-      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/record_use-1.1.1",
+      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/record_use-0.6.0",
       "packageUri": "lib/",
       "languageVersion": "3.10"
     },
@@ -507,15 +513,15 @@
     },
     {
       "name": "share_plus",
-      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/share_plus-7.2.2",
+      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/share_plus-13.3.0",
       "packageUri": "lib/",
-      "languageVersion": "2.18"
+      "languageVersion": "3.10"
     },
     {
       "name": "share_plus_platform_interface",
-      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/share_plus_platform_interface-3.4.0",
+      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/share_plus_platform_interface-7.2.0",
       "packageUri": "lib/",
-      "languageVersion": "2.18"
+      "languageVersion": "3.10"
     },
     {
       "name": "shared_preferences",
@@ -687,7 +693,7 @@
     },
     {
       "name": "vector_math",
-      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/vector_math-2.4.2",
+      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/vector_math-2.4.0",
       "packageUri": "lib/",
       "languageVersion": "3.10"
     },
@@ -717,9 +723,9 @@
     },
     {
       "name": "win32",
-      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/win32-5.15.0",
+      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/win32-6.4.0",
       "packageUri": "lib/",
-      "languageVersion": "3.8"
+      "languageVersion": "3.10"
     },
     {
       "name": "xdg_directories",
