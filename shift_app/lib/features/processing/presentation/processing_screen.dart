@@ -108,23 +108,31 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('processing_screen.app_title'.tr()),
-        automaticallyImplyLeading: false,
-      ),
-      body: SafeArea(
-        child: switch (_phase) {
-          _ProcessingPhase.running => _RunningView(tipIndex: _tipIndex),
-          _ProcessingPhase.quotaExhausted => _QuotaExhaustedView(
-              onBackHome: () => context.go(AppRoutes.home),
-            ),
-          _ProcessingPhase.failure => _FailureView(
-              failure: _failure,
-              onRetry: _run,
-              onBack: () => context.pop(),
-            ),
-        },
+    // סשן 8: מונע יציאה (כפתור/מחווה "חזרה" של האנדרואיד) בזמן שההדמיה
+    // עדיין רצה בפועל בשרת. בלי זה, משתמש שיוצא לפני שהתשובה חוזרת גורם
+    // לקריאה להצליח ברקע (השרת ממשיך לרוץ) בלי שיהיה מי שיציג את התוצאה —
+    // בדיוק מה שקרה בבדיקה שהצליחה בפועל אחרי כ-18 שניות, אחרי שהמשתמשת
+    // כבר יצאה מהמסך. אחרי running (הצלחה/כישלון/מכסה) יציאה חופשית כרגיל.
+    return PopScope(
+      canPop: _phase != _ProcessingPhase.running,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('processing_screen.app_title'.tr()),
+          automaticallyImplyLeading: false,
+        ),
+        body: SafeArea(
+          child: switch (_phase) {
+            _ProcessingPhase.running => _RunningView(tipIndex: _tipIndex),
+            _ProcessingPhase.quotaExhausted => _QuotaExhaustedView(
+                onBackHome: () => context.go(AppRoutes.home),
+              ),
+            _ProcessingPhase.failure => _FailureView(
+                failure: _failure,
+                onRetry: _run,
+                onBack: () => context.pop(),
+              ),
+          },
+        ),
       ),
     );
   }

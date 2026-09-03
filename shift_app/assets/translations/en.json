@@ -31,7 +31,7 @@
     "title": "Upload a photo to design",
     "subtitle": "So we can show you what it looks like at your place",
     "shift_button": "SHIFT",
-    "eta_note": "Creating the render takes about 15 seconds",
+    "eta_note": "Creating the render takes up to about 30 seconds",
     "take_photo": "Take a photo",
     "choose_gallery": "Choose from gallery",
     "tap_to_pick": "Tap to take a photo or choose from gallery",
@@ -41,7 +41,7 @@
   "processing_screen": {
     "app_title": "SHIFT",
     "title": "Creating your render",
-    "eta_note": "Takes about 15 seconds",
+    "eta_note": "Usually takes up to about 30 seconds — please don't leave this screen",
     "quota_title": "You've used your quota",
     "quota_body": "You don't have any renders available right now. You can upgrade to a subscription to continue.",
     "quota_button": "Back to home",
