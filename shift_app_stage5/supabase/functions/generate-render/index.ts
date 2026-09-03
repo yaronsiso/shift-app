@@ -235,7 +235,21 @@ Deno.serve(async (req) => {
     let prediction;
     try {
       console.log(`[${userId}] שלב 7: שולח בקשה ל-Replicate...`);
-      const res = await fetch("https://api.replicate.com/v1/predictions", {
+      // סשן 8: ל-Replicate יש שתי דרכים שונות ליצור prediction, ואסור לערבב
+      // ביניהן:
+      //   1) POST /v1/predictions + שדה "version" (hash מדויק של גרסת מודל).
+      //   2) POST /v1/models/{owner}/{name}/predictions בלי version בכלל —
+      //      Replicate מריץ אוטומטית את הגרסה העדכנית ביותר של המודל.
+      // הקוד הישן שלח ל-(1) עם שדה "model" (לא "version") כשלא היה
+      // REPLICATE_MODEL_VERSION מוגדר — Replicate דוחה את זה עכשיו בפירוש
+      // (422: "version is required" + "Additional property model is not
+      // allowed"). זו בדיוק השגיאה שגילינו בבדיקה האחרונה. עוברים ל-(2)
+      // כברירת מחדל — אין יותר צורך לנהל hash של גרסה בכלל — ושומרים את
+      // (1) כאפשרות מפורשת אם מישהו כן ירצה לנעול גרסה ספציפית בעתיד.
+      const replicateUrl = REPLICATE_VERSION
+        ? "https://api.replicate.com/v1/predictions"
+        : `https://api.replicate.com/v1/models/${REPLICATE_MODEL}/predictions`;
+      const res = await fetch(replicateUrl, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${replicateToken}`,
@@ -243,9 +257,7 @@ Deno.serve(async (req) => {
           Prefer: "wait",
         },
         body: JSON.stringify({
-          ...(REPLICATE_VERSION
-            ? { version: REPLICATE_VERSION }
-            : { model: REPLICATE_MODEL }),
+          ...(REPLICATE_VERSION ? { version: REPLICATE_VERSION } : {}),
           input: {
             image: signed.signedUrl,
             prompt: job.prompt,

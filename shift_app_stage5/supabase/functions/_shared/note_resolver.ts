@@ -73,23 +73,28 @@ async function resolveOne(
   const note = rawText.trim().slice(0, MAX_NOTE_LENGTH);
   if (!note) return null;
 
-  const res = await fetch("https://api.replicate.com/v1/predictions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${replicateToken}`,
-      "Content-Type": "application/json",
-      Prefer: "wait",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      input: {
-        system_prompt: SYSTEM_PROMPT,
-        prompt: `ITEM: ${item.promptEn}\nNOTE: ${note}\nOUTPUT:`,
-        max_tokens: 160,
-        temperature: 0.1,
+  // סשן 8: אותו תיקון כמו ב-generate-render/index.ts — Replicate דוחה
+  // עכשיו שדה "model" בגוף הבקשה ל-/v1/predictions. קוראים דרך
+  // /v1/models/{owner}/{name}/predictions במקום, בלי version בכלל.
+  const res = await fetch(
+    `https://api.replicate.com/v1/models/${MODEL}/predictions`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${replicateToken}`,
+        "Content-Type": "application/json",
+        Prefer: "wait",
       },
-    }),
-  });
+      body: JSON.stringify({
+        input: {
+          system_prompt: SYSTEM_PROMPT,
+          prompt: `ITEM: ${item.promptEn}\nNOTE: ${note}\nOUTPUT:`,
+          max_tokens: 160,
+          temperature: 0.1,
+        },
+      }),
+    },
+  );
 
   if (!res.ok) {
     // כישלון בעיבוד הערה לא מפיל את כל ההדמיה — מוותרים על ההערה בלבד.
