@@ -22,6 +22,8 @@ dependencies:
 
   # Typography per design spec (Heebo/Assistant via Google Fonts)
   google_fonts: ^6.2.1
+  image_picker: ^1.1.2
+  share_plus: ^7.2.1
 
   cupertino_icons: ^1.0.8
 

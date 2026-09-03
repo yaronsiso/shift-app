@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/config/app_config.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_theme.dart';
 
 /// Stage-2 placeholder screen.
 ///
@@ -14,6 +15,11 @@ import '../../../core/theme/app_colors.dart';
 /// This is intentionally NOT the real home/upload screen from the PRD
 /// (camera / gallery upload, project-type picker) — that's built in
 /// stage 3/6 once this scaffold is approved.
+///
+/// **שלב 6 (שחזור/איחוד):** עודכן רק בגלל שינוי טוקני הצבע ב-app_colors.dart
+/// (AppColors.emerald / AppColors.mutedText כבר לא קיימים בפלטה החדשה) —
+/// שום שינוי לוגי אחר. המסך הזה עדיין זמני; יוחלף כש-app_router.dart יחובר
+/// למסכי שלב 6 האמיתיים.
 class HomePlaceholderScreen extends StatefulWidget {
   const HomePlaceholderScreen({super.key});
 
@@ -83,15 +89,15 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
                     style: Theme.of(context)
                         .textTheme
                         .bodyMedium
-                        ?.copyWith(color: AppColors.mutedText),
+                        ?.copyWith(color: context.palette.inkSoft),
                   ),
                   const SizedBox(height: 24),
                   FutureBuilder<bool>(
                     future: _connectionCheck,
                     builder: (context, snapshot) {
                       if (!snapshot.hasData) {
-                        return const CircularProgressIndicator(
-                          color: AppColors.emerald,
+                        return CircularProgressIndicator(
+                          color: Theme.of(context).colorScheme.primary,
                         );
                       }
                       final connected = snapshot.data!;
@@ -101,7 +107,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
                           Icon(
                             connected ? Icons.check_circle : Icons.error,
                             color: connected
-                                ? AppColors.emerald
+                                ? Theme.of(context).colorScheme.primary
                                 : AppColors.danger,
                           ),
                           const SizedBox(width: 8),

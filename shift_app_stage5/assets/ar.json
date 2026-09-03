@@ -1,0 +1,27 @@
+{
+  "home": {
+    "title": "SHIFT",
+    "connected": "تم الاتصال بنجاح بـ Supabase",
+    "not_connected": "لا يوجد اتصال بالخادم",
+    "placeholder_note": "هيكل المشروع (المرحلة 2) — سيتم إضافة شاشات التطبيق الفعلية في المراحل القادمة"
+  },
+  "home_screen": {
+    "app_title": "SHIFT",
+    "title": "ماذا نصمم اليوم؟",
+    "subtitle": "اختر نوع الغرفة وما تريد تغييره فيها",
+    "room_section": "نوع الغرفة",
+    "groups_section": "ماذا تريد أن تصمم؟",
+    "select_room_first": "اختر نوع الغرفة أولاً",
+    "continue_button": "متابعة لاختيار المواد",
+    "credits_free": "{} صور مجانية متبقية",
+    "credits_subscription": "اشتراك نشط — {} صور متبقية هذا الشهر",
+    "credits_exhausted": "لقد استنفدت حصتك"
+  },
+  "language": {
+    "select": "اختر اللغة",
+    "he": "العبرية",
+    "ar": "العربية",
+    "ru": "الروسية",
+    "en": "الإنجليزية"
+  }
+}

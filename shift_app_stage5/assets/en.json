@@ -1,0 +1,27 @@
+{
+  "home": {
+    "title": "SHIFT",
+    "connected": "Connected to Supabase successfully",
+    "not_connected": "No connection to the server",
+    "placeholder_note": "Project scaffold (stage 2) — real app screens will be added in later stages"
+  },
+  "home_screen": {
+    "app_title": "SHIFT",
+    "title": "What are we designing today?",
+    "subtitle": "Choose the room type and what you'd like to change",
+    "room_section": "Room type",
+    "groups_section": "What would you like to design?",
+    "select_room_first": "Choose a room type first",
+    "continue_button": "Continue to materials",
+    "credits_free": "{} free renders left",
+    "credits_subscription": "Active subscription — {} renders left this month",
+    "credits_exhausted": "You've used your quota"
+  },
+  "language": {
+    "select": "Select language",
+    "he": "Hebrew",
+    "ar": "Arabic",
+    "ru": "Russian",
+    "en": "English"
+  }
+}

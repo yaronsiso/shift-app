@@ -38,9 +38,11 @@ class ShiftApp extends StatelessWidget {
     return MaterialApp.router(
       title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark,
+      // שלב 6: עודכן מ-Dark קשיח (שלב 2) לתמיכה מלאה ב-Light+Dark לפי
+      // מכשיר המשתמש, כמו שהוגדר במוקאפים שאושרו.
+      theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.dark,
+      themeMode: ThemeMode.system,
       localizationsDelegates: context.localizationDelegates,
       supportedLocales: context.supportedLocales,
       locale: context.locale,

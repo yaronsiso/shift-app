@@ -1,0 +1,27 @@
+{
+  "home": {
+    "title": "SHIFT",
+    "connected": "מחובר בהצלחה ל-Supabase",
+    "not_connected": "אין חיבור לשרת",
+    "placeholder_note": "שלד פרויקט (שלב 2) — מסכי האפליקציה האמיתיים יתווספו בשלבים הבאים"
+  },
+  "home_screen": {
+    "app_title": "SHIFT",
+    "title": "מה מעצבים היום?",
+    "subtitle": "בחר את סוג החדר ומה תרצה לשנות בו",
+    "room_section": "סוג החדר",
+    "groups_section": "מה תרצה לעצב?",
+    "select_room_first": "קודם בוחרים סוג חדר",
+    "continue_button": "המשך לבחירת חומרים",
+    "credits_free": "{} הדמיות חינם נותרו",
+    "credits_subscription": "מנוי פעיל — {} הדמיות נותרו החודש",
+    "credits_exhausted": "המכסה נגמרה"
+  },
+  "language": {
+    "select": "בחר שפה",
+    "he": "עברית",
+    "ar": "ערבית",
+    "ru": "רוסית",
+    "en": "אנגלית"
+  }
+}
