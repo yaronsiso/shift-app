@@ -1,3 +1,9 @@
+#!/bin/bash
+set -e
+cd /workspaces/shift-app/shift_app
+
+mkdir -p lib
+cat > lib/main.dart << 'DARTEOF'
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -64,3 +70,23 @@ class ShiftApp extends StatelessWidget {
     );
   }
 }
+DARTEOF
+
+echo "== main.dart עודכן. מריץ flutter analyze לוודא שהכל תקין =="
+if [ -f "$HOME/flutter/bin/flutter" ]; then
+  export PATH="$HOME/flutter/bin:$PATH"
+fi
+flutter analyze
+
+echo ""
+echo "== בונה APK debug מחדש =="
+flutter build apk --debug
+
+echo ""
+echo "=================================================="
+echo "✅ סיום! קובץ ההתקנה החדש מוכן:"
+ls -la build/app/outputs/flutter-apk/app-debug.apk
+cp build/app/outputs/flutter-apk/app-debug.apk SHIFT_APK_TO_INSTALL.apk
+echo "עותק נוסף גם כאן (קל יותר למצוא ב-Explorer):"
+echo "shift_app/SHIFT_APK_TO_INSTALL.apk"
+echo "=================================================="
