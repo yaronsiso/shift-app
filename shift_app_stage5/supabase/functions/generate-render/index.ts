@@ -149,6 +149,7 @@ Deno.serve(async (req) => {
 
   try {
     // --- 3+4. עיבוד הערות ובניית הפרומפט --------------------------------
+    console.log(`[${userId}] שלב 1: מתחיל עיבוד הערות ובניית פרומפט`);
     let job;
     try {
       const resolved = await resolveFreeTextNotes(
@@ -163,6 +164,7 @@ Deno.serve(async (req) => {
       }
       throw e; // שגיאה לא צפויה — תיתפס למטה.
     }
+    console.log(`[${userId}] שלב 2: פרומפט נבנה בהצלחה`);
 
     // --- 5. צריכת קרדיט (אטומית) -----------------------------------------
     const { data: creditRows, error: creditErr } = await supabase
@@ -171,6 +173,7 @@ Deno.serve(async (req) => {
     if (creditErr) {
       throw new Error(`consume_render_credit failed: ${creditErr.message}`);
     }
+    console.log(`[${userId}] שלב 3: קרדיט נבדק/נצרך`);
 
     const credit = Array.isArray(creditRows) ? creditRows[0] : creditRows;
     if (!credit?.allowed) {
@@ -204,8 +207,10 @@ Deno.serve(async (req) => {
       throw new Error(`render insert failed: ${insErr?.message}`);
     }
     renderId = renderRow.id as string;
+    console.log(`[${userId}] שלב 4: רשומת renders נוצרה, id=${renderId}`);
 
     const fail = async (code: string, detail?: string, status = 502) => {
+      console.log(`[${userId}] נכשל בקוד ${code}: ${detail}`);
       await supabase.from("renders")
         .update({ status: "failed", error_message: detail ?? code })
         .eq("id", renderId);
@@ -217,6 +222,7 @@ Deno.serve(async (req) => {
     // --- 6. קריאה ל-Replicate --------------------------------------------
     // כתובת חתומה וזמנית לתמונת המקור, כדי ש-Replicate יוכל להוריד אותה
     // מבלי שה-bucket יהיה ציבורי.
+    console.log(`[${userId}] שלב 5: יוצר קישור חתום לתמונה`);
     const { data: signed, error: signErr } = await supabase.storage
       .from("renders")
       .createSignedUrl(body.beforeImagePath, 600);
@@ -224,9 +230,11 @@ Deno.serve(async (req) => {
     if (signErr || !signed?.signedUrl) {
       return await fail("image_url_failed", String(signErr), 500);
     }
+    console.log(`[${userId}] שלב 6: קישור חתום נוצר בהצלחה`);
 
     let prediction;
     try {
+      console.log(`[${userId}] שלב 7: שולח בקשה ל-Replicate...`);
       const res = await fetch("https://api.replicate.com/v1/predictions", {
         method: "POST",
         headers: {
@@ -249,10 +257,12 @@ Deno.serve(async (req) => {
         }),
       });
 
+      console.log(`[${userId}] שלב 8: קיבל תשובה מ-Replicate, ok=${res.ok}, status=${res.status}`);
       if (!res.ok) {
         return await fail("replicate_error", await res.text());
       }
       prediction = await res.json();
+      console.log(`[${userId}] שלב 9: JSON נפרס, prediction.status=${prediction?.status}`);
     } catch (e) {
       return await fail("replicate_unreachable", String(e));
     }
