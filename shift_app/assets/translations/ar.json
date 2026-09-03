@@ -74,6 +74,26 @@
     "milestone_missing_hint": "يسعدنا تحديث النظام — ما الذي ينقصك؟",
     "milestone_send": "إرسال"
   },
+  "coupon_screen": {
+    "app_title": "رمز الكوبون",
+    "title": "هل لديك رمز كوبون؟",
+    "subtitle": "أدخل الرمز الذي حصلت عليه لترى إذا كان صالحاً",
+    "field_hint": "مثال: DANI-GIFT-1M",
+    "redeem_button": "استخدام الرمز",
+    "success_granted_title": "مبروك!",
+    "success_granted_body": "تم استخدام الرمز بنجاح. اشتراكك ({}) ساري حتى {}.",
+    "success_tracked": "تم تسجيل الرمز بنجاح، شكراً لك!",
+    "error_not_found": "رمز الكوبون غير موجود. تحقق من الإدخال وحاول مرة أخرى.",
+    "error_inactive": "رمز الكوبون هذا لم يعد نشطاً.",
+    "error_expired": "انتهت صلاحية هذا الرمز.",
+    "error_limit": "تم استخدام هذا الرمز بالكامل بالفعل.",
+    "error_already_redeemed": "لقد استخدمت هذا الرمز من قبل.",
+    "error_generic": "حدث خطأ غير متوقع. حاول مرة أخرى.",
+    "tier_monthly": "شهري",
+    "tier_annual": "سنوي",
+    "tier_annual_premium": "سنوي مميز",
+    "entry_tooltip": "لدي رمز كوبون"
+  },
   "language": {
     "select": "اختر اللغة",
     "he": "العبرية",

@@ -74,6 +74,26 @@
     "milestone_missing_hint": "We'd love to know — what's missing?",
     "milestone_send": "Send"
   },
+  "coupon_screen": {
+    "app_title": "Coupon Code",
+    "title": "Have a coupon code?",
+    "subtitle": "Enter your code below to see if it's valid",
+    "field_hint": "e.g. DANI-GIFT-1M",
+    "redeem_button": "Redeem code",
+    "success_granted_title": "Congratulations!",
+    "success_granted_body": "Your code was redeemed successfully. Your {} subscription is active until {}.",
+    "success_tracked": "Your code was recorded — thank you!",
+    "error_not_found": "Coupon code not found. Check the spelling and try again.",
+    "error_inactive": "This coupon code is no longer active.",
+    "error_expired": "This coupon code has expired.",
+    "error_limit": "This coupon code has already been fully used.",
+    "error_already_redeemed": "You've already redeemed this code.",
+    "error_generic": "Something went wrong. Please try again.",
+    "tier_monthly": "Monthly",
+    "tier_annual": "Annual",
+    "tier_annual_premium": "Annual Premium",
+    "entry_tooltip": "I have a coupon code"
+  },
   "language": {
     "select": "Select language",
     "he": "Hebrew",

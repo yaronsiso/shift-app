@@ -74,6 +74,26 @@
     "milestone_missing_hint": "נשמח לעדכן את המערכת — מה חסר לך?",
     "milestone_send": "שליחה"
   },
+  "coupon_screen": {
+    "app_title": "קוד קופון",
+    "title": "יש לך קוד קופון?",
+    "subtitle": "הזן את הקוד שקיבלת ותראה מיד אם הוא בתוקף",
+    "field_hint": "לדוגמה: DANI-GIFT-1M",
+    "redeem_button": "מימוש הקוד",
+    "success_granted_title": "מזל טוב!",
+    "success_granted_body": "הקוד מומש בהצלחה. המנוי שלך ({}) בתוקף עד {}.",
+    "success_tracked": "הקוד נרשם בהצלחה, תודה!",
+    "error_not_found": "קוד קופון לא נמצא. בדוק שהקלדת נכון ונסה שוב.",
+    "error_inactive": "קוד הקופון הזה כבר לא פעיל.",
+    "error_expired": "תוקף הקוד הזה פג.",
+    "error_limit": "הקוד הזה כבר מוצה במלואו.",
+    "error_already_redeemed": "כבר מימשת את הקוד הזה בעבר.",
+    "error_generic": "קרה משהו לא צפוי. אפשר לנסות שוב.",
+    "tier_monthly": "חודשי",
+    "tier_annual": "שנתי",
+    "tier_annual_premium": "שנתי פרימיום",
+    "entry_tooltip": "יש לי קוד קופון"
+  },
   "language": {
     "select": "בחר שפה",
     "he": "עברית",

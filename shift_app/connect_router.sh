@@ -1,6 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd /workspaces/shift-app/shift_app
+
+mkdir -p lib/core/router
+
+cat > 'lib/core/router/app_router.dart' << 'SHIFTEOF'
 import 'package:go_router/go_router.dart';
 
-import '../../features/coupon/presentation/coupon_screen.dart';
 import '../../features/design_studio/presentation/design_studio_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/processing/presentation/processing_screen.dart';
@@ -53,11 +59,11 @@ class AppRouter {
         name: 'result',
         builder: (context, state) => const ResultScreen(),
       ),
-      GoRoute(
-        path: AppRoutes.coupon,
-        name: 'coupon',
-        builder: (context, state) => const CouponScreen(),
-      ),
     ],
   );
 }
+SHIFTEOF
+
+echo ""
+echo "✅ app_router.dart עודכן בהצלחה — כל 5 המסכים מחוברים."
+echo "עכשיו מריצים flutter analyze כדי לוודא שהכל מתקמפל נקי."

@@ -37,6 +37,11 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text('home_screen.app_title'.tr()),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.confirmation_number_outlined),
+            tooltip: 'coupon_screen.entry_tooltip'.tr(),
+            onPressed: () => context.push(AppRoutes.coupon),
+          ),
           PopupMenuButton<Locale>(
             icon: const Icon(Icons.language),
             tooltip: 'language.select'.tr(),

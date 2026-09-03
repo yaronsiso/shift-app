@@ -9,4 +9,8 @@ class AppRoutes {
   static const uploadPhoto = '/upload-photo';
   static const processing = '/processing';
   static const result = '/result';
+
+  /// מסך הזנת קוד קופון (סשן 7) — נגיש מתפריט מסך הבית, לא חלק מזרימת
+  /// ההדמיה הליניארית של 5 המסכים למעלה.
+  static const coupon = '/coupon';
 }
