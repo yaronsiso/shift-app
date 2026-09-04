@@ -15,6 +15,11 @@ sealed class NoteModifier {
 
   /// אילוץ באנגלית שייכנס לפרומפט הסופי.
   String constraintEn(MaterialItem item);
+
+  /// סשן 10: סריאליזציה ל-JSON, לשמירת [RenderFlowState] בדיסק (ראו
+  /// render_flow_notifier.dart) — כדי שבחירות המשתמש (כולל השינויים
+  /// שהוא ביקש) ישרדו הריגת תהליך ברקע ולא רק קריסה של המסך.
+  Map<String, dynamic> toJson();
 }
 
 /// "רק עד גובה מסוים" — הנפוץ ביותר. חיפוי קיר עד גובה מטר, ריצוף
@@ -47,6 +52,14 @@ class HeightLimit extends NoteModifier {
         ? base
         : '$base, and $aboveTreatmentEn above that line';
   }
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'heightLimit',
+        'centimeters': centimeters,
+        'aboveTreatmentEn': aboveTreatmentEn,
+        'aboveTreatmentHe': aboveTreatmentHe,
+      };
 }
 
 /// "לעצור X ס"מ לפני הקצה" — בדיוק המקרה שירון תיאר: ריצוף שנעצר
@@ -67,6 +80,13 @@ class StopShortOfEdge extends NoteModifier {
   String constraintEn(MaterialItem item) =>
       'stopping $centimeters cm short of ${edge.labelEn}, '
       'leaving a clean uncovered margin along that edge';
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'stopShortOfEdge',
+        'centimeters': centimeters,
+        'edge': edge.name,
+      };
 }
 
 enum EdgeReference {
@@ -91,6 +111,12 @@ class PartialCoverage extends NoteModifier {
   @override
   String constraintEn(MaterialItem item) =>
       'applied ${scope.labelEn} only, leaving the remaining surfaces unchanged';
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'partialCoverage',
+        'scope': scope.name,
+      };
 }
 
 enum CoverageScope {
@@ -115,6 +141,12 @@ class LayoutDirection extends NoteModifier {
 
   @override
   String constraintEn(MaterialItem item) => 'laid ${direction.labelEn}';
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'layoutDirection',
+        'direction': direction.name,
+      };
 }
 
 enum DirectionOption {
@@ -158,5 +190,50 @@ class FreeTextNote extends NoteModifier {
       );
     }
     return resolvedEn!.trim();
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'freeTextNote',
+        'rawText': rawText,
+        'resolvedEn': resolvedEn,
+      };
+}
+
+/// סשן 10: שחזור [NoteModifier] מ-JSON ששמר [NoteModifier.toJson].
+/// מחזיר `null` (בלי לזרוק חריגה) על כל קלט לא תקין/לא מוכר — שחזור
+/// מצב שנכשל בשקט תמיד עדיף על קריסה, ראו render_flow_state.dart.
+NoteModifier? noteModifierTryFromJson(Map<String, dynamic> json) {
+  try {
+    switch (json['type'] as String?) {
+      case 'heightLimit':
+        return HeightLimit(
+          json['centimeters'] as int,
+          aboveTreatmentEn: json['aboveTreatmentEn'] as String?,
+          aboveTreatmentHe: json['aboveTreatmentHe'] as String?,
+        );
+      case 'stopShortOfEdge':
+        return StopShortOfEdge(
+          json['centimeters'] as int,
+          edge: EdgeReference.values.byName(json['edge'] as String),
+        );
+      case 'partialCoverage':
+        return PartialCoverage(
+          CoverageScope.values.byName(json['scope'] as String),
+        );
+      case 'layoutDirection':
+        return LayoutDirection(
+          DirectionOption.values.byName(json['direction'] as String),
+        );
+      case 'freeTextNote':
+        return FreeTextNote(
+          json['rawText'] as String,
+          resolvedEn: json['resolvedEn'] as String?,
+        );
+      default:
+        return null;
+    }
+  } catch (_) {
+    return null;
   }
 }

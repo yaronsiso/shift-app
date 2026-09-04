@@ -27,6 +27,13 @@ class MaterialItem {
   final String promptEn;
 
   /// קודי סוגי החדרים שבהם הפריט רלוונטי (living, bedroom, mamad, ...).
+  ///
+  /// **סשן 10 — השדה הזה כבר לא אוכף שום הגבלה בפועל.** לפי בקשתו
+  /// המפורשת והחוזרת של ירון ("לא צריך להיות מתוייג כלום... הכל צריך
+  /// להיות פתוח לו... בכל חדר וחדר לא להגביל אנשים") — [isAvailableIn]
+  /// תמיד מחזיר `true` כעת, ללא קשר לרשימה כאן. השדה נשאר במודל כתיעוד
+  /// היסטורי/עתידי בלבד (מאיזה הקשר פריט "שייך" במקור), אך אינו משפיע
+  /// על מה שהלקוח רואה במסך החומרים.
   final List<String> roomTypes;
 
   /// true = המודל נדרש להוסיף מבנה שלא קיים בתמונה (תקרת גבס, נישה,
@@ -49,5 +56,9 @@ class MaterialItem {
   });
 
   /// האם הפריט רלוונטי לסוג החדר הנתון.
-  bool isAvailableIn(String roomTypeCode) => roomTypes.contains(roomTypeCode);
+  ///
+  /// **סשן 10:** תמיד `true` — ראו התיעוד המלא ב-[roomTypes] למעלה.
+  /// הפרמטר נשאר כדי לא לשנות את החתימה בכל נקודות הקריאה
+  /// (category_group.dart, prompt_engine.dart) — כרגע הוא פשוט לא נבדק.
+  bool isAvailableIn(String roomTypeCode) => true;
 }

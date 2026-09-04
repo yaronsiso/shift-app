@@ -63,4 +63,41 @@ const List<RoomType> kRoomTypes = [
     labelEn: 'Yard & garden',
     isExterior: true,
   ),
+  // ---------------- חדרים נוספים (סשן 10, בקשת ירון) ----------------
+  RoomType(
+    code: 'dining',
+    labelHe: 'פינת אוכל / חדר אוכל',
+    labelEn: 'Dining area',
+    isExterior: false,
+  ),
+  RoomType(
+    code: 'hallway',
+    labelHe: 'מסדרון',
+    labelEn: 'Hallway',
+    isExterior: false,
+  ),
+  RoomType(
+    code: 'wc',
+    labelHe: 'שירותים',
+    labelEn: 'Powder room (WC)',
+    isExterior: false,
+  ),
+  RoomType(
+    code: 'closet_room',
+    labelHe: 'חדר ארונות',
+    labelEn: 'Walk-in closet',
+    isExterior: false,
+  ),
+  RoomType(
+    code: 'rental_unit',
+    labelHe: 'יחידת דיור',
+    labelEn: 'Rental unit / studio',
+    isExterior: false,
+  ),
+  RoomType(
+    code: 'whole_house',
+    labelHe: 'הבית כולו',
+    labelEn: 'Whole house',
+    isExterior: false,
+  ),
 ];

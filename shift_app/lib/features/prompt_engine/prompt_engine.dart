@@ -31,6 +31,39 @@ class MaterialSelection {
     final mods = modifiers.map((m) => m.describeHe(item)).join(', ');
     return '${item.labelHe} — $mods';
   }
+
+  /// סשן 10: סריאליזציה ל-JSON לשמירת [RenderFlowState] בדיסק — ראו
+  /// render_flow_notifier.dart. שומרים רק את מזהה הפריט (לא את כל
+  /// השדות שלו) — הוא משוחזר בזמן הטעינה מתוך [kMaterials], מקור
+  /// האמת העדכני, כדי שעדכון עתידי של המילון לא ישאיר עותקים ישנים.
+  Map<String, dynamic> toJson() => {
+        'itemId': item.id,
+        'modifiers': modifiers.map((m) => m.toJson()).toList(),
+      };
+
+  /// שחזור מ-JSON ששמר [toJson]. מחזיר `null` (בלי לזרוק חריגה) אם
+  /// מזהה הפריט לא נמצא ב-[kMaterials] (למשל המילון התעדכן מאז השמירה)
+  /// או אם ה-JSON פגום מכל סיבה — שחזור שנכשל בשקט תמיד עדיף על קריסה.
+  static MaterialSelection? tryFromJson(Map<String, dynamic> json) {
+    try {
+      final itemId = json['itemId'] as String?;
+      if (itemId == null) return null;
+      final item = PromptEngine.itemById(itemId);
+      if (item == null) return null;
+      final modifiers = <NoteModifier>[];
+      final modsJson = json['modifiers'];
+      if (modsJson is List) {
+        for (final raw in modsJson) {
+          if (raw is! Map) continue;
+          final mod = noteModifierTryFromJson(Map<String, dynamic>.from(raw));
+          if (mod != null) modifiers.add(mod);
+        }
+      }
+      return MaterialSelection(item: item, modifiers: modifiers);
+    } catch (_) {
+      return null;
+    }
+  }
 }
 
 /// התוצר של המנוע — כל מה שנדרש כדי לקרוא ל-Replicate.

@@ -24,6 +24,12 @@ import '../../render_flow/data/render_flow_notifier.dart';
 /// האפליקציה נסגרה/נהרגה ברקע באמצע) — ואם כן, לחזור אוטומטית למסך
 /// העיבוד כדי להמשיך לעקוב אחריה במקום לאבד אותה. גם נוסף אייקון גלריה
 /// בסרגל העליון, לצד אייקון הקופון.
+///
+/// **סשן 10:** נוסף בדיוק אותו רעיון עבור מסכים 1-3 (לפני שההדמיה
+/// בכלל נשלחה): אם `RenderFlowNotifier` שיחזר מהדיסק התקדמות שנשארה
+/// תקועה (למשל כי המצלמה הרגה את התהליך אחרי בחירת חדר + חומרים —
+/// ראו render_flow_notifier.dart), המשתמש מנווט אוטומטית בחזרה למסך
+/// הנכון במקום להישאר במסך בית שנראה ריק וגורם לו לחשוב שהכל אבד.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -51,11 +57,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           AppRoutes.processing,
           extra: ProcessingResumeArgs(renderId: pending.renderId),
         );
+        return;
       }
     } catch (_) {
       // לא קריטי — אם הבדיקה נכשלת (למשל רשת), המשתמש פשוט לא יופנה
       // אוטומטית הפעם. ההדמיה עדיין בטוחה בשרת, ותופיע בגלריה שלו כשהיא
       // תסתיים, ותנוסה שוב הבדיקה הזו בפעם הבאה שהוא פותח את מסך הבית.
+    }
+    // אין הדמיה תקועה בשרת — עכשיו בודקים אם יש התקדמות מקומית (מסכים
+    // 1-3, לפני השליחה) ששוחזרה מדיסק ועדיין לא טופלה (סשן 10).
+    await _checkRecoveredFlow();
+  }
+
+  /// ראו התיעוד המלא ב-`RenderFlowNotifier.consumeColdStartRecovery`.
+  Future<void> _checkRecoveredFlow() async {
+    final notifier = ref.read(renderFlowProvider.notifier);
+    final shouldResume = await notifier.consumeColdStartRecovery();
+    if (!shouldResume || !mounted) return;
+
+    final flow = ref.read(renderFlowProvider);
+    if (flow.hasSelections) {
+      // כבר יש חדר + קבוצות + לפחות פריט אחד נבחר — ממשיכים למסך העלאת
+      // התמונה (גם אם כבר יש תמונה שוחזרה, המשתמש עדיין צריך ללחוץ
+      // SHIFT בעצמו; לא שולחים הדמיה אוטומטית בלי אישורו).
+      context.push(AppRoutes.uploadPhoto);
+    } else {
+      // יש חדר + קבוצות אבל עוד לא נבחרו פריטים — ממשיכים למסך החומרים.
+      context.push(AppRoutes.designStudio);
     }
   }
 

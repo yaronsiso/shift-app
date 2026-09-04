@@ -49,4 +49,48 @@ class RenderFlowState {
       localImagePath: localImagePath ?? this.localImagePath,
     );
   }
+
+  /// סשן 10 — תיקון קריטי (חוזר למסך בית ריק אחרי צילום): סריאליזציה
+  /// ל-JSON פשוט (Map/List/String/bool בלבד) שאפשר לקודד עם `jsonEncode`
+  /// ולשמור ב-SharedPreferences. ראו render_flow_notifier.dart להסבר
+  /// המלא על הבאג ועל התיקון.
+  Map<String, dynamic> toJson() {
+    return {
+      'roomTypeCode': roomTypeCode,
+      'selectedGroupCodes': selectedGroupCodes.toList(),
+      'selections': selections.values.map((s) => s.toJson()).toList(),
+      'localImagePath': localImagePath,
+    };
+  }
+
+  /// שחזור ממה ש-[toJson] שמר. **סלחני מאוד בכוונה:** כל שדה חסר/פגום
+  /// גורם להתעלמות שקטה ממנו (במקום זריקת חריגה) — המטרה של כל המנגנון
+  /// הזה היא בדיוק למנוע איבוד מידע וקריסה, אז שגיאת שחזור לא אמורה
+  /// בעצמה לגרום לתקלה. פריט ששוחזר עם מזהה שכבר לא קיים במילון (למשל
+  /// אחרי עדכון גרסה) פשוט נשמט על ידי [MaterialSelection.tryFromJson].
+  static RenderFlowState fromJson(Map<String, dynamic> json) {
+    try {
+      final selectionsJson = json['selections'];
+      final selections = <String, MaterialSelection>{};
+      if (selectionsJson is List) {
+        for (final raw in selectionsJson) {
+          if (raw is! Map) continue;
+          final sel =
+              MaterialSelection.tryFromJson(Map<String, dynamic>.from(raw));
+          if (sel != null) selections[sel.item.id] = sel;
+        }
+      }
+      final groupsJson = json['selectedGroupCodes'];
+      return RenderFlowState(
+        roomTypeCode: json['roomTypeCode'] as String?,
+        selectedGroupCodes: groupsJson is List
+            ? groupsJson.map((e) => e.toString()).toSet()
+            : const {},
+        selections: selections,
+        localImagePath: json['localImagePath'] as String?,
+      );
+    } catch (_) {
+      return const RenderFlowState();
+    }
+  }
 }

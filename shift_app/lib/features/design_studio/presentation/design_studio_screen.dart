@@ -14,11 +14,21 @@ import '../../marquee/data/marquee_repository.dart';
 import '../../render_flow/data/render_flow_notifier.dart';
 
 /// מסך 2/5 — "בחירת חומרים". רק קבוצות-העל שנבחרו במסך הבית מופיעות
-/// כטאבים; לכל טאב — רשת פריטים מהמילון (מסוננים לפי סוג החדר). לכל
+/// כטאבים; לכל טאב — רשימת פריטים מהמילון, מקובצת לפי **קטגוריה ← תת-
+/// קטגוריה** (סשן 10 — ראו למטה), לא רשת שטוחה אחת מעורבבת. לכל
 /// פריט **נבחר** אפשר להוסיף הערה חופשית (`FreeTextNote`) — מתועדת כמו
 /// שהיא, ומעובדת לאילוץ באנגלית בשרת רק בזמן היצירה עצמה
 /// (note_resolver.ts, שלב 5). **אין כאן צילום תמונה** — זה עבר במפורש
 /// למסך נפרד לפי בקשת ירון (ראו home_screen.dart).
+///
+/// **סשן 10 — שני שינויים לפי משוב ירון:**
+/// 1. הפריטים הזמינים בכל קבוצת-על **כבר לא מסוננים לפי סוג החדר** —
+///    `MaterialItem.isAvailableIn` תמיד מחזירה `true` כעת (ראו
+///    material_item.dart). "לא צריך להיות מתוייג כלום... הכל צריך
+///    להיות פתוח לו... בכל חדר וחדר לא להגביל אנשים."
+/// 2. הרשת השטוחה הוחלפה בחלוקה היררכית קטגוריה ← תת-קטגוריה, עם
+///    כותרת לכל רמה — למשל בתוך "רהיטים": "מיטות", "מראות", "יחידת
+///    טלוויזיה" וכו' כל אחת בנפרד, ולא כל הרהיטים מעורבבים ברשת אחת.
 class DesignStudioScreen extends ConsumerStatefulWidget {
   const DesignStudioScreen({super.key});
 
@@ -66,6 +76,7 @@ class _DesignStudioScreenState extends ConsumerState<DesignStudioScreen> {
 
     final items =
         CategoryGroups.itemsForRoomAndGroup(roomType, activeGroup.code);
+    final sections = _groupByCategoryAndSubcategory(items);
 
     return Scaffold(
       appBar: AppBar(title: Text('design_studio_screen.app_title'.tr())),
@@ -123,37 +134,27 @@ class _DesignStudioScreenState extends ConsumerState<DesignStudioScreen> {
             ),
             const SizedBox(height: 12),
             Expanded(
-              child: items.isEmpty
+              child: sections.isEmpty
                   ? Center(
                       child: Text(
                         'design_studio_screen.no_items'.tr(),
                         style: TextStyle(color: context.palette.inkFaint),
                       ),
                     )
-                  : GridView.builder(
+                  : ListView.builder(
                       padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        mainAxisSpacing: 12,
-                        crossAxisSpacing: 12,
-                        childAspectRatio: 0.92,
-                      ),
-                      itemCount: items.length,
+                      itemCount: sections.length,
                       itemBuilder: (context, i) {
-                        final item = items[i];
-                        final selected = notifier.isSelected(item.id);
-                        final hasNote = selected &&
-                            (flow.selections[item.id]?.hasModifiers ?? false);
-                        return _MaterialCard(
-                          item: item,
-                          selected: selected,
-                          hasNote: hasNote,
+                        final section = sections[i];
+                        return _CategorySection(
+                          section: section,
                           locale: locale,
-                          onTap: () => notifier.toggleItem(item),
-                          onNoteTap: selected
-                              ? () => _editNote(context, ref, item, locale)
-                              : null,
+                          notifier: notifier,
+                          isSelected: notifier.isSelected,
+                          hasNoteFor: (id) =>
+                              flow.selections[id]?.hasModifiers ?? false,
+                          onNoteTap: (item) =>
+                              _editNote(context, ref, item, locale),
                         );
                       },
                     ),
@@ -174,6 +175,36 @@ class _DesignStudioScreenState extends ConsumerState<DesignStudioScreen> {
         ),
       ),
     );
+  }
+
+  /// **סשן 10:** מקבץ את הפריטים הזמינים לפי `category` ואז לפי
+  /// `subcategory` בתוכה, בסדר ההופעה המקורי במילון (לא ממוין מחדש) —
+  /// כך שהסדר הקיים והמכוון של המילון (claude/08) נשמר, רק מוצג
+  /// בצורה היררכית ברורה במקום רשת שטוחה אחת מעורבבת. `Map` הרגיל של
+  /// Dart שומר על סדר הכנסה, אז מספיק לעבור על `items` פעם אחת.
+  List<_CategoryBlock> _groupByCategoryAndSubcategory(
+    List<MaterialItem> items,
+  ) {
+    final byCategory = <String, Map<String, List<MaterialItem>>>{};
+    for (final item in items) {
+      final bySub = byCategory.putIfAbsent(item.category, () => {});
+      bySub.putIfAbsent(item.subcategory, () => []).add(item);
+    }
+    return byCategory.entries
+        .map(
+          (catEntry) => _CategoryBlock(
+            category: catEntry.key,
+            subcategories: catEntry.value.entries
+                .map(
+                  (subEntry) => _SubcategoryBlock(
+                    subcategory: subEntry.key,
+                    items: subEntry.value,
+                  ),
+                )
+                .toList(),
+          ),
+        )
+        .toList();
   }
 
   String _subtitle(
@@ -269,6 +300,92 @@ class _DesignStudioScreenState extends ConsumerState<DesignStudioScreen> {
   }
 }
 
+/// קטגוריה מפורטת אחת (למשל "ריהוט") וכל תתי-הקטגוריות שבתוכה, בהקשר
+/// קבוצת-העל הפעילה (סשן 10).
+class _CategoryBlock {
+  final String category;
+  final List<_SubcategoryBlock> subcategories;
+  const _CategoryBlock({required this.category, required this.subcategories});
+}
+
+/// תת-קטגוריה אחת (למשל "מיטות") וכל הפריטים שבתוכה.
+class _SubcategoryBlock {
+  final String subcategory;
+  final List<MaterialItem> items;
+  const _SubcategoryBlock({required this.subcategory, required this.items});
+}
+
+/// כותרת קטגוריה + כל תתי-הקטגוריות שלה, כל אחת עם כותרת-משנה ורשת
+/// פריטים משלה. לא גוללת בעצמה — היא חלק מ-`ListView` חיצוני אחד.
+class _CategorySection extends StatelessWidget {
+  final _CategoryBlock section;
+  final String locale;
+  final RenderFlowNotifier notifier;
+  final bool Function(String itemId) isSelected;
+  final bool Function(String itemId) hasNoteFor;
+  final void Function(MaterialItem item) onNoteTap;
+
+  const _CategorySection({
+    required this.section,
+    required this.locale,
+    required this.notifier,
+    required this.isSelected,
+    required this.hasNoteFor,
+    required this.onNoteTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        Text(
+          section.category,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+        ),
+        for (final sub in section.subcategories) ...[
+          const SizedBox(height: 10),
+          Text(
+            sub.subcategory,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: context.palette.inkSoft,
+                ),
+          ),
+          const SizedBox(height: 8),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 0.92,
+            ),
+            itemCount: sub.items.length,
+            itemBuilder: (context, i) {
+              final item = sub.items[i];
+              final selected = isSelected(item.id);
+              final hasNote = selected && hasNoteFor(item.id);
+              return _MaterialCard(
+                item: item,
+                selected: selected,
+                hasNote: hasNote,
+                locale: locale,
+                onTap: () => notifier.toggleItem(item),
+                onNoteTap: selected ? () => onNoteTap(item) : null,
+              );
+            },
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 class _MaterialCard extends StatelessWidget {
   final MaterialItem item;
   final bool selected;
@@ -329,12 +446,6 @@ class _MaterialCard extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
-                ),
-                Text(
-                  item.subcategory,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 11, color: palette.inkFaint),
                 ),
               ],
             ),

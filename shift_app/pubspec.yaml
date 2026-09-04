@@ -25,6 +25,11 @@ dependencies:
   image_picker: ^1.1.2
   share_plus: ^13.3.0
 
+  # סשן 10: שמירת התקדמות הזרימה (render_flow) לדיסק, כדי שהיא תשרוד
+  # הריגת תהליך ברקע ע"י מערכת ההפעלה (למשל בזמן שהמצלמה פתוחה) —
+  # ראו render_flow_notifier.dart.
+  shared_preferences: ^2.3.2
+
   cupertino_icons: ^1.0.8
 
 dev_dependencies:
