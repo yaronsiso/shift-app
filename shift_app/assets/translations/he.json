@@ -41,7 +41,12 @@
   "processing_screen": {
     "app_title": "SHIFT",
     "title": "יוצרים את ההדמיה שלך",
-    "eta_note": "לוקח בדרך כלל עד כ-30 שניות — נא לא לצאת מהמסך",
+    "eta_note": "לוקח בדרך כלל עד כ-30 שניות",
+    "leave_ok_note": "אפשר לצאת מהמסך בלי חשש — ההדמיה תמשיך ברקע, ותופיע כאן ובגלריה שלך ברגע שתהיה מוכנה.",
+    "resuming_note": "ההדמיה הקודמת שלך עדיין הייתה בעיבוד — ממשיכים לעקוב אחריה בדיוק מאיפה שהפסקנו.",
+    "still_working_title": "עדיין עובדים על זה",
+    "still_working_body": "זה לוקח קצת יותר זמן מהרגיל, אבל שום דבר לא אבד. אפשר לחזור למסך הבית — ההדמיה תופיע שם אוטומטית ברגע שתהיה מוכנה, וגם בגלריה שלך.",
+    "still_working_wait_button": "להמשיך להמתין",
     "quota_title": "נגמרה המכסה",
     "quota_body": "אין לך כרגע הדמיות זמינות. אפשר לשדרג למנוי כדי להמשיך.",
     "quota_button": "חזרה למסך הבית",
@@ -57,6 +62,7 @@
     "save_button": "שמירה ב-HD",
     "share_button": "שיתוף בוואטסאפ",
     "design_again_button": "עיצוב נוסף לחדר הזה",
+    "view_gallery_button": "לצפייה בכל ההדמיות שלי",
     "image_error": "לא הצלחנו לטעון את התמונה",
     "retry_button": "נסה שוב",
     "share_error": "לא הצלחנו לשתף את התמונה",
@@ -93,6 +99,21 @@
     "tier_annual": "שנתי",
     "tier_annual_premium": "שנתי פרימיום",
     "entry_tooltip": "יש לי קוד קופון"
+  },
+  "gallery_screen": {
+    "app_title": "הגלריה שלי",
+    "entry_tooltip": "הגלריה שלי",
+    "empty_title": "עדיין אין כאן כלום",
+    "empty_body": "כל הדמיה שתיצור תישמר כאן אוטומטית, כדי שתוכל לחזור אליה בכל זמן.",
+    "load_error": "לא הצלחנו לטעון את הגלריה",
+    "retry_button": "נסה שוב",
+    "share_button": "שיתוף",
+    "delete_button": "מחיקה",
+    "delete_confirm_title": "למחוק את התמונה?",
+    "delete_confirm_body": "הפעולה לא הפיכה — התמונה תימחק לצמיתות מהגלריה שלך.",
+    "delete_confirm_yes": "מחיקה",
+    "delete_confirm_cancel": "ביטול",
+    "delete_error": "המחיקה נכשלה, נסה שוב"
   },
   "language": {
     "select": "בחר שפה",

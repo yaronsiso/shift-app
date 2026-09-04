@@ -17,11 +17,50 @@ import '../../render_flow/data/render_flow_notifier.dart';
 /// תמונה** — זה עבר במפורש למסך נפרד (upload_photo_screen, מסך 3) לפי
 /// בקשת ירון (סשן 6): "במסך הבית קודם כל קטגוריות... ולאחר שהלקוח בוחר
 /// את אותם הקטגוריות צריך להופיע לו צלם תמונה".
-class HomeScreen extends ConsumerWidget {
+///
+/// **סשן 9:** הפך מ-`ConsumerWidget` ל-`ConsumerStatefulWidget` כדי
+/// שיוכל לבדוק, פעם אחת בכל פעם שהמסך נבנה (כולל פתיחה קרה של
+/// האפליקציה), אם למשתמש יש הדמיה שנשארה תקועה ב-processing (למשל כי
+/// האפליקציה נסגרה/נהרגה ברקע באמצע) — ואם כן, לחזור אוטומטית למסך
+/// העיבוד כדי להמשיך לעקוב אחריה במקום לאבד אותה. גם נוסף אייקון גלריה
+/// בסרגל העליון, לצד אייקון הקופון.
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  bool _checkedPendingRender = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkPendingRender());
+  }
+
+  Future<void> _checkPendingRender() async {
+    if (_checkedPendingRender) return;
+    _checkedPendingRender = true;
+    try {
+      final pending =
+          await ref.read(renderServiceProvider).findPendingRender();
+      if (pending != null && mounted) {
+        context.push(
+          AppRoutes.processing,
+          extra: ProcessingResumeArgs(renderId: pending.renderId),
+        );
+      }
+    } catch (_) {
+      // לא קריטי — אם הבדיקה נכשלת (למשל רשת), המשתמש פשוט לא יופנה
+      // אוטומטית הפעם. ההדמיה עדיין בטוחה בשרת, ותופיע בגלריה שלו כשהיא
+      // תסתיים, ותנוסה שוב הבדיקה הזו בפעם הבאה שהוא פותח את מסך הבית.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final flow = ref.watch(renderFlowProvider);
     final notifier = ref.read(renderFlowProvider.notifier);
     final eligibility = ref.watch(renderEligibilityProvider);
@@ -37,6 +76,11 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text('home_screen.app_title'.tr()),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.photo_library_outlined),
+            tooltip: 'gallery_screen.entry_tooltip'.tr(),
+            onPressed: () => context.push(AppRoutes.gallery),
+          ),
           IconButton(
             icon: const Icon(Icons.confirmation_number_outlined),
             tooltip: 'coupon_screen.entry_tooltip'.tr(),

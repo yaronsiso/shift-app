@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/coupon/presentation/coupon_screen.dart';
 import '../../features/design_studio/presentation/design_studio_screen.dart';
+import '../../features/gallery/presentation/gallery_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/processing/presentation/processing_screen.dart';
 import '../../features/result/presentation/result_screen.dart';
@@ -22,6 +23,9 @@ import 'route_names.dart';
 ///
 /// מסך הבית ה-placeholder (home_placeholder_screen.dart) לא נמחק, רק
 /// הפסיק להיות מיובא — נשאר בפרויקט בלי שימוש, אין בזה נזק.
+///
+/// **סשן 9:** נוסף `AppRoutes.gallery` (הגלריה האישית). מסך העיבוד יכול
+/// גם לקבל `ProcessingResumeArgs` דרך `extra` — ראו route_names.dart.
 class AppRouter {
   AppRouter._();
 
@@ -57,6 +61,11 @@ class AppRouter {
         path: AppRoutes.coupon,
         name: 'coupon',
         builder: (context, state) => const CouponScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.gallery,
+        name: 'gallery',
+        builder: (context, state) => const GalleryScreen(),
       ),
     ],
   );

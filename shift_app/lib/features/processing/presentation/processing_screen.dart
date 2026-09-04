@@ -14,16 +14,55 @@ import '../../render/data/render_service.dart';
 import '../../render_flow/data/render_flow_notifier.dart';
 import '../../result/data/render_result_data.dart';
 
-enum _ProcessingPhase { running, quotaExhausted, failure }
+enum _ProcessingPhase {
+  /// שולחים/מעקבים אחרי הדמיה שעדיין רצה.
+  running,
 
-/// מסך 4/5 — עיבוד ההדמיה בפועל. כאן, ורק כאן, נשלחת הקריאה האמיתית:
-/// העלאת התמונה המקומית ל-Storage (RenderService.uploadBeforeImage) ואז
-/// יצירת ההדמיה (RenderService.generate).
+  /// אין קרדיטים — נתגלה מיד עם ההגשה, לפני שנוצר renderId.
+  quotaExhausted,
+
+  /// כשל מיידי בהגשה עצמה (לפני שנוצר renderId) — בחירות/רשת/שרת.
+  /// מצב הזרימה (`render_flow`) עדיין שלם, אז "נסה שוב" שולח את אותה
+  /// בקשה שוב.
+  submitFailure,
+
+  /// כשל שהתגלה בתשאול (אחרי שכבר היה renderId) — הקרדיט כבר הוחזר
+  /// אוטומטית בשרת. אין "נסה שוב" עם אותן בחירות: הזרימה כבר אופסה
+  /// ברגע שהבקשה הוגשה (ראו ההסבר ב-_run), ובמצב "חידוש אוטומטי" היא
+  /// לא הייתה קיימת מלכתחילה (האפליקציה נפתחה מחדש). המשתמש פשוט בוחר
+  /// שוב מההתחלה.
+  postFailure,
+
+  /// עברו הרבה יותר מ-30 השניות הרגילות בלי תוצאה. שום דבר לא אבד —
+  /// ההדמיה עדיין רצה/ממתינה בשרת — אבל מפסיקים לתשאל באגרסיביות
+  /// ומאפשרים למשתמש לחזור למסך הבית ולבוא לבדוק אחר כך (גם דרך חידוש
+  /// אוטומטי בפעם הבאה שהוא פותח את האפליקציה, וגם דרך הגלריה שלו ברגע
+  /// שההדמיה תסתיים).
+  stillWorking,
+}
+
+/// מסך 4/5 — עיבוד ההדמיה.
+///
+/// **סשן 9 — שינוי ארכיטקטוני מלא:** בעבר המסך היה שולח בקשה אחת ומחכה
+/// לה עד הסוף (18-30 שניות, חיבור פתוח לכל האורך) — וזה מה שגרם לבאג
+/// "קפיצה למסך הבית": מערכת ההפעלה (גם ב-MIUI/פוקו וגם בסמסונג, אושר
+/// בבדיקה אצל שני משתמשים שונים) הורגת את האפליקציה ברקע בזמן ההמתנה,
+/// והתוצאה שהשרת כבר סיים ליצור בהצלחה (מאומת ב-Invocations: 200)
+/// "נופלת על הרצפה" כי אין מי שיציג אותה.
+///
+/// עכשיו הזרימה מפוצלת לשני שלבים: `RenderService.submitRender` שולח
+/// את הבקשה וחוזר **כמעט מיד** עם renderId בלבד (השרת ממשיך לעבד ברקע
+/// אחרי שהוא כבר ענה — ראו ה-Edge Function), ואז המסך **מתשאל**
+/// (`checkStatus`) כל 2 שניות עד שהתוצאה מוכנה. גם אם המסך הזה עצמו
+/// נסגר/נהרס באמצע (המשתמש יצא, או האפליקציה נהרגה) — שום דבר לא אבד:
+/// כשהמשתמש חוזר למסך הבית, `HomeScreen` מגלה אוטומטית שיש הדמיה שעדיין
+/// בעיבוד וחוזר לכאן להמשיך לעקוב אחריה (`ProcessingResumeArgs`).
+/// **לכן המסך הזה כבר לא חוסם יציאה** (ה-`PopScope` שנוסף בסשן 8 הוסר
+/// בכוונה) — אפשר לצאת בביטחון.
 ///
 /// ⚠️ שים לב: RenderService.uploadBeforeImage משתמש ב-dart:io, שלא נתמך
-/// ב-Flutter Web. לכן אי אפשר לבדוק את המסך הזה מקצה-לקצה עם
-/// `flutter run -d web-server` — צריך מכשיר או אמולטור אמיתי. המסך עצמו
-/// מתקמפל ומציג נכון גם בדפדפן, רק הקריאה בפועל תיכשל שם.
+/// ב-Flutter Web. לכן אי אפשר לבדוק את שלב ההגשה (לא את התשאול) מקצה-
+/// לקצה עם `flutter run -d web-server` — צריך מכשיר או אמולטור אמיתי.
 class ProcessingScreen extends ConsumerStatefulWidget {
   const ProcessingScreen({super.key});
 
@@ -32,10 +71,23 @@ class ProcessingScreen extends ConsumerStatefulWidget {
 }
 
 class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
+  static const _pollInterval = Duration(seconds: 2);
+  // ~2 דקות של תשאול פעיל (60 * 2 שניות) לפני שעוברים למצב "עדיין עובדים
+  // על זה" הפסיבי — נדיב בהרבה מזמן היצירה הרגיל (18-30 שניות).
+  static const _maxActivePollAttempts = 60;
+
   _ProcessingPhase _phase = _ProcessingPhase.running;
   RenderFailure? _failure;
   Timer? _tipTimer;
+  Timer? _pollTimer;
   int _tipIndex = 0;
+  int _pollAttempts = 0;
+
+  String? _renderId;
+  int _freeRemainingAtSubmit = 0;
+  String? _beforeLocalImagePathForResult;
+  bool _isResume = false;
+  bool _initialized = false;
 
   @override
   void initState() {
@@ -44,13 +96,31 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
       if (mounted) setState(() => _tipIndex++);
     });
     // רצים אחרי הפריים הראשון כדי שניווט (context.go/push) יהיה בטוח.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _run());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _init());
   }
 
   @override
   void dispose() {
     _tipTimer?.cancel();
+    _pollTimer?.cancel();
     super.dispose();
+  }
+
+  void _init() {
+    if (_initialized) return;
+    _initialized = true;
+
+    final extra = GoRouterState.of(context).extra;
+    if (extra is ProcessingResumeArgs) {
+      // חידוש אוטומטי — כבר יש renderId קיים, רק ממשיכים לעקוב אחריו.
+      // אין תמונת "לפני" מקומית זמינה (מצב הזרימה כבר אבד כשהאפליקציה
+      // נסגרה) — מסך התוצאה יודע להתמודד עם זה בחן (תמונת "אחרי" בלבד).
+      _isResume = true;
+      _renderId = extra.renderId;
+      _startPolling();
+    } else {
+      _run();
+    }
   }
 
   Future<void> _run() async {
@@ -65,12 +135,13 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
       if (mounted) context.go(AppRoutes.home);
       return;
     }
+    _beforeLocalImagePathForResult = flow.localImagePath;
 
     final service = ref.read(renderServiceProvider);
     try {
       final beforeImagePath =
           await service.uploadBeforeImage(flow.localImagePath!);
-      final outcome = await service.generate(
+      final outcome = await service.submitRender(
         roomTypeCode: flow.roomTypeCode!,
         selections: flow.selectionsList,
         beforeImagePath: beforeImagePath,
@@ -80,59 +151,117 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
       if (!mounted) return;
 
       switch (outcome) {
-        case RenderSuccess success:
-          // שומרים את נתיב תמונת ה"לפני" *לפני* שמאפסים את המצב — היא
-          // צריכה להגיע למסך התוצאה בשביל סליידר ההשוואה לפני/אחרי.
-          final resultData = RenderResultData(
-            outcome: success,
-            beforeLocalImagePath: flow.localImagePath,
-          );
+        case RenderSubmitted submitted:
+          _renderId = submitted.renderId;
+          _freeRemainingAtSubmit = submitted.freeRemaining;
+          // מאפסים את מצב הזרימה **מיד אחרי ההגשה**, לא אחרי שהתוצאה
+          // מוכנה: מרגע שהבקשה נקלטה בשרת, אין עוד צורך בבחירות האלה
+          // כאן — וכך אפשר להתחיל זרימת עיצוב חדשה בלי להתנגש איתן, גם
+          // אם ההדמיה הזו עדיין רצה ברקע.
           ref.read(renderFlowProvider.notifier).reset();
-          context.pushReplacement(AppRoutes.result, extra: resultData);
+          _startPolling();
         case RenderQuotaExhausted _:
           setState(() => _phase = _ProcessingPhase.quotaExhausted);
         case RenderFailure failure:
           setState(() {
-            _phase = _ProcessingPhase.failure;
+            _phase = _ProcessingPhase.submitFailure;
             _failure = failure;
           });
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _phase = _ProcessingPhase.failure;
+        _phase = _ProcessingPhase.submitFailure;
         _failure = RenderFailure('network_error', e.toString());
       });
     }
   }
 
+  void _startPolling() {
+    setState(() => _phase = _ProcessingPhase.running);
+    _pollAttempts = 0;
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(_pollInterval, (_) => _pollOnce());
+    _pollOnce(); // בדיקה ראשונה מיידית, לא מחכים ל-tick הראשון.
+  }
+
+  Future<void> _pollOnce() async {
+    final renderId = _renderId;
+    if (renderId == null) return;
+    _pollAttempts++;
+
+    try {
+      final status =
+          await ref.read(renderServiceProvider).checkStatus(renderId);
+      if (!mounted) return;
+
+      if (status.isSucceeded) {
+        _pollTimer?.cancel();
+        final resultData = RenderResultData(
+          outcome: RenderSuccess(
+            renderId: status.renderId,
+            afterImagePath: status.afterImagePath,
+            fallbackUrl: null,
+            freeRemaining: _freeRemainingAtSubmit,
+          ),
+          beforeLocalImagePath: _beforeLocalImagePathForResult,
+        );
+        context.pushReplacement(AppRoutes.result, extra: resultData);
+        return;
+      }
+
+      if (status.isTerminalFailure) {
+        _pollTimer?.cancel();
+        setState(() {
+          _phase = _ProcessingPhase.postFailure;
+          _failure = RenderFailure(status.status, status.errorMessage);
+        });
+        return;
+      }
+
+      // עדיין pending/processing.
+      if (_pollAttempts >= _maxActivePollAttempts) {
+        _pollTimer?.cancel();
+        setState(() => _phase = _ProcessingPhase.stillWorking);
+      }
+    } catch (_) {
+      // שגיאת רשת זמנית בבדיקת סטטוס — לא מכשילים את כל התהליך, פשוט
+      // מנסים שוב בבדיקה הבאה. אם זה נמשך הרבה זמן, _maxActivePollAttempts
+      // עדיין יעצור את התשאול האגרסיבי.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // סשן 8: מונע יציאה (כפתור/מחווה "חזרה" של האנדרואיד) בזמן שההדמיה
-    // עדיין רצה בפועל בשרת. בלי זה, משתמש שיוצא לפני שהתשובה חוזרת גורם
-    // לקריאה להצליח ברקע (השרת ממשיך לרוץ) בלי שיהיה מי שיציג את התוצאה —
-    // בדיוק מה שקרה בבדיקה שהצליחה בפועל אחרי כ-18 שניות, אחרי שהמשתמשת
-    // כבר יצאה מהמסך. אחרי running (הצלחה/כישלון/מכסה) יציאה חופשית כרגיל.
-    return PopScope(
-      canPop: _phase != _ProcessingPhase.running,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text('processing_screen.app_title'.tr()),
-          automaticallyImplyLeading: false,
-        ),
-        body: SafeArea(
-          child: switch (_phase) {
-            _ProcessingPhase.running => _RunningView(tipIndex: _tipIndex),
-            _ProcessingPhase.quotaExhausted => _QuotaExhaustedView(
-                onBackHome: () => context.go(AppRoutes.home),
-              ),
-            _ProcessingPhase.failure => _FailureView(
-                failure: _failure,
-                onRetry: _run,
-                onBack: () => context.pop(),
-              ),
-          },
-        ),
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('processing_screen.app_title'.tr()),
+        automaticallyImplyLeading: false,
+      ),
+      body: SafeArea(
+        child: switch (_phase) {
+          _ProcessingPhase.running =>
+            _RunningView(tipIndex: _tipIndex, isResume: _isResume),
+          _ProcessingPhase.quotaExhausted => _QuotaExhaustedView(
+              onBackHome: () => context.go(AppRoutes.home),
+            ),
+          _ProcessingPhase.submitFailure => _FailureView(
+              failure: _failure,
+              primaryLabel: 'processing_screen.retry_button'.tr(),
+              onPrimary: _run,
+              secondaryLabel: 'processing_screen.back_button'.tr(),
+              onSecondary: () => context.pop(),
+            ),
+          _ProcessingPhase.postFailure => _FailureView(
+              failure: _failure,
+              primaryLabel: 'processing_screen.quota_button'.tr(),
+              onPrimary: () => context.go(AppRoutes.home),
+            ),
+          _ProcessingPhase.stillWorking => _StillWorkingView(
+              onBackHome: () => context.go(AppRoutes.home),
+              onKeepWaiting: _startPolling,
+            ),
+        },
       ),
     );
   }
@@ -140,7 +269,8 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
 
 class _RunningView extends ConsumerWidget {
   final int tipIndex;
-  const _RunningView({required this.tipIndex});
+  final bool isResume;
+  const _RunningView({required this.tipIndex, required this.isResume});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -162,10 +292,20 @@ class _RunningView extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'processing_screen.eta_note'.tr(),
+            isResume
+                ? 'processing_screen.resuming_note'.tr()
+                : 'processing_screen.eta_note'.tr(),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: context.palette.inkSoft,
+                ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'processing_screen.leave_ok_note'.tr(),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: context.palette.inkFaint,
                 ),
           ),
           const SizedBox(height: 32),
@@ -249,15 +389,77 @@ class _QuotaExhaustedView extends StatelessWidget {
   }
 }
 
+/// עדיין רצה הרבה יותר מהצפוי — לא כישלון, רק המתנה ארוכה. שום דבר לא
+/// אבד: אפשר לחזור למסך הבית (ההדמיה תופיע שם אוטומטית כשתסתיים, ובגלריה
+/// האישית) או להישאר ולהמשיך להמתין כאן.
+class _StillWorkingView extends StatelessWidget {
+  final VoidCallback onBackHome;
+  final VoidCallback onKeepWaiting;
+  const _StillWorkingView(
+      {required this.onBackHome, required this.onKeepWaiting});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.hourglass_top, size: 48, color: context.palette.inkFaint),
+          const SizedBox(height: 16),
+          Text(
+            'processing_screen.still_working_title'.tr(),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'processing_screen.still_working_body'.tr(),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: context.palette.inkSoft,
+                ),
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: onBackHome,
+                  child: Text('processing_screen.quota_button'.tr()),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: onKeepWaiting,
+                  child:
+                      Text('processing_screen.still_working_wait_button'.tr()),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _FailureView extends StatelessWidget {
   final RenderFailure? failure;
-  final VoidCallback onRetry;
-  final VoidCallback onBack;
+  final String primaryLabel;
+  final VoidCallback onPrimary;
+  final String? secondaryLabel;
+  final VoidCallback? onSecondary;
 
   const _FailureView({
     required this.failure,
-    required this.onRetry,
-    required this.onBack,
+    required this.primaryLabel,
+    required this.onPrimary,
+    this.secondaryLabel,
+    this.onSecondary,
   });
 
   @override
@@ -285,23 +487,32 @@ class _FailureView extends StatelessWidget {
                 ),
           ),
           const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: onBack,
-                  child: Text('processing_screen.back_button'.tr()),
+          if (secondaryLabel != null && onSecondary != null)
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onSecondary,
+                    child: Text(secondaryLabel!),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: onRetry,
-                  child: Text('processing_screen.retry_button'.tr()),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: onPrimary,
+                    child: Text(primaryLabel),
+                  ),
                 ),
+              ],
+            )
+          else
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: onPrimary,
+                child: Text(primaryLabel),
               ),
-            ],
-          ),
+            ),
         ],
       ),
     );

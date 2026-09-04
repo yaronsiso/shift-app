@@ -4,34 +4,70 @@
 // הקרדיטים.** המפתח לעולם לא נמצא באפליקציה: כל מי שמוריד APK יכול לפרק
 // אותו ולחלץ ממנו כל מחרוזת שמוטמעת בקוד.
 //
-// זרימה:
+// זרימה (סשן 9 — מפוצלת לשני חלקים, ראו ההסבר המלא למטה):
 //   1. אימות המשתמש מול ה-JWT שנשלח.
 //   2. ולידציה של הקלט (מזהי פריטים בלבד — לא פרומפט מוכן).
 //   3. עיבוד הערות טקסט חופשי לאנגלית.
 //   4. בניית הפרומפט **בשרת**, מהמילון של השרת.
-//   5. צריכת קרדיט אטומית.
-//   6. קריאה ל-Replicate.
-//   7. שמירת התוצאה; בכישלון — החזר קרדיט.
+//   5. צריכת קרדיט אטומית + רישום ההדמיה + קישור חתום לתמונת המקור.
+//   6. **מחזירים תשובה ללקוח כאן, מיד** — renderId + status:"processing".
+//   7. **ברקע** (אחרי שהתשובה כבר נשלחה): קריאה ל-Replicate, שמירת
+//      התוצאה. בכישלון — החזר קרדיט.
 //
 // פריסה:  supabase functions deploy generate-render
 // סודות:  supabase secrets set REPLICATE_API_TOKEN=...
 //
-// סשן 8: תוקן באג קריטי — כשל בלתי-צפוי (לא אחת מהשגיאות המוכרות למעלה)
-// היה משאיר רשומה תקועה לנצח על status="processing" בלי שום error_message,
-// כי שום דבר לא היה עוטף את השלבים "צריכת קרדיט → רישום ההדמיה → יצירת
-// קישור חתום" ברשת ביטחון. עכשיו כל מה שאחרי הוולידציה עטוף ב-try/catch
-// חיצוני אחד: כל שגיאה לא צפויה תירשם ביומן, תסמן את הרשומה כ-failed עם
-// פירוט השגיאה האמיתי, ותחזיר קרדיט אם כבר נצרך — כדי שלעולם לא נישאר
-// שוב בלי לדעת מה קרה.
+// ============================================================================
+// סשן 9 — שינוי ארכיטקטוני: מסונכרן (Prefer: wait) לאסינכרוני (רקע + תשאול)
+// ============================================================================
+// **הבעיה שזה פותר:** בעבר הפונקציה הזו הייתה מחזיקה את הבקשה פתוחה
+// 18-30 שניות (Prefer: wait) עד שהתמונה הייתה מוכנה, ורק אז עונה ללקוח.
+// זה עבד מצוין בצד השרת (מאומת שוב ושוב: HTTP 200, ~18.5 שניות ריצה,
+// ראו claude/27) — אבל בצד הלקוח, מערכת ההפעלה (אומת גם ב-MIUI/פוקו וגם
+// בסמסונג, אצל שני משתמשים שונים) נוטה "להרוג" את האפליקציה ברקע בזמן
+// שהיא ממתינה כל כך הרבה זמן לתשובה אחת, גם כשהיא פתוחה וממתינה מול
+// המשתמש. התוצאה: השרת מסיים בהצלחה גמורה, אבל אין מי שיציג אותה
+// למשתמש — "קפיצה למסך הבית" בלי להראות תוצאה.
+//
+// **הפתרון:** הפונקציה עונה ללקוח **כמעט מיד** אחרי שהיא רק *התחילה*
+// לעבד (אחרי צריכת הקרדיט ורישום השורה ב-`renders`), ומחזירה רק
+// `renderId`. הקריאה בפועל ל-Replicate ושמירת התוצאה ל-Storage קורות
+// **אחרי** שהתשובה כבר נשלחה, בעזרת `EdgeRuntime.waitUntil()` — פיצ'ר
+// של ה-Edge Runtime של Supabase (מבוסס Deno Deploy) שמאפשר להמשיך לרוץ
+// ברקע אחרי שה-HTTP response כבר נשלח ללקוח, בדיוק בשביל המקרה הזה
+// ("Background Tasks", ראו תיעוד Supabase). האפליקציה מצדה מתשאלת
+// (`RenderService.checkStatus`) ישירות את טבלת `renders` כל 2 שניות עד
+// שהסטטוס משתנה ל-succeeded/failed — לא צריך Edge Function נוספת לזה,
+// ה-RLS הקיים כבר מתיר SELECT למשתמש על השורות של עצמו.
+//
+// **⚠️ חשוב לבדוק בפריסה הראשונה:** `EdgeRuntime.waitUntil` אמור לעבוד
+// out-of-the-box בסביבת Supabase Edge Functions (זה בדיוק הפיצ'ר
+// שהתיעוד הרשמי שלהם ממליץ עליו בשביל המקרה הזה בדיוק), אבל מעולם לא
+// נבדק בפרויקט הזה בפועל — זה שינוי חדש. **בדיקת העשן הראשונה אחרי
+// הפריסה חייבת לכלול**: יצירת הדמיה אמיתית ווידוא (דרך Logs/Invocations
+// ב-Supabase) שה-console.log-ים של שלב 7 ואילך (למטה) אכן מופיעים
+// *אחרי* שהתשובה הראשונה כבר חזרה ללקוח, ושה-renders.status אכן מתקדם
+// בסוף ל-succeeded עם after_image_path תקין. אם מסיבה כלשהי הרקע לא
+// רץ (Supabase Edge Runtime גרסה ישנה שלא תומכת עדיין, למשל) — הרשומה
+// תישאר תקועה על "processing" לנצח וזה יופיע מיד בבדיקה הזו.
+//
+// המנגנון הקודם (רשת ביטחון try/catch, לוגים אבחוניים ממוספרים, נעילת
+// גרסת Replicate) שנבנה בסשן 8 — כולו נשאר בדיוק כמו שהיה, רק עטוף
+// עכשיו בפונקציית הרקע `finishRenderInBackground` במקום ב-handler הראשי.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { MATERIALS_BY_ID } from "../_shared/dictionary.ts";
 import { buildRenderJob, PromptBuildError } from "../_shared/prompt_engine.ts";
-import type { SelectionInput } from "../_shared/prompt_engine.ts";
+import type { RenderJob, SelectionInput } from "../_shared/prompt_engine.ts";
 import {
   MAX_NOTE_LENGTH,
   resolveFreeTextNotes,
 } from "../_shared/note_resolver.ts";
+
+// מסופק ע"י ה-Edge Runtime של Supabase בזמן ריצה (לא חלק מ-lib.deno.d.ts
+// הרגיל) — ה-declare הזה רק אומר ל-TypeScript שהוא קיים, לא יוצר כלום.
+declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 
 // המודל שננעל בשלב 3. ראו claude/07.
 //
@@ -149,17 +185,17 @@ Deno.serve(async (req) => {
     return json({ error: "forbidden_image_path" }, 403);
   }
 
-  // --- מכאן ואילך: רשת ביטחון אחת סביב כל השלבים שנוגעים בכסף/ברשת -----
-  // אם משהו לא צפוי ייזרק בכל שלב שלמטה (ולא נתפס כבר ספציפית), הוא
-  // ייתפס ב-catch החיצוני, יירשם ביומן, יסמן את הרשומה כנכשלת (אם כבר
-  // נוצרה), ויחזיר קרדיט (אם כבר נצרך) — במקום להשאיר הכל תקוע.
+  // --- מכאן ואילך: רשת ביטחון אחת סביב כל השלבים שנוגעים בכסף ---------
+  // (השלבים שנוגעים ברשת/Replicate עברו לפונקציית הרקע למטה — ראו הסבר
+  // בראש הקובץ. כאן נשאר רק מה שצריך לקרות *לפני* שעונים ללקוח: עיבוד
+  // הערות, בניית פרומפט, צריכת קרדיט, רישום השורה, קישור חתום.)
   let renderId: string | undefined;
   let creditConsumed = false;
 
   try {
     // --- 3+4. עיבוד הערות ובניית הפרומפט --------------------------------
     console.log(`[${userId}] שלב 1: מתחיל עיבוד הערות ובניית פרומפט`);
-    let job;
+    let job: RenderJob;
     try {
       const resolved = await resolveFreeTextNotes(
         body.selections,
@@ -218,39 +254,134 @@ Deno.serve(async (req) => {
     renderId = renderRow.id as string;
     console.log(`[${userId}] שלב 4: רשומת renders נוצרה, id=${renderId}`);
 
-    const fail = async (code: string, detail?: string, status = 502) => {
-      console.log(`[${userId}] נכשל בקוד ${code}: ${detail}`);
-      await supabase.from("renders")
-        .update({ status: "failed", error_message: detail ?? code })
-        .eq("id", renderId);
-      // החזר קרדיט — הכישלון אינו באשמת המשתמש.
-      await supabase.rpc("refund_render_credit", { p_render_id: renderId });
-      return json({ error: code, detail, renderId }, status);
-    };
-
-    // --- 6. קריאה ל-Replicate --------------------------------------------
-    // כתובת חתומה וזמנית לתמונת המקור, כדי ש-Replicate יוכל להוריד אותה
-    // מבלי שה-bucket יהיה ציבורי.
+    // --- קישור חתום וזמני לתמונת המקור, כדי ש-Replicate יוכל להוריד
+    // אותה מבלי שה-bucket יהיה ציבורי. נשאר סינכרוני (לפני שעונים ללקוח)
+    // כי הוא מהיר, ואם הוא נכשל עדיף לדעת על כך מיד ולא להבטיח renderId
+    // שלעולם לא יסתיים.
     console.log(`[${userId}] שלב 5: יוצר קישור חתום לתמונה`);
     const { data: signed, error: signErr } = await supabase.storage
       .from("renders")
       .createSignedUrl(body.beforeImagePath, 600);
 
     if (signErr || !signed?.signedUrl) {
-      return await fail("image_url_failed", String(signErr), 500);
+      await supabase.from("renders")
+        .update({ status: "failed", error_message: String(signErr) })
+        .eq("id", renderId);
+      await supabase.rpc("refund_render_credit", { p_render_id: renderId });
+      return json({ error: "image_url_failed", renderId }, 500);
     }
     console.log(`[${userId}] שלב 6: קישור חתום נוצר בהצלחה`);
 
+    // --- 6. עונים ללקוח כאן — לא מחכים ל-Replicate! -----------------------
+    // הקריאה בפועל ל-Replicate ושמירת התוצאה קורות אחרי שהתשובה הזו כבר
+    // בדרך ללקוח, בעזרת EdgeRuntime.waitUntil (ראו ההסבר המלא בראש
+    // הקובץ). מכאן ואילך האפליקציה מתשאלת את renders.status בעצמה.
+    const response = json({
+      renderId,
+      status: "processing",
+      freeRemaining: credit.free_remaining,
+      creditSource: credit.reason,
+      protectedElements: job.protectedLabels,
+      promptStrength: job.promptStrength,
+    });
+
+    const backgroundWork = finishRenderInBackground({
+      supabase,
+      userId,
+      renderId,
+      job,
+      signedUrl: signed.signedUrl,
+      replicateToken,
+    });
+
+    // הגנה: אם מסיבה כלשהי EdgeRuntime.waitUntil לא קיים בסביבת הריצה
+    // (לא צפוי — זה גלובל מתועד של Supabase Edge Runtime בדיוק בשביל
+    // המקרה הזה, אבל אין דרך לבדוק את זה מהענן החסום הזה לפני פריסה
+    // אמיתית) — לא נופלים על שגיאה, פשוט מריצים את ה-Promise בלי לחכות
+    // לו (הוא ירוץ "כמה שיספיק" לפני שה-isolate נסגר; לא מושלם, אבל
+    // עדיף מקריסת כל הבקשה).
+    if (typeof EdgeRuntime !== "undefined") {
+      EdgeRuntime.waitUntil(backgroundWork);
+    } else {
+      console.error(
+        "EdgeRuntime.waitUntil אינו זמין בסביבת הריצה הזו — העיבוד ברקע " +
+          "עלול להיקטע. יש לבדוק גרסת Supabase Edge Runtime.",
+      );
+      backgroundWork.catch((e) =>
+        console.error("background work failed", e)
+      );
+    }
+
+    return response;
+  } catch (e) {
+    // --- רשת הביטחון: כל שגיאה לא צפויה *לפני* שעונים ללקוח מגיעה לכאן ---
+    const detail = e instanceof Error ? `${e.message}` : String(e);
+    console.error("generate-render: uncaught error (before response)", detail, e);
+
+    if (renderId) {
+      try {
+        await supabase.from("renders")
+          .update({
+            status: "failed",
+            error_message: `internal: ${detail}`.slice(0, 500),
+          })
+          .eq("id", renderId);
+      } catch (updateErr) {
+        console.error("failed to mark render as failed", updateErr);
+      }
+    }
+
+    if (creditConsumed && renderId) {
+      try {
+        await supabase.rpc("refund_render_credit", { p_render_id: renderId });
+      } catch (refundErr) {
+        console.error("failed to refund credit", refundErr);
+      }
+    }
+
+    return json({ error: "internal_error", detail, renderId }, 500);
+  }
+});
+
+/**
+ * --- 7. הקריאה בפועל ל-Replicate ושמירת התוצאה — רצה **אחרי** שהתשובה
+ * הראשונה כבר נשלחה ללקוח (EdgeRuntime.waitUntil). שום דבר כאן לא חוזר
+ * ל-HTTP response — אין מי שיקרא אותו יותר; כל תוצאה (הצלחה או כישלון)
+ * מדווחת אך ורק דרך עדכון שורת `renders`, שהאפליקציה מתשאלת.
+ *
+ * זהה בלוגיקה לגמרי לקוד הסינכרוני שהיה קודם (כולל רשת הביטחון,
+ * הלוגים האבחוניים הממוספרים, ונעילת גרסת Replicate מסשן 8) — רק
+ * שהתוצאה נכתבת לטבלה במקום לחזור כתשובת HTTP.
+ */
+async function finishRenderInBackground(params: {
+  supabase: SupabaseClient;
+  userId: string;
+  renderId: string;
+  job: RenderJob;
+  signedUrl: string;
+  replicateToken: string;
+}): Promise<void> {
+  const { supabase, userId, renderId, job, signedUrl, replicateToken } = params;
+
+  const fail = async (code: string, detail?: string) => {
+    console.log(`[${userId}] נכשל בקוד ${code}: ${detail}`);
+    await supabase.from("renders")
+      .update({ status: "failed", error_message: (detail ?? code).slice(0, 500) })
+      .eq("id", renderId);
+    // החזר קרדיט — הכישלון אינו באשמת המשתמש.
+    await supabase.rpc("refund_render_credit", { p_render_id: renderId });
+  };
+
+  try {
     let prediction;
     try {
-      console.log(`[${userId}] שלב 7: שולח בקשה ל-Replicate...`);
-      // סשן 8: ל-Replicate יש שתי דרכים ליצור prediction: (1) POST
-      // /v1/predictions + שדה "version" מדויק, או (2) POST
+      console.log(`[${userId}] שלב 7: שולח בקשה ל-Replicate (ברקע)...`);
+      // ל-Replicate יש שתי דרכים ליצור prediction: (1) POST /v1/predictions
+      // + שדה "version" מדויק, או (2) POST
       // /v1/models/{owner}/{name}/predictions בלי version (רק לגרסת "latest"
-      // מסומנת — לא קיימת אצל adirik/interior-design, ניסינו וקיבלנו 404).
-      // REPLICATE_VERSION תמיד מוגדר עכשיו (ברירת מחדל קבועה למעלה בקובץ),
-      // אז בפועל תמיד נבחר ב-(1); ה-fallback ל-(2) נשאר כרשת ביטחון בלבד
-      // למקרה שמישהו ינקה את הערך הזה בטעות בעתיד.
+      // מסומנת — לא קיימת אצל adirik/interior-design, קיבלנו 404 בעבר).
+      // REPLICATE_VERSION תמיד מוגדר (ברירת מחדל קבועה למעלה בקובץ), אז
+      // בפועל תמיד נבחר ב-(1); ה-fallback ל-(2) נשאר כרשת ביטחון בלבד.
       const replicateUrl = REPLICATE_VERSION
         ? "https://api.replicate.com/v1/predictions"
         : `https://api.replicate.com/v1/models/${REPLICATE_MODEL}/predictions`;
@@ -264,7 +395,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           ...(REPLICATE_VERSION ? { version: REPLICATE_VERSION } : {}),
           input: {
-            image: signed.signedUrl,
+            image: signedUrl,
             prompt: job.prompt,
             negative_prompt: job.negativePrompt,
             prompt_strength: job.promptStrength,
@@ -274,12 +405,16 @@ Deno.serve(async (req) => {
         }),
       });
 
-      console.log(`[${userId}] שלב 8: קיבל תשובה מ-Replicate, ok=${res.ok}, status=${res.status}`);
+      console.log(
+        `[${userId}] שלב 8: קיבל תשובה מ-Replicate, ok=${res.ok}, status=${res.status}`,
+      );
       if (!res.ok) {
         return await fail("replicate_error", await res.text());
       }
       prediction = await res.json();
-      console.log(`[${userId}] שלב 9: JSON נפרס, prediction.status=${prediction?.status}`);
+      console.log(
+        `[${userId}] שלב 9: JSON נפרס, prediction.status=${prediction?.status}`,
+      );
     } catch (e) {
       return await fail("replicate_unreachable", String(e));
     }
@@ -296,7 +431,7 @@ Deno.serve(async (req) => {
       return await fail("no_output", "המודל לא החזיר תמונה");
     }
 
-    // --- 7. שמירת התוצאה --------------------------------------------------
+    // --- שמירת התוצאה --------------------------------------------------
     // מורידים את התמונה ל-Storage שלנו: הקישור של Replicate פג אחרי זמן קצר.
     let afterPath: string | null = null;
     try {
@@ -325,42 +460,11 @@ Deno.serve(async (req) => {
       replicate_prediction_id: prediction?.id ?? null,
     }).eq("id", renderId);
 
-    return json({
-      renderId,
-      afterImagePath: afterPath,
-      // גיבוי זמני למקרה שההעלאה ל-Storage נכשלה.
-      outputUrl: afterPath ? null : outputUrl,
-      freeRemaining: credit.free_remaining,
-      creditSource: credit.reason,
-      protectedElements: job.protectedLabels,
-      promptStrength: job.promptStrength,
-    });
+    console.log(`[${userId}] שלב 10: הדמיה הסתיימה בהצלחה, renderId=${renderId}`);
   } catch (e) {
-    // --- רשת הביטחון: כל שגיאה לא צפויה מגיעה לכאן -----------------------
+    // --- רשת הביטחון: כל שגיאה לא צפויה בעיבוד הרקע -----------------------
     const detail = e instanceof Error ? `${e.message}` : String(e);
-    console.error("generate-render: uncaught error", detail, e);
-
-    if (renderId) {
-      try {
-        await supabase.from("renders")
-          .update({
-            status: "failed",
-            error_message: `internal: ${detail}`.slice(0, 500),
-          })
-          .eq("id", renderId);
-      } catch (updateErr) {
-        console.error("failed to mark render as failed", updateErr);
-      }
-    }
-
-    if (creditConsumed && renderId) {
-      try {
-        await supabase.rpc("refund_render_credit", { p_render_id: renderId });
-      } catch (refundErr) {
-        console.error("failed to refund credit", refundErr);
-      }
-    }
-
-    return json({ error: "internal_error", detail, renderId }, 500);
+    console.error("generate-render (background): uncaught error", detail, e);
+    await fail("internal_error_background", detail);
   }
-});
+}

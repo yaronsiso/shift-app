@@ -15,9 +15,9 @@ import '../../render/data/render_providers.dart';
 import '../data/render_result_data.dart';
 
 /// מסך 5/5 — התוצאה. סליידר לפני/אחרי, שמירה ב-HD, שיתוף (וואטסאפ ועוד,
-/// דרך גיליון השיתוף של המערכת), כפתור "עיצוב נוסף לחדר הזה", ואזור
-/// דירוג קבוע. אם יש אבן-דרך משוב ממתינה (2/10/20 הדמיות) — כרטיס קטן
-/// ולא חוסם מוצג מעל התוכן.
+/// דרך גיליון השיתוף של המערכת), כפתור "עיצוב נוסף לחדר הזה", קישור
+/// לגלריה האישית (סשן 9), ואזור דירוג קבוע. אם יש אבן-דרך משוב ממתינה
+/// (2/10/20 הדמיות) — כרטיס קטן ולא חוסם מוצג מעל התוכן.
 ///
 /// ⚠️ **פישוט מכוון, לתיאום עתידי עם ירון:** "עיצוב נוסף לחדר הזה" כרגע
 /// פשוט חוזר למסך הבית (מצב הזרימה כבר התאפס במסך העיבוד לפני שהגענו
@@ -30,6 +30,10 @@ import '../data/render_result_data.dart';
 /// בענן). שני הכפתורים ("שמירה ב-HD" ו"שיתוף בוואטסאפ") פותחים את גיליון
 /// השיתוף המובנה של המכשיר — משם אפשר לבחור "שמור תמונה" או וואטסאפ
 /// ישירות. זו הדרך הפשוטה והאמינה ביותר בלי פלאגין נוסף שדורש בדיקה.
+///
+/// **סשן 9:** נוסף כפתור "לצפייה בכל ההדמיות שלי" שמוביל לגלריה האישית
+/// (`AppRoutes.gallery`) — כל ההדמיות שהצליחו של המשתמש נשמרות שם
+/// אוטומטית, בלי שום פעולה נוספת נדרשת ממנו.
 class ResultScreen extends ConsumerStatefulWidget {
   const ResultScreen({super.key});
 
@@ -218,6 +222,15 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
                             onPressed: () => context.go(AppRoutes.home),
                             child: Text(
                                 'result_screen.design_again_button'.tr()),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton(
+                            onPressed: () => context.push(AppRoutes.gallery),
+                            child: Text(
+                                'result_screen.view_gallery_button'.tr()),
                           ),
                         ),
                         const SizedBox(height: 32),
