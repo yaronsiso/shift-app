@@ -192,14 +192,14 @@ export function buildRenderJob(
     const item: MaterialItem | undefined = MATERIALS_BY_ID.get(sel.itemId);
     if (!item) throw new PromptBuildError(`פריט לא מוכר: ${sel.itemId}`);
 
-    // הפריט חייב להיות רלוונטי לחדר שנבחר — מונע פרומפטים חסרי היגיון
-    // כמו "אסלה תלויה" בחזית הבית.
-    if (!item.roomTypes.includes(roomTypeCode)) {
-      throw new PromptBuildError(
-        `הפריט "${sel.itemId}" אינו זמין בסוג החדר "${roomTypeCode}"`,
-      );
-    }
-
+    // **סשן 12:** ההגבלה "פריט הזה זמין רק בחדרים האלה" הוסרה גם כאן,
+    // בהתאמה מלאה להחלטה שכבר יושמה בצד הלקוח (סשן 10,
+    // MaterialItem.isAvailableIn תמיד מחזירה true) — ירון ביקש במפורש
+    // שכל החומרים יהיו זמינים בכל חדר, בלי הגבלה. עד לתיקון הזה השרת
+    // עדיין אכף את ההגבלה הישנה בזמן שהלקוח כבר לא, מה שגרם לכל בקשה
+    // "לא שגרתית" (למשל פריט חומרי-בניין במרפסת) להיכשל עם 400
+    // ("הקרדיט לא נוצל, נסה שוב") — למרות שהלקוח עצמו הרשה למשתמש
+    // לבחור אותה. השדה roomTypes נשאר במודל לתיעוד בלבד, לא נאכף יותר.
     if (item.isConstructive) hasConstructive = true;
     segments.push(item.promptEn);
 
