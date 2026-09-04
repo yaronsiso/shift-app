@@ -31,10 +31,10 @@ class CategorySelector {
   }
 }
 
-/// קבוצת-על שמוצגת כצ'יפ במסך הבית ("צבע", "רהיטים", "חומרי בנייה",
-/// "תאורה", "גינה") — שכבת ארגון חדשה **מעל** הקטגוריות המפורטות
-/// הקיימות של המילון (470 פריטים, ~20 קטגוריות) — לא קטגוריות חדשות
-/// במילון עצמו. ראו claude/22 להסבר המלא על המיפוי.
+/// קבוצת-על שמוצגת כצ'יפ במסך הבית ("צבע", "רהיטים", "תקרות", "ריצוף"...)
+/// — שכבת ארגון **מעל** הקטגוריות המפורטות הקיימות של המילון (484 פריטים).
+/// ראו claude/22 להסבר המקורי על המיפוי, ו-claude/31 (סשן 11) לפירוט
+/// הפיצול של קבוצת "חומרי בנייה" הישנה לקבוצות הקטנות והממוקדות למטה.
 class CategoryGroup {
   final String code;
   final String labelHe;
@@ -51,12 +51,23 @@ class CategoryGroup {
   bool matches(MaterialItem item) => selectors.any((s) => s.matches(item));
 }
 
-/// המיפוי בפועל. **לוגיקת "צבע" חשובה במיוחד:** "צבע" הוא לא קטגוריה
-/// עצמאית במילון — הוא תת-קטגוריה בתוך "חיפויי קירות" (צבע קיר פנימי,
-/// 10 פריטים) ו"חיפוי חזית" (שליכט, כולל שני הגוונים הצבעוניים שנוספו
-/// בסשן 5, 5 פריטים) — לכן קבוצת "צבע" שולפת רק את תתי-הקטגוריות האלה,
-/// והקבוצה "חומרי בנייה" שולפת את אותן שתי קטגוריות **בלי** תת-הקטגוריה
-/// הזו (subcategoryNotIn), כדי שאף פריט לא יופיע פעמיים בשני מקומות.
+/// המיפוי בפועל.
+///
+/// **סשן 11 (בקשת ירון, לאחר בדיקה בפועל):** קבוצת "חומרי בנייה" הישנה
+/// ריכזה בתוכה כ-150 פריטים תחת 8 קטגוריות שונות ולא-קשורות (ריצוף, גבס
+/// ותקרות, חיפויי קירות, אלומיניום ופתחים, מדרגות, גדרות, טפטים...) —
+/// מי שרצה למשל ריצוף היה צריך לגלול לאורך כל שאר הקטגוריות כדי להגיע
+/// אליו. הקבוצה פוצלה לחלוטין: כל קטגוריה מפורטת מקבלת עכשיו צ'יפ-על
+/// משלה בפני עצמה (תקרות / חיפויי קירות / חיפוי אבן / שליכט חיצוני /
+/// ריצוף / פרקטים / גימורים / אלומיניום / תריסים / דלתות / מדרגות
+/// ומעקות / גדרות ושערים / טפטים), כדי שכל אחת תהיה נגישה ישירות בלי
+/// גלילה מיותרת. "מראות" פוצלה באותו האופן מתוך "רהיטים". במילון עצמו
+/// (`materials_data.dart`) גם שונו שדות ה-`category`/`subcategory` בפועל
+/// כדי שהחלוקה החדשה תהיה אמיתית ולא רק קוסמטית בשכבת הקבוצות.
+///
+/// **לוגיקת "צבע":** "צבע" הוא לא קטגוריה עצמאית במילון — הוא תת-קטגוריה
+/// בתוך "חיפויי קירות" (צבע קיר פנימי, 10 פריטים) בלבד כעת (גווני השליכט
+/// החיצוני עברו לקטגוריית "שליכט חיצוני" העצמאית שלהם, ולא כפולים כאן).
 const List<CategoryGroup> kCategoryGroups = [
   CategoryGroup(
     code: 'color',
@@ -64,7 +75,6 @@ const List<CategoryGroup> kCategoryGroups = [
     labelEn: 'Color',
     selectors: [
       CategorySelector('חיפויי קירות', subcategoryIn: ['צבע']),
-      CategorySelector('חיפוי חזית', subcategoryIn: ['שליכט']),
     ],
   ),
   CategoryGroup(
@@ -76,17 +86,114 @@ const List<CategoryGroup> kCategoryGroups = [
     ],
   ),
   CategoryGroup(
-    code: 'materials',
-    labelHe: 'חומרי בנייה',
-    labelEn: 'Building materials',
+    code: 'ceilings',
+    labelHe: 'תקרות',
+    labelEn: 'Ceilings',
+    selectors: [
+      CategorySelector('תקרות'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'wall_cladding',
+    labelHe: 'חיפויי קירות',
+    labelEn: 'Wall cladding',
+    selectors: [
+      CategorySelector('חיפויי קירות', subcategoryNotIn: ['צבע']),
+    ],
+  ),
+  CategoryGroup(
+    code: 'stone_cladding',
+    labelHe: 'חיפוי אבן',
+    labelEn: 'Stone cladding',
+    selectors: [
+      CategorySelector('חיפוי אבן'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'exterior_plaster',
+    labelHe: 'שליכט חיצוני',
+    labelEn: 'Exterior plaster',
+    selectors: [
+      CategorySelector('שליכט חיצוני'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'flooring',
+    labelHe: 'ריצוף',
+    labelEn: 'Flooring',
     selectors: [
       CategorySelector('ריצוף'),
-      CategorySelector('חיפויי קירות', subcategoryNotIn: ['צבע']),
-      CategorySelector('חיפוי חזית', subcategoryNotIn: ['שליכט']),
-      CategorySelector('אלומיניום ופתחים'),
-      CategorySelector('גבס ותקרות'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'parquet',
+    labelHe: 'פרקטים',
+    labelEn: 'Parquet',
+    selectors: [
+      CategorySelector('פרקטים'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'finishes',
+    labelHe: 'גימורים',
+    labelEn: 'Finishes',
+    selectors: [
+      CategorySelector('גימורים'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'mirrors',
+    labelHe: 'מראות',
+    labelEn: 'Mirrors',
+    selectors: [
+      CategorySelector('מראות'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'aluminum',
+    labelHe: 'אלומיניום',
+    labelEn: 'Aluminum',
+    selectors: [
+      CategorySelector('אלומיניום'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'shutters',
+    labelHe: 'תריסים',
+    labelEn: 'Shutters',
+    selectors: [
+      CategorySelector('תריסים'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'doors',
+    labelHe: 'דלתות',
+    labelEn: 'Doors',
+    selectors: [
+      CategorySelector('דלתות'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'stairs_railings',
+    labelHe: 'מדרגות ומעקות',
+    labelEn: 'Stairs & railings',
+    selectors: [
       CategorySelector('מדרגות ומעקות'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'fences_gates',
+    labelHe: 'גדרות ושערים',
+    labelEn: 'Fences & gates',
+    selectors: [
       CategorySelector('גדרות ושערים'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'wallpaper',
+    labelHe: 'טפטים',
+    labelEn: 'Wallpaper',
+    selectors: [
       CategorySelector('טפטים'),
     ],
   ),

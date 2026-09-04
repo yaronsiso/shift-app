@@ -1,3 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# SHIFT — סשן 11: פירוק קבוצת "חומרי בנייה" הענקית לקטגוריות-על
+# ממוקדות ונפרדות (תקרות / חיפויי קירות / חיפוי אבן / שליכט חיצוני /
+# ריצוף / פרקטים / גימורים / מראות / אלומיניום / תריסים / דלתות /
+# מדרגות ומעקות / גדרות ושערים / טפטים) — לפי המשוב הישיר של ירון
+# אחרי בדיקה בפועל (בחירת מרפסת + חומרי בניין = גלילה ארוכה מדי).
+# מריצים עם: bash /workspaces/shift-app/shift_app/apply_session11.sh
+# (נתיב מלא — עובד לא משנה מאיזו תיקייה הטרמינל פתוח.)
+
+cd /workspaces/shift-app/shift_app
+
+echo '>> כותב /workspaces/shift-app/shift_app/lib/features/dictionary/data/materials_data.dart'
+cat > '/workspaces/shift-app/shift_app/lib/features/dictionary/data/materials_data.dart' << 'SHIFTEOF'
 // קובץ זה נוצר אוטומטית מ-build_dict_data.py — אין לערוך ידנית.
 // מקור האמת: claude/08_מילון_חומרים_קוד.md ב-Project.
 // 484 פריטים.
@@ -4929,3 +4944,308 @@ const List<MaterialItem> kMaterials = [
     isConstructive: false,
   ),
 ];
+SHIFTEOF
+
+echo '>> כותב /workspaces/shift-app/shift_app/lib/features/dictionary/data/category_group.dart'
+cat > '/workspaces/shift-app/shift_app/lib/features/dictionary/data/category_group.dart' << 'SHIFTEOF'
+import 'material_item.dart';
+import 'materials_data.dart';
+
+/// בורר אחד בתוך קבוצת-על: קטגוריה מהמילון (חובה) ותת-קטגוריה לסינון
+/// (אופציונלי). `subcategoryIn` מצמצם לתת-קטגוריות ספציפיות בלבד;
+/// `subcategoryNotIn` לוקח את כל הקטגוריה חוץ מתת-הקטגוריות שהוחרגו.
+/// אי אפשר להגדיר את שניהם יחד על אותו בורר.
+class CategorySelector {
+  final String category;
+  final List<String>? subcategoryIn;
+  final List<String>? subcategoryNotIn;
+
+  const CategorySelector(
+    this.category, {
+    this.subcategoryIn,
+    this.subcategoryNotIn,
+  }) : assert(
+          subcategoryIn == null || subcategoryNotIn == null,
+          'אפשר להגדיר subcategoryIn או subcategoryNotIn על אותו בורר, לא את שניהם',
+        );
+
+  bool matches(MaterialItem item) {
+    if (item.category != category) return false;
+    if (subcategoryIn != null) {
+      return subcategoryIn!.contains(item.subcategory);
+    }
+    if (subcategoryNotIn != null) {
+      return !subcategoryNotIn!.contains(item.subcategory);
+    }
+    return true;
+  }
+}
+
+/// קבוצת-על שמוצגת כצ'יפ במסך הבית ("צבע", "רהיטים", "תקרות", "ריצוף"...)
+/// — שכבת ארגון **מעל** הקטגוריות המפורטות הקיימות של המילון (484 פריטים).
+/// ראו claude/22 להסבר המקורי על המיפוי, ו-claude/31 (סשן 11) לפירוט
+/// הפיצול של קבוצת "חומרי בנייה" הישנה לקבוצות הקטנות והממוקדות למטה.
+class CategoryGroup {
+  final String code;
+  final String labelHe;
+  final String labelEn;
+  final List<CategorySelector> selectors;
+
+  const CategoryGroup({
+    required this.code,
+    required this.labelHe,
+    required this.labelEn,
+    required this.selectors,
+  });
+
+  bool matches(MaterialItem item) => selectors.any((s) => s.matches(item));
+}
+
+/// המיפוי בפועל.
+///
+/// **סשן 11 (בקשת ירון, לאחר בדיקה בפועל):** קבוצת "חומרי בנייה" הישנה
+/// ריכזה בתוכה כ-150 פריטים תחת 8 קטגוריות שונות ולא-קשורות (ריצוף, גבס
+/// ותקרות, חיפויי קירות, אלומיניום ופתחים, מדרגות, גדרות, טפטים...) —
+/// מי שרצה למשל ריצוף היה צריך לגלול לאורך כל שאר הקטגוריות כדי להגיע
+/// אליו. הקבוצה פוצלה לחלוטין: כל קטגוריה מפורטת מקבלת עכשיו צ'יפ-על
+/// משלה בפני עצמה (תקרות / חיפויי קירות / חיפוי אבן / שליכט חיצוני /
+/// ריצוף / פרקטים / גימורים / אלומיניום / תריסים / דלתות / מדרגות
+/// ומעקות / גדרות ושערים / טפטים), כדי שכל אחת תהיה נגישה ישירות בלי
+/// גלילה מיותרת. "מראות" פוצלה באותו האופן מתוך "רהיטים". במילון עצמו
+/// (`materials_data.dart`) גם שונו שדות ה-`category`/`subcategory` בפועל
+/// כדי שהחלוקה החדשה תהיה אמיתית ולא רק קוסמטית בשכבת הקבוצות.
+///
+/// **לוגיקת "צבע":** "צבע" הוא לא קטגוריה עצמאית במילון — הוא תת-קטגוריה
+/// בתוך "חיפויי קירות" (צבע קיר פנימי, 10 פריטים) בלבד כעת (גווני השליכט
+/// החיצוני עברו לקטגוריית "שליכט חיצוני" העצמאית שלהם, ולא כפולים כאן).
+const List<CategoryGroup> kCategoryGroups = [
+  CategoryGroup(
+    code: 'color',
+    labelHe: 'צבע',
+    labelEn: 'Color',
+    selectors: [
+      CategorySelector('חיפויי קירות', subcategoryIn: ['צבע']),
+    ],
+  ),
+  CategoryGroup(
+    code: 'furniture',
+    labelHe: 'רהיטים',
+    labelEn: 'Furniture',
+    selectors: [
+      CategorySelector('ריהוט'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'ceilings',
+    labelHe: 'תקרות',
+    labelEn: 'Ceilings',
+    selectors: [
+      CategorySelector('תקרות'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'wall_cladding',
+    labelHe: 'חיפויי קירות',
+    labelEn: 'Wall cladding',
+    selectors: [
+      CategorySelector('חיפויי קירות', subcategoryNotIn: ['צבע']),
+    ],
+  ),
+  CategoryGroup(
+    code: 'stone_cladding',
+    labelHe: 'חיפוי אבן',
+    labelEn: 'Stone cladding',
+    selectors: [
+      CategorySelector('חיפוי אבן'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'exterior_plaster',
+    labelHe: 'שליכט חיצוני',
+    labelEn: 'Exterior plaster',
+    selectors: [
+      CategorySelector('שליכט חיצוני'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'flooring',
+    labelHe: 'ריצוף',
+    labelEn: 'Flooring',
+    selectors: [
+      CategorySelector('ריצוף'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'parquet',
+    labelHe: 'פרקטים',
+    labelEn: 'Parquet',
+    selectors: [
+      CategorySelector('פרקטים'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'finishes',
+    labelHe: 'גימורים',
+    labelEn: 'Finishes',
+    selectors: [
+      CategorySelector('גימורים'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'mirrors',
+    labelHe: 'מראות',
+    labelEn: 'Mirrors',
+    selectors: [
+      CategorySelector('מראות'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'aluminum',
+    labelHe: 'אלומיניום',
+    labelEn: 'Aluminum',
+    selectors: [
+      CategorySelector('אלומיניום'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'shutters',
+    labelHe: 'תריסים',
+    labelEn: 'Shutters',
+    selectors: [
+      CategorySelector('תריסים'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'doors',
+    labelHe: 'דלתות',
+    labelEn: 'Doors',
+    selectors: [
+      CategorySelector('דלתות'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'stairs_railings',
+    labelHe: 'מדרגות ומעקות',
+    labelEn: 'Stairs & railings',
+    selectors: [
+      CategorySelector('מדרגות ומעקות'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'fences_gates',
+    labelHe: 'גדרות ושערים',
+    labelEn: 'Fences & gates',
+    selectors: [
+      CategorySelector('גדרות ושערים'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'wallpaper',
+    labelHe: 'טפטים',
+    labelEn: 'Wallpaper',
+    selectors: [
+      CategorySelector('טפטים'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'lighting',
+    labelHe: 'תאורה',
+    labelEn: 'Lighting',
+    selectors: [
+      CategorySelector('תאורה'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'garden',
+    labelHe: 'גינה',
+    labelEn: 'Garden',
+    selectors: [
+      CategorySelector('פיתוח חצר'),
+      CategorySelector('צמחייה'),
+      CategorySelector('הצללה'),
+    ],
+  ),
+];
+
+/// עוזרי גישה — כל הלוגיקה שמסך הבית וסטודיו העיצוב צריכים כדי לעבוד עם
+/// קבוצות-העל, כולל "ועוד" (הקטגוריות המפורטות שלא שויכו לאף קבוצה קבועה
+/// — למשל מטבח/חדר רחצה/שטיחים/סגנון/יודאיקה/קמין/מטבח-חוץ-ואירוח —
+/// כי הן ספציפיות מדי לחדר או נישתיות מכדי להצדיק צ'יפ-על קבוע משלהן).
+class CategoryGroups {
+  CategoryGroups._();
+
+  /// כל הפריטים הרלוונטיים לסוג חדר וקבוצת-על נתונים (לפי `code`).
+  static List<MaterialItem> itemsForRoomAndGroup(
+    String roomTypeCode,
+    String groupCode,
+  ) {
+    CategoryGroup? group;
+    for (final g in kCategoryGroups) {
+      if (g.code == groupCode) {
+        group = g;
+        break;
+      }
+    }
+    if (group == null) return const [];
+    final g = group;
+    return kMaterials
+        .where((m) => m.isAvailableIn(roomTypeCode) && g.matches(m))
+        .toList();
+  }
+
+  /// קבוצות-העל שיש להן לפחות פריט אחד רלוונטי לסוג החדר הזה — אלה
+  /// שיוצגו כצ'יפים במסך הבית (בנוסף ל"ועוד" הקבוע, שמוצג רק אם יש
+  /// לו תוכן — ראו [moreCategoriesForRoom]).
+  static List<CategoryGroup> groupsForRoom(String roomTypeCode) {
+    return kCategoryGroups
+        .where(
+          (g) => kMaterials.any(
+            (m) => m.isAvailableIn(roomTypeCode) && g.matches(m),
+          ),
+        )
+        .toList();
+  }
+
+  /// שמות הקטגוריות המפורטות (`category`) שלא שויכו לאף קבוצת-על קבועה,
+  /// לפי סדר ההופעה במילון — אלה שמופיעות תחת "ועוד".
+  static List<String> moreCategoriesForRoom(String roomTypeCode) {
+    final claimed = <String>{
+      for (final g in kCategoryGroups)
+        for (final s in g.selectors) s.category,
+    };
+    final seen = <String>[];
+    for (final m in kMaterials) {
+      if (m.isAvailableIn(roomTypeCode) &&
+          !claimed.contains(m.category) &&
+          !seen.contains(m.category)) {
+        seen.add(m.category);
+      }
+    }
+    return seen;
+  }
+
+  /// הפריטים תחת "ועוד" לסוג חדר, מקובצים לפי הקטגוריה המפורטת שלהם —
+  /// למשל `{"מטבח": [...8 פריטים...], "שטיחים": [...7...]}` לחדר מטבח.
+  static Map<String, List<MaterialItem>> moreItemsForRoom(String roomTypeCode) {
+    final categories = moreCategoriesForRoom(roomTypeCode);
+    return {
+      for (final cat in categories)
+        cat: kMaterials
+            .where((m) => m.isAvailableIn(roomTypeCode) && m.category == cat)
+            .toList(),
+    };
+  }
+}
+SHIFTEOF
+
+echo
+echo '✅ כל הקבצים נכתבו/עודכנו בהצלחה (סשן 11).'
+echo 'שלבים הבאים:'
+echo '  1) flutter analyze   (אין תלויות חדשות הפעם — רק שינוי תוכן/מיפוי)'
+echo '  2) git add -A && git commit -m "סשן 11: פירוק קטגוריית חומרי בנייה לקטגוריות ממוקדות" && git push'
+echo '  3) לבנות APK חדש ולבדוק בפועל במכשיר אמיתי:'
+echo '     - לבחור מרפסת, לוודא שבמסך "מה תרצה לעצב" מופיעות עכשיו הרבה יותר צ׳יפים ממוקדים (תקרות, ריצוף, חיפוי אבן, שליכט חיצוני, אלומיניום, תריסים, דלתות...) במקום צ׳יפ ענק אחד "חומרי בנייה"'
+echo '     - ללחוץ על "ריצוף" ולוודא שמגיעים ישר לרשימת ריצוף בלי לגלול דרך שום דבר אחר'
+echo '     - ללחוץ על "תקרות" ולוודא שרואים שם את כל פריטי הגבס/נישות/קרניז/לד'
+echo '     - ללחוץ על "רהיטים" ולוודא שמראות כבר לא שם, ואז ללחוץ על צ׳יפ "מראות" הנפרד ולוודא שהן שם'
+echo '  אין צורך בפריסת Edge Function הפעם — הסשן הזה נוגע רק בתוכן/מיפוי הקטגוריות בצד ה-Flutter.'
