@@ -1,3 +1,18 @@
+#!/usr/bin/env bash
+# SHIFT — סשן 13: תיקון #1 (בצד האפליקציה) לבאג "מעגל התקיעה".
+#
+# מה זה עושה: מחליף לגמרי את הקובץ render_service.dart כך ש-
+# findPendingRender() יתעלם מהדמיה שנשארה pending/processing יותר מ-5
+# דקות מרגע היצירה שלה, במקום להמשיך "לרדוף" אחריה לנצח בכל פתיחת
+# אפליקציה. ראו הסבר מלא בהערת התיעוד בתוך הקוד למטה.
+#
+# איך מריצים: להדביק את התוכן הזה לקובץ .sh חדש ב-VS Code (בתוך
+# ה-Codespace), לשמור (Ctrl+S פעם אחת), ואז בטרמינל להריץ עם נתיב מלא:
+#   bash /workspaces/shift-app/shift_app/fix_stale_render_loop.sh
+set -e
+cd /workspaces/shift-app/shift_app
+
+cat > lib/features/render/data/render_service.dart << 'SHIFTEOF'
 import 'dart:io';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -377,3 +392,6 @@ class RenderService {
           },
       };
 }
+SHIFTEOF
+
+echo "✅ render_service.dart עודכן. עכשיו תריץ: flutter analyze"

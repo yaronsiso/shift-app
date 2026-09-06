@@ -1,0 +1,7432 @@
+// נוצר אוטומטית מ-build_dict_data.py — אין לערוך ידנית.
+// זהה בתוכנו לקבצי ה-Dart שבאפליקציה. מקור אמת יחיד: claude/08 ב-Project.
+// 484 פריטים.
+
+export interface MaterialItem {
+  id: string;
+  category: string;
+  subcategory: string;
+  labelHe: string;
+  labelEn: string;
+  promptEn: string;
+  roomTypes: string[];
+  isConstructive: boolean;
+  metadata: string;
+}
+
+export interface RoomType {
+  code: string;
+  labelHe: string;
+  labelEn: string;
+  isExterior: boolean;
+}
+
+export interface ProtectedElement {
+  roomScopeHe: string;
+  labelHe: string;
+  labelEn: string;
+  reason: string;
+}
+
+export const MATERIALS: MaterialItem[] = [
+  {
+    "id": "style_modern_israeli",
+    "category": "סגנון",
+    "subcategory": "סגנון כללי",
+    "labelHe": "מודרני ישראלי",
+    "labelEn": "Modern Israeli",
+    "promptEn": "modern Israeli style, clean lines, neutral tones of gray and cream, wood and aluminum accents, warm natural lighting",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "style_nordic_minimal",
+    "category": "סגנון",
+    "subcategory": "סגנון כללי",
+    "labelHe": "מינימליסטי נורדי",
+    "labelEn": "Nordic Minimalist",
+    "promptEn": "Scandinavian minimalist style, light bright colors, rustic split oak wood, abundant natural light",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "style_industrial",
+    "category": "סגנון",
+    "subcategory": "סגנון כללי",
+    "labelHe": "תעשייתי / אורבני",
+    "labelEn": "Industrial / Urban",
+    "promptEn": "industrial urban style, exposed concrete walls, visible ceiling piping, black aluminum, exposed brick",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "style_modern_rustic",
+    "category": "סגנון",
+    "subcategory": "סגנון כללי",
+    "labelHe": "כפרי מודרני",
+    "labelEn": "Modern Rustic",
+    "promptEn": "modern rustic style, warm brown tones, exposed wooden ceiling beams, natural stone textures",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "style_warm_luxury",
+    "category": "סגנון",
+    "subcategory": "סגנון כללי",
+    "labelHe": "יוקרתי / מודרני חם",
+    "labelEn": "Warm Luxury",
+    "promptEn": "warm luxury modern style, concealed cove lighting, dark marble surfaces, brushed gold accents",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "drywall_board_white",
+    "category": "תקרות",
+    "subcategory": "לוחות גבס",
+    "labelHe": "גבס לבן רגיל",
+    "labelEn": "Standard white gypsum board",
+    "promptEn": "standard white gypsum board partition walls, smooth plastered finish",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "drywall_board_green",
+    "category": "תקרות",
+    "subcategory": "לוחות גבס",
+    "labelHe": "גבס ירוק עמיד לחות",
+    "labelEn": "Moisture-resistant green board",
+    "promptEn": "moisture-resistant gypsum board construction suitable for wet rooms, smooth finish",
+    "roomTypes": [
+      "bathroom",
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "drywall_board_blue",
+    "category": "תקרות",
+    "subcategory": "לוחות גבס",
+    "labelHe": "גבס כחול עמיד מים ואש",
+    "labelEn": "Water & fire resistant board",
+    "promptEn": "water and fire resistant gypsum board construction, smooth exterior-grade finish",
+    "roomTypes": [
+      "bathroom",
+      "kitchen",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "ceiling_floating_led",
+    "category": "תקרות",
+    "subcategory": "אלמנטים",
+    "labelHe": "תקרת גבס צפה עם לד",
+    "labelEn": "Floating ceiling with LED",
+    "promptEn": "floating drywall ceiling with 15mm perimeter shadow gap and concealed warm 3000K LED strip lighting",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "ceiling_slot_diffuser",
+    "category": "תקרות",
+    "subcategory": "אלמנטים",
+    "labelHe": "הנמכת מיזוג עם פס סלוט",
+    "labelEn": "Bulkhead with slot diffuser",
+    "promptEn": "drywall ceiling bulkhead housing a modern slim linear slot air diffuser",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "drywall_tv_niche",
+    "category": "תקרות",
+    "subcategory": "אלמנטים",
+    "labelHe": "נישת טלוויזיה שקועה",
+    "labelEn": "Recessed TV niche",
+    "promptEn": "recessed drywall television niche 15cm deep with a floating oak shelf below",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "drywall_lit_shelves",
+    "category": "תקרות",
+    "subcategory": "אלמנטים",
+    "labelHe": "מדפי גבס מוארים",
+    "labelEn": "Illuminated drywall shelves",
+    "promptEn": "built-in drywall display shelves with integrated warm LED strip lighting",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "ceiling_vaulted_beams",
+    "category": "תקרות",
+    "subcategory": "תקרות",
+    "labelHe": "תקרה משופעת עם קורות",
+    "labelEn": "Vaulted ceiling with beams",
+    "promptEn": "pitched vaulted ceiling with exposed painted wooden beams and white cladding between them",
+    "roomTypes": [
+      "living",
+      "kitchen",
+      "bedroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "ceiling_crown_molding_classic",
+    "category": "תקרות",
+    "subcategory": "אלמנטים",
+    "labelHe": "קרניז פוליסטירן קלאסי",
+    "labelEn": "Classic polystyrene crown molding",
+    "promptEn": "traditional white polystyrene crown molding cornice running along the wall-to-ceiling junction, classic profile",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony",
+      "kitchen",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_panel_molding_classic",
+    "category": "חיפויי קירות",
+    "subcategory": "חיפוי חלק",
+    "labelHe": "פאנל קיר עיטורי קלאסי",
+    "labelEn": "Classic decorative wall panel molding",
+    "promptEn": "classic decorative wainscoting-style wall treatment with raised rectangular panel molding frames, painted in white or cream",
+    "roomTypes": [
+      "living",
+      "office",
+      "bedroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "ceiling_medallion_classic_rosette",
+    "category": "תקרות",
+    "subcategory": "אלמנטים",
+    "labelHe": "רוזטת תקרה קלאסית",
+    "labelEn": "Classic ceiling medallion rosette",
+    "promptEn": "ornate round white polystyrene ceiling medallion rosette installed around a pendant light fixture, classic decorative relief pattern",
+    "roomTypes": [
+      "living",
+      "bedroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_medallion_ornate_classic",
+    "category": "חיפויי קירות",
+    "subcategory": "חיפוי חלק",
+    "labelHe": "מדליון קיר עיטורי קלאסי",
+    "labelEn": "Ornate classic wall medallion",
+    "promptEn": "ornate oval white decorative plaster wall medallion applied as a standalone wall accent above furniture, classic relief pattern",
+    "roomTypes": [
+      "living"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "ceiling_black_inlay",
+    "category": "תקרות",
+    "subcategory": "אלמנטים",
+    "labelHe": "פס שחור מוטבע בתקרה",
+    "labelEn": "Black recessed ceiling inlay",
+    "promptEn": "slim black recessed linear strip inlaid into the white drywall ceiling, forming a clean graphic frame",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony",
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "ceiling_curved_organic",
+    "category": "תקרות",
+    "subcategory": "צורות",
+    "labelHe": "תקרת גבס בקו מעוגל אורגני",
+    "labelEn": "Curved organic drywall ceiling",
+    "promptEn": "drywall ceiling with a sweeping curved organic edge flowing across the room, the lowered section following a soft freeform curve with concealed LED lighting along it",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "ceiling_multi_level_stepped",
+    "category": "תקרות",
+    "subcategory": "צורות",
+    "labelHe": "תקרת גבס רב-מפלסית מדורגת",
+    "labelEn": "Multi-level stepped drywall ceiling",
+    "promptEn": "drywall ceiling built in several stepped rectangular levels dropping down in tiers, each step edge carrying a concealed warm LED strip",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "ceiling_wave_3d_sculpted",
+    "category": "תקרות",
+    "subcategory": "צורות",
+    "labelHe": "תקרת גבס גלית תלת-ממדית",
+    "labelEn": "3D sculpted wave drywall ceiling",
+    "promptEn": "sculpted drywall ceiling formed as a series of smooth parallel three-dimensional waves in white",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "ceiling_coffered_grid",
+    "category": "תקרות",
+    "subcategory": "צורות",
+    "labelHe": "תקרת גבס משבצות (קופרד)",
+    "labelEn": "Coffered grid drywall ceiling",
+    "promptEn": "coffered ceiling divided into a regular grid of recessed square or rectangular panels with raised borders",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "ceiling_linear_led_geometric",
+    "category": "תקרות",
+    "subcategory": "אלמנטים",
+    "labelHe": "פסי לד גיאומטריים משולבים בתקרה",
+    "labelEn": "Geometric linear LED pattern in ceiling",
+    "promptEn": "thin linear LED light channels recessed into the white ceiling in an angular geometric pattern, forming continuous illuminated lines that turn at sharp angles",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "ceiling_stretch_gloss",
+    "category": "תקרות",
+    "subcategory": "תקרה מתיחה",
+    "labelHe": "תקרה מתיחה מבריקה",
+    "labelEn": "Glossy stretch ceiling",
+    "promptEn": "seamless glossy stretch ceiling membrane with a high-reflection mirror-like surface",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "ceiling_stretch_printed_sky",
+    "category": "תקרות",
+    "subcategory": "תקרה מתיחה",
+    "labelHe": "תקרה מתיחה עם הדפס שמיים",
+    "labelEn": "Printed sky stretch ceiling",
+    "promptEn": "backlit stretch ceiling printed with a blue sky and white clouds image, glowing evenly from within",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "kids",
+      "office"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "ceiling_acoustic_tile_grid",
+    "category": "תקרות",
+    "subcategory": "תקרה אקוסטית",
+    "labelHe": "תקרה אקוסטית פריקה",
+    "labelEn": "Acoustic mineral tile drop ceiling",
+    "promptEn": "suspended modular drop ceiling of square perforated acoustic mineral-fibre tiles set in a visible grid frame",
+    "roomTypes": [
+      "office",
+      "kitchen",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "floor_porcelain_60x60",
+    "category": "ריצוף",
+    "subcategory": "גרניט פורצלן",
+    "labelHe": "גרניט פורצלן 60x60",
+    "labelEn": "Porcelain 60x60",
+    "promptEn": "60x60cm porcelain floor tiles with minimal grout lines",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "floor_porcelain_80x80",
+    "category": "ריצוף",
+    "subcategory": "גרניט פורצלן",
+    "labelHe": "גרניט פורצלן 80x80",
+    "labelEn": "Porcelain 80x80",
+    "promptEn": "80x80cm porcelain floor tiles with minimal grout lines",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "floor_porcelain_120x120",
+    "category": "ריצוף",
+    "subcategory": "גרניט פורצלן",
+    "labelHe": "גרניט פורצלן 120x120",
+    "labelEn": "Porcelain 120x120",
+    "promptEn": "large format 120x120cm porcelain floor tiles with minimal grout lines",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "floor_porcelain_60x120",
+    "category": "ריצוף",
+    "subcategory": "גרניט פורצלן",
+    "labelHe": "גרניט פורצלן 60x120",
+    "labelEn": "Porcelain 60x120",
+    "promptEn": "60x120cm rectangular porcelain floor tiles with minimal grout lines",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "floor_porcelain_80x160",
+    "category": "ריצוף",
+    "subcategory": "גרניט פורצלן",
+    "labelHe": "גרניט פורצלן 80x160",
+    "labelEn": "Porcelain 80x160",
+    "promptEn": "large format 80x160cm porcelain floor tiles with minimal grout lines",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "floor_porcelain_120x270",
+    "category": "ריצוף",
+    "subcategory": "גרניט פורצלן",
+    "labelHe": "גרניט פורצלן 120x270",
+    "labelEn": "Porcelain 120x270",
+    "promptEn": "extra large format 120x270cm porcelain slabs with nearly invisible grout lines",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "finish_matte",
+    "category": "גימורים",
+    "subcategory": "גימור משטח",
+    "labelHe": "גימור מט",
+    "labelEn": "Matte finish",
+    "promptEn": "matte non-reflective surface finish",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "finish_polished",
+    "category": "גימורים",
+    "subcategory": "גימור משטח",
+    "labelHe": "גימור מבריק",
+    "labelEn": "Polished finish",
+    "promptEn": "polished glossy reflective surface finish",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "finish_lappato",
+    "category": "גימורים",
+    "subcategory": "גימור משטח",
+    "labelHe": "גימור לפאטו",
+    "labelEn": "Lappato finish",
+    "promptEn": "lappato semi-polished satin surface finish",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "finish_calacatta",
+    "category": "גימורים",
+    "subcategory": "מראה חומר",
+    "labelHe": "מראה שיש קלאקטה",
+    "labelEn": "Calacatta marble look",
+    "promptEn": "Calacatta marble-look surface with gray and golden veining",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "finish_concrete_look",
+    "category": "גימורים",
+    "subcategory": "מראה חומר",
+    "labelHe": "מראה בטון",
+    "labelEn": "Concrete look",
+    "promptEn": "concrete-look surface in gray cement tone",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "finish_stone_natural_look",
+    "category": "גימורים",
+    "subcategory": "מראה חומר",
+    "labelHe": "מראה אבן טבעית",
+    "labelEn": "Natural stone look",
+    "promptEn": "natural warm beige stone-look surface with soft mottled texture and no strong veining",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "finish_travertine_look",
+    "category": "גימורים",
+    "subcategory": "מראה חומר",
+    "labelHe": "מראה טרוורטין",
+    "labelEn": "Travertine look",
+    "promptEn": "travertine-look surface with natural pitted stone texture and warm beige tone, suitable indoor and outdoor",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "finish_terrazzo",
+    "category": "גימורים",
+    "subcategory": "מראה חומר",
+    "labelHe": "מראה טרצו",
+    "labelEn": "Terrazzo look",
+    "promptEn": "terrazzo-look surface with scattered white and gray stone chip aggregate pattern",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "finish_marble_dark_white_vein",
+    "category": "גימורים",
+    "subcategory": "מראה חומר",
+    "labelHe": "מראה שיש כהה עורקים לבנים",
+    "labelEn": "Dark marble look, white veining",
+    "promptEn": "dark charcoal-black marble-look surface with bold dramatic white veining",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "finish_marble_gold_dramatic",
+    "category": "גימורים",
+    "subcategory": "מראה חומר",
+    "labelHe": "מראה שיש כהה עורקי זהב",
+    "labelEn": "Dark marble look, dramatic gold veining",
+    "promptEn": "dark marble-look surface in black, charcoal, or deep blue-gray tones with bold dramatic gold veining, luxury statement pattern",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "finish_marble_green_emerald",
+    "category": "גימורים",
+    "subcategory": "מראה חומר",
+    "labelHe": "מראה שיש ירוק אמרלד",
+    "labelEn": "Emerald green marble look",
+    "promptEn": "deep emerald green marble-look surface with dramatic gold veining, luxury statement pattern",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "finish_brushed",
+    "category": "גימורים",
+    "subcategory": "גימור משטח",
+    "labelHe": "גימור מוברש",
+    "labelEn": "Brushed finish",
+    "promptEn": "brushed soft-touch matte surface finish with subtle directional texture",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "floor_parquet_oak_natural",
+    "category": "פרקטים",
+    "subcategory": "פרקט עץ",
+    "labelHe": "פרקט למינציה אלון טבעי",
+    "labelEn": "Laminate natural oak",
+    "promptEn": "natural oak laminate wood flooring, warm honey tone",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "floor_parquet_oak_split",
+    "category": "פרקטים",
+    "subcategory": "פרקט עץ",
+    "labelHe": "פרקט למינציה אלון מבוקע",
+    "labelEn": "Laminate split oak",
+    "promptEn": "rustic split oak laminate wood flooring with visible grain",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "floor_parquet_oak_white",
+    "category": "פרקטים",
+    "subcategory": "פרקט עץ",
+    "labelHe": "פרקט למינציה אלון מולבן",
+    "labelEn": "Laminate whitewashed oak",
+    "promptEn": "whitewashed oak laminate wood flooring, light pale tone",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "floor_parquet_3layer",
+    "category": "פרקטים",
+    "subcategory": "פרקט עץ",
+    "labelHe": "פרקט עץ תלת-שכבתי",
+    "labelEn": "Engineered 3-layer wood",
+    "promptEn": "engineered three-layer natural wood flooring with wide planks",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "floor_parquet_herringbone",
+    "category": "פרקטים",
+    "subcategory": "פרקט עץ",
+    "labelHe": "פרקט פישבון",
+    "labelEn": "Herringbone parquet",
+    "promptEn": "herringbone pattern oak wood flooring, classic fishbone layout",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "floor_spc_wood",
+    "category": "ריצוף",
+    "subcategory": "SPC ו-PVC",
+    "labelHe": "לוחות SPC דמוי פרקט",
+    "labelEn": "SPC wood-look planks",
+    "promptEn": "SPC vinyl planks with realistic wood appearance",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "floor_spc_concrete",
+    "category": "ריצוף",
+    "subcategory": "SPC ו-PVC",
+    "labelHe": "אריחי SPC דמוי בטון",
+    "labelEn": "SPC concrete-look tiles",
+    "promptEn": "SPC vinyl tiles with concrete appearance",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "floor_spc_stone",
+    "category": "ריצוף",
+    "subcategory": "SPC ו-PVC",
+    "labelHe": "אריחי SPC דמוי אבן",
+    "labelEn": "SPC stone-look tiles",
+    "promptEn": "SPC vinyl tiles with natural stone appearance",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "floor_polished_concrete",
+    "category": "ריצוף",
+    "subcategory": "בטון",
+    "labelHe": "בטון מוחלק / אפוקסי",
+    "labelEn": "Polished concrete / epoxy",
+    "promptEn": "seamless polished concrete floor with industrial epoxy finish",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_slats_oak",
+    "category": "חיפויי קירות",
+    "subcategory": "סרגלי עץ",
+    "labelHe": "סרגלי עץ אנכיים אלון",
+    "labelEn": "Vertical oak slats",
+    "promptEn": "feature wall with evenly spaced vertical oak wood slats, uniform spacing, acoustic panel style",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "wall_slats_walnut",
+    "category": "חיפויי קירות",
+    "subcategory": "סרגלי עץ",
+    "labelHe": "סרגלי עץ אנכיים אגוז",
+    "labelEn": "Vertical walnut slats",
+    "promptEn": "feature wall with evenly spaced vertical walnut wood slats, uniform spacing, dark rich tone",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "wall_slats_cream_gold_trim",
+    "category": "חיפויי קירות",
+    "subcategory": "סרגלי עץ",
+    "labelHe": "סרגלי עץ קרם עם פס זהב",
+    "labelEn": "Cream wood slats with gold trim",
+    "promptEn": "feature wall with evenly spaced vertical cream wood-look slats separated by thin gold metal trim strips",
+    "roomTypes": [
+      "living",
+      "bedroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_slats_oak_black_notch",
+    "category": "חיפויי קירות",
+    "subcategory": "סרגלי עץ",
+    "labelHe": "סרגלי אלון עם ניתוקים שחורים",
+    "labelEn": "Oak slats with black notch dividers",
+    "promptEn": "feature wall with vertical oak wood-look slats segmented by recessed black notch grooves creating a blocked pattern",
+    "roomTypes": [
+      "living",
+      "bedroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_slats_black",
+    "category": "חיפויי קירות",
+    "subcategory": "סרגלי עץ",
+    "labelHe": "סרגלי עץ שחורים",
+    "labelEn": "Black wood slats",
+    "promptEn": "feature wall with evenly spaced vertical black wood-look slats, uniform spacing, matte finish",
+    "roomTypes": [
+      "living",
+      "bedroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_cladding_3d_wave_polymer_gray",
+    "category": "חיפויי קירות",
+    "subcategory": "סרגלי עץ",
+    "labelHe": "חיפוי פולימרי תלת-ממד גלי אפור",
+    "labelEn": "3D wave polymer wall panel, gray",
+    "promptEn": "feature wall clad in a 3D polymer panel with a rounded convex wave ripple profile in light gray",
+    "roomTypes": [
+      "living",
+      "bedroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_cladding_flat_wood_polymer_brown",
+    "category": "חיפויי קירות",
+    "subcategory": "חיפוי חלק",
+    "labelHe": "חיפוי קיר פולימרי חלק גוון חום",
+    "labelEn": "Flat smooth wood-look polymer wall panel, brown",
+    "promptEn": "feature wall clad floor-to-ceiling in a smooth flat warm brown wood-grain polymer panel with no visible seams, paired with a recessed LED cove light strip along the ceiling edge",
+    "roomTypes": [
+      "living",
+      "bedroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "light_vertical_wall_washer_tv_wall",
+    "category": "תאורה",
+    "subcategory": "תאורת פנים",
+    "labelHe": "תאורת קיר אנכית שקועה ליד טלוויזיה",
+    "labelEn": "Recessed vertical wall-washer lights beside TV",
+    "promptEn": "thin vertical linear light fixtures flush-recessed into the wall panel seams flanking a TV niche, subtle architectural accent lighting",
+    "roomTypes": [
+      "living"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_cladding_linear_grid_frame_led",
+    "category": "חיפויי קירות",
+    "subcategory": "חיפוי חלק",
+    "labelHe": "חיפוי קיר דקורטיבי גריד קווי עם לד",
+    "labelEn": "Decorative linear grid wall panel with LED",
+    "promptEn": "decorative feature wall divided into a geometric grid of rectangular panels by thin recessed linear grooves, with integrated vertical LED light strips embedded within some of the grooves",
+    "roomTypes": [
+      "living"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_slats_ceiling_wrap_led",
+    "category": "חיפויי קירות",
+    "subcategory": "סרגלי עץ",
+    "labelHe": "סרגלי עץ עוטפים לתקרה עם לד",
+    "labelEn": "Wood slats wrapping onto ceiling with LED cove",
+    "promptEn": "beige wood-look vertical slat wall cladding that wraps seamlessly up onto the ceiling, with a recessed warm LED cove light strip along the wall-to-ceiling transition edge",
+    "roomTypes": [
+      "living",
+      "bedroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "skirting_flat_white_polymer",
+    "category": "חיפויי קירות",
+    "subcategory": "פנל סוקל",
+    "labelHe": "פנל סוקל פולימר לבן שטוח",
+    "labelEn": "Flat white polymer skirting board",
+    "promptEn": "simple flat-profile white polymer skirting baseboard running along the base of the wall where it meets the floor",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony",
+      "kitchen",
+      "bathroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "skirting_curved_top_white",
+    "category": "חיפויי קירות",
+    "subcategory": "פנל סוקל",
+    "labelHe": "פנל סוקל לבן קימור עליון",
+    "labelEn": "Curved-top white skirting board",
+    "promptEn": "white skirting baseboard with a gently curved rounded top edge profile along the base of the wall",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony",
+      "kitchen",
+      "bathroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "divider_freestanding_wood_slats",
+    "category": "ריהוט",
+    "subcategory": "מחיצות",
+    "labelHe": "מחיצה דקורטיבית סרגלי עץ",
+    "labelEn": "Freestanding decorative wood slat room divider",
+    "promptEn": "freestanding decorative room divider panel made of evenly spaced vertical solid wood slats, used to visually separate a space without a full wall, available in natural oak, gray, or dark wood finish",
+    "roomTypes": [
+      "living",
+      "bathroom",
+      "office",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_coffee_dark_wood_angular_pedestal",
+    "category": "ריהוט",
+    "subcategory": "תצורת שולחן",
+    "labelHe": "שולחן קפה עץ כהה בסיס זוויתי",
+    "labelEn": "Dark wood coffee table on angular pedestal",
+    "promptEn": "round dark bookmatched wood-top coffee table resting on a single sculptural angular V-shaped wood pedestal",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_slats_polymer",
+    "category": "חיפויי קירות",
+    "subcategory": "סרגלי עץ",
+    "labelHe": "סרגלי פולימר",
+    "labelEn": "Polymer slat panels",
+    "promptEn": "feature wall with evenly spaced vertical polymer slat panels, uniform spacing",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "wall_microcement",
+    "category": "חיפויי קירות",
+    "subcategory": "טיח וטקסטורה",
+    "labelHe": "בטון מוחלק / מיקרוצמנט",
+    "labelEn": "Microcement",
+    "promptEn": "seamless smooth microcement wall finish, continuous elegant concrete appearance without joints",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_brick_reclaimed_red",
+    "category": "חיפויי קירות",
+    "subcategory": "בריקים",
+    "labelHe": "בריקים פירוק אדמדם",
+    "labelEn": "Reclaimed red brick",
+    "promptEn": "reclaimed rustic brick wall cladding in reddish tones",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_brick_reclaimed_wheat",
+    "category": "חיפויי קירות",
+    "subcategory": "בריקים",
+    "labelHe": "בריקים פירוק חיטה",
+    "labelEn": "Reclaimed wheat brick",
+    "promptEn": "reclaimed rustic brick wall cladding in wheat and sand tones",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_brick_white_modern",
+    "category": "חיפויי קירות",
+    "subcategory": "בריקים",
+    "labelHe": "בריקים לבנים מודרניים",
+    "labelEn": "Modern white brick",
+    "promptEn": "clean modern white glazed brick wall cladding",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_stone_panel_white_3d_ledger",
+    "category": "חיפויי קירות",
+    "subcategory": "בריקים",
+    "labelHe": "פנל קיר תלת-ממד דמוי אבן לבנה",
+    "labelEn": "White 3D faux ledgestone wall panel",
+    "promptEn": "decorative 3D wall panel with a rough natural cut ledgestone relief texture in white",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_covering_textured_stone_plaster",
+    "category": "חיפויי קירות",
+    "subcategory": "טיח וטקסטורה",
+    "labelHe": "חיפוי קיר טקסטורת אבן טבעית",
+    "labelEn": "Textured natural stone-look wall covering",
+    "promptEn": "textured natural stone-look plaster wall covering with rough organic surface texture in warm gray or beige tones, rated for wet rooms",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony",
+      "kitchen",
+      "bathroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bath_cladding_marble_portoro_black_gold",
+    "category": "חדר רחצה",
+    "subcategory": "חיפויים",
+    "labelHe": "חיפוי שיש פורטורו שחור זהב",
+    "labelEn": "Portoro black-gold marble-look bathroom cladding",
+    "promptEn": "large-format PVC polymer bathroom wall cladding panel imitating black Portoro marble with bold white and gold veining",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_travertine",
+    "category": "חיפוי אבן",
+    "subcategory": "חיפוי פנים",
+    "labelHe": "חיפוי טרוורטין",
+    "labelEn": "Travertine cladding",
+    "promptEn": "travertine stone wall cladding in warm beige with natural horizontal veining",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony",
+      "facade"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_marble_slab",
+    "category": "חיפוי אבן",
+    "subcategory": "חיפוי פנים",
+    "labelHe": "חיפוי שיש מלא (סלאב)",
+    "labelEn": "Full marble slab",
+    "promptEn": "full-height continuous marble slab wall cladding with dramatic veining and no visible joints",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_plaster_marmorino",
+    "category": "חיפויי קירות",
+    "subcategory": "טיח וטקסטורה",
+    "labelHe": "שליכט דקורטיבי מרמרינו",
+    "labelEn": "Marmorino plaster",
+    "promptEn": "Marmorino decorative plaster with subtle stone texture in off-white tone",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_plaster_arava",
+    "category": "חיפויי קירות",
+    "subcategory": "טיח וטקסטורה",
+    "labelHe": "שליכט דקורטיבי ערבה",
+    "labelEn": "Arava plaster",
+    "promptEn": "Arava decorative plaster with fine silky texture in beige tone",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_pvc_marble",
+    "category": "חיפויי קירות",
+    "subcategory": "לוחות PVC",
+    "labelHe": "חיפוי PVC מראה שיש",
+    "labelEn": "PVC marble-look panels",
+    "promptEn": "glossy UV PVC decorative wall panels with marble appearance",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wall_pvc_textured_offwhite",
+    "category": "חיפויי קירות",
+    "subcategory": "לוחות PVC",
+    "labelHe": "חיפוי PVC מרקם פשתן אופווייט",
+    "labelEn": "Textured PVC panel, off-white linen texture",
+    "promptEn": "self-adhesive PVC wall covering panel with a subtle vertical linen-like ribbed texture in off-white, water and heat resistant, suitable for kitchen and bathroom walls",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony",
+      "kitchen",
+      "bathroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "paint_offwhite",
+    "category": "חיפויי קירות",
+    "subcategory": "צבע",
+    "labelHe": "צבע אקרילי אופווייט",
+    "labelEn": "Off-white acrylic paint",
+    "promptEn": "off-white acrylic wall paint, clean smooth finish",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "paint_beige",
+    "category": "חיפויי קירות",
+    "subcategory": "צבע",
+    "labelHe": "צבע אקרילי בז'",
+    "labelEn": "Beige acrylic paint",
+    "promptEn": "warm beige acrylic wall paint, clean smooth finish",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "paint_light_gray",
+    "category": "חיפויי קירות",
+    "subcategory": "צבע",
+    "labelHe": "צבע אקרילי אפור בהיר",
+    "labelEn": "Light gray acrylic paint",
+    "promptEn": "light gray acrylic wall paint, clean smooth finish",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "paint_dusty_pink",
+    "category": "חיפויי קירות",
+    "subcategory": "צבע",
+    "labelHe": "צבע אקרילי ורוד אבקה",
+    "labelEn": "Dusty pink acrylic paint",
+    "promptEn": "muted dusty pink / blush acrylic wall paint, soft powder tone, clean smooth finish",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "kids",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "paint_teal",
+    "category": "חיפויי קירות",
+    "subcategory": "צבע",
+    "labelHe": "צבע אקרילי טורקיז",
+    "labelEn": "Teal acrylic paint",
+    "promptEn": "teal / petrol turquoise acrylic wall paint, saturated tone, clean smooth finish",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "kitchen",
+      "bathroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "paint_dark_green",
+    "category": "חיפויי קירות",
+    "subcategory": "צבע",
+    "labelHe": "צבע אקרילי ירוק כהה",
+    "labelEn": "Dark green acrylic paint",
+    "promptEn": "dark forest / hunter green acrylic wall paint, deep saturated tone, clean smooth finish",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "kitchen",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "paint_mustard_yellow",
+    "category": "חיפויי קירות",
+    "subcategory": "צבע",
+    "labelHe": "צבע אקרילי חרדל",
+    "labelEn": "Mustard yellow acrylic paint",
+    "promptEn": "mustard / ochre yellow acrylic wall paint, warm saturated tone, clean smooth finish",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "kids",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "paint_terracotta_coral",
+    "category": "חיפויי קירות",
+    "subcategory": "צבע",
+    "labelHe": "צבע אקרילי טרה-קוטה/אפרסק",
+    "labelEn": "Terracotta / coral acrylic paint",
+    "promptEn": "warm terracotta coral / peach acrylic wall paint, earthy warm tone, clean smooth finish",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "kids",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "paint_sage_green",
+    "category": "חיפויי קירות",
+    "subcategory": "צבע",
+    "labelHe": "צבע אקרילי ירוק מרווה",
+    "labelEn": "Sage green acrylic paint",
+    "promptEn": "soft muted sage green acrylic wall paint, gentle pastel-earthy tone, clean smooth finish",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "paint_geometric_color_block_two_tone",
+    "category": "חיפויי קירות",
+    "subcategory": "צבע",
+    "labelHe": "צביעת קיר גיאומטרית דו-גונית",
+    "labelEn": "Geometric two-tone color-block wall paint",
+    "promptEn": "wall painted directly (not wallpaper) with a geometric angular color-block pattern, dividing the wall into distinct triangular zones of two or three different paint tones",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "kids",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "alu_belgian_black",
+    "category": "אלומיניום",
+    "subcategory": "פרופילים",
+    "labelHe": "פרופיל בלגי שחור",
+    "labelEn": "Black Belgian profile",
+    "promptEn": "black Belgian profile aluminum frame windows, Klil style, fine metal grid dividers",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "alu_minimal_zero",
+    "category": "אלומיניום",
+    "subcategory": "פרופילים",
+    "labelHe": "פרופיל מינימליסטי קו אפס",
+    "labelEn": "Minimal zero-line profile",
+    "promptEn": "ultra-slim hidden aluminum frame, frameless large glass panes, minimal sightlines",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "alu_panoramic_sliding",
+    "category": "אלומיניום",
+    "subcategory": "פרופילים",
+    "labelHe": "חלונות הזזה פנורמיים",
+    "labelEn": "Panoramic sliding windows",
+    "promptEn": "panoramic sliding aluminum windows with large uninterrupted glass panels",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "alu_electric_shutters",
+    "category": "תריסים",
+    "subcategory": "תריסים",
+    "labelHe": "תריסי רפפה חשמליים",
+    "labelEn": "Electric louvered shutters",
+    "promptEn": "electric aluminum louvered shutters with adjustable light slats",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "alu_shutter_interior_plantation_louvered",
+    "category": "תריסים",
+    "subcategory": "תריסים",
+    "labelHe": "תריס פנימי מדף מתכוונן (פלנטיישן)",
+    "labelEn": "Interior plantation-style louvered shutter",
+    "promptEn": "decorative interior plantation-style shutter panel built into the window frame, with adjustable horizontal white louvered slats",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "alu_shutter_solid_folding_panel",
+    "category": "תריסים",
+    "subcategory": "תריסים",
+    "labelHe": "תריס אלומיניום מתקפל אטום",
+    "labelEn": "Solid folding aluminum shutter panel",
+    "promptEn": "solid hinged folding aluminum shutter panel with horizontal ribbed texture, fully opaque, matte dark finish",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony",
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "alu_shutter_rolling_box",
+    "category": "תריסים",
+    "subcategory": "תריסים",
+    "labelHe": "תריס גלילה קלאסי",
+    "labelEn": "Classic rolling shutter",
+    "promptEn": "classic rolling aluminum shutter with a visible roll-up box mounted above the window frame, flexible slat curtain",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony",
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "door_barn",
+    "category": "דלתות",
+    "subcategory": "דלתות פנים",
+    "labelHe": "דלת אסם",
+    "labelEn": "Barn door",
+    "promptEn": "sliding barn door in natural wood with exposed black steel hardware",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "door_zero_line",
+    "category": "דלתות",
+    "subcategory": "דלתות פנים",
+    "labelHe": "דלתות קו אפס",
+    "labelEn": "Zero-line doors",
+    "promptEn": "flush zero-line concealed frame interior doors, seamless with the wall",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "door_flush_plain_laminate",
+    "category": "דלתות",
+    "subcategory": "דלתות פנים",
+    "labelHe": "דלת פנים חלקה",
+    "labelEn": "Plain flush interior door",
+    "promptEn": "plain flush interior door with a smooth laminate surface, no visible panel lines, standard door frame casing",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "door_double_panel_molding",
+    "category": "דלתות",
+    "subcategory": "דלתות פנים",
+    "labelHe": "דלת פנים מסגרת כפולה",
+    "labelEn": "Double-panel molding interior door",
+    "promptEn": "interior door with a double raised-panel molding design divided into two recessed horizontal sections, standard door frame casing",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "door_triple_groove_linear",
+    "category": "דלתות",
+    "subcategory": "דלתות פנים",
+    "labelHe": "דלת פנים 3 פסים אופקיים",
+    "labelEn": "Interior door with 3 horizontal grooves",
+    "promptEn": "interior door with three slim recessed horizontal linear grooves across a flush surface, standard door frame casing",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "door_entry_classic_glass_grid",
+    "category": "דלתות",
+    "subcategory": "דלת כניסה",
+    "labelHe": "דלת כניסה קלאסית עם חלון זכוכית משובצת",
+    "labelEn": "Classic entry door with glass grid window",
+    "promptEn": "classic front entrance security door with an upper textured glass window divided by a decorative grid, and a raised panel below",
+    "roomTypes": [
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "door_entry_minimalist_flush",
+    "category": "דלתות",
+    "subcategory": "דלת כניסה",
+    "labelHe": "דלת כניסה מינימליסטית חלקה",
+    "labelEn": "Minimalist flush entry door",
+    "promptEn": "minimalist flush front entrance security door with a slim horizontal or vertical bar handle and an optional thin recessed linear accent groove, no glass or panel details",
+    "roomTypes": [
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "door_entry_classic_double_panel",
+    "category": "דלתות",
+    "subcategory": "דלת כניסה",
+    "labelHe": "דלת כניסה קלאסית מסגרת כפולה",
+    "labelEn": "Classic double-panel entry door",
+    "promptEn": "classic front entrance security door with a double raised-panel molding design and a long vertical brass bar handle",
+    "roomTypes": [
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "door_entry_classic_single_panel",
+    "category": "דלתות",
+    "subcategory": "דלת כניסה",
+    "labelHe": "דלת כניסה קלאסית פאנל בודד",
+    "labelEn": "Classic single raised-panel entry door",
+    "promptEn": "classic front entrance security door with a single large raised-panel molding design filling most of the door face",
+    "roomTypes": [
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "door_entry_ornate_wrought_iron_glass",
+    "category": "דלתות",
+    "subcategory": "דלת כניסה",
+    "labelHe": "דלת כניסה מעוטרת ברזל וזכוכית",
+    "labelEn": "Ornate entry door with wrought iron and glass",
+    "promptEn": "ornate front entrance door with a decorative wrought iron scrollwork grille over a textured glass window insert",
+    "roomTypes": [
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "door_entry_with_glass_sidelight",
+    "category": "דלתות",
+    "subcategory": "דלת כניסה",
+    "labelHe": "דלת כניסה עם אשנב זכוכית צדי",
+    "labelEn": "Entry door with fixed glass sidelight",
+    "promptEn": "front entrance door paired with a full-height fixed glass sidelight panel beside it, matching dark aluminum frame",
+    "roomTypes": [
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "door_entry_vertical_glass_bars",
+    "category": "דלתות",
+    "subcategory": "דלת כניסה",
+    "labelHe": "דלת כניסה עם אשנב זכוכית ושרשראות אופקיות",
+    "labelEn": "Entry door with vertical glass strip and horizontal bars",
+    "promptEn": "front entrance door with one or two narrow vertical glass window strips crossed by horizontal security bars",
+    "roomTypes": [
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "door_entry_classic_triple_panel",
+    "category": "דלתות",
+    "subcategory": "דלת כניסה",
+    "labelHe": "דלת כניסה קלאסית שלושה פאנלים",
+    "labelEn": "Classic triple-panel entry door",
+    "promptEn": "classic front entrance security door with three stacked raised-panel molding sections",
+    "roomTypes": [
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "door_entry_modern_geometric_glass",
+    "category": "דלתות",
+    "subcategory": "דלת כניסה",
+    "labelHe": "דלת כניסה עם זכוכית גיאומטרית מודרנית",
+    "labelEn": "Entry door with modern geometric glass insert",
+    "promptEn": "front entrance door with a modern angular geometric-pattern glass window insert, triangular mosaic grille design",
+    "roomTypes": [
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "alu_ral9005",
+    "category": "אלומיניום",
+    "subcategory": "גוונים",
+    "labelHe": "שחור מט RAL 9005",
+    "labelEn": "Matte black RAL 9005",
+    "promptEn": "matte black aluminum finish RAL 9005",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony",
+      "facade",
+      "yard"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "alu_ral9010",
+    "category": "אלומיניום",
+    "subcategory": "גוונים",
+    "labelHe": "לבן אופווייט RAL 9010",
+    "labelEn": "Off-white RAL 9010",
+    "promptEn": "off-white aluminum finish RAL 9010",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony",
+      "facade",
+      "yard"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "alu_ral7016",
+    "category": "אלומיניום",
+    "subcategory": "גוונים",
+    "labelHe": "אפור אנתרציט RAL 7016",
+    "labelEn": "Anthracite gray RAL 7016",
+    "promptEn": "anthracite gray aluminum finish RAL 7016",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony",
+      "facade",
+      "yard"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "alu_bronze",
+    "category": "אלומיניום",
+    "subcategory": "גוונים",
+    "labelHe": "ברונזה",
+    "labelEn": "Bronze",
+    "promptEn": "bronze anodized aluminum finish",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony",
+      "facade",
+      "yard"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "alu_corten",
+    "category": "אלומיניום",
+    "subcategory": "גוונים",
+    "labelHe": "מראה חלודה (קורטן)",
+    "labelEn": "Corten rust look",
+    "promptEn": "corten weathered rust-look metal finish",
+    "roomTypes": [
+      "facade",
+      "yard"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "window_glass_frosted_privacy",
+    "category": "אלומיניום",
+    "subcategory": "זכוכית",
+    "labelHe": "זכוכית חלון מחוספסת לפרטיות",
+    "labelEn": "Frosted privacy window glass",
+    "promptEn": "obscured frosted privacy glass pane in a window, used for bathroom or utility room windows",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "door_aluminum_utility_frosted_upper",
+    "category": "דלתות",
+    "subcategory": "דלתות פנים",
+    "labelHe": "דלת אלומיניום שירות זכוכית מחוספסת",
+    "labelEn": "Aluminum utility door, frosted upper panel",
+    "promptEn": "simple aluminum-framed utility service door with a frosted glass upper panel and a solid lower panel, off-white frame",
+    "roomTypes": [
+      "kitchen",
+      "balcony",
+      "yard"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "window_arched_grid_black",
+    "category": "אלומיניום",
+    "subcategory": "חלונות",
+    "labelHe": "חלון קשתי עם חלוקת משבצות שחורה",
+    "labelEn": "Arched black grid window",
+    "promptEn": "arched-top window with a matte black steel-look aluminum frame divided by thin mullions into a multi-pane grid pattern",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "kitchen",
+      "office",
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "window_multi_pane_grid_traditional",
+    "category": "אלומיניום",
+    "subcategory": "חלונות",
+    "labelHe": "חלון מרובה משבצות מסורתי",
+    "labelEn": "Traditional multi-pane grid window",
+    "promptEn": "large traditional window divided by frame mullions into a grid of many small rectangular panes, classic divided-lite pattern",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "kitchen",
+      "office",
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "door_sliding_black_steel_grid_wall",
+    "category": "אלומיניום",
+    "subcategory": "חלונות",
+    "labelHe": "קיר זכוכית הזזה שחור עם חלוקת משבצות",
+    "labelEn": "Black steel-look grid sliding glass wall",
+    "promptEn": "floor-to-ceiling black steel-look aluminum sliding glass door wall, divided into a grid of multiple panes",
+    "roomTypes": [
+      "living",
+      "balcony",
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_nano_black",
+    "category": "מטבח",
+    "subcategory": "חזיתות",
+    "labelHe": "נאנו-פורמייקה שחור",
+    "labelEn": "Nano formica black",
+    "promptEn": "matte silk nano-formica kitchen cabinet fronts in black, fingerprint resistant",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_nano_gray",
+    "category": "מטבח",
+    "subcategory": "חזיתות",
+    "labelHe": "נאנו-פורמייקה אפור עכבר",
+    "labelEn": "Nano formica mouse gray",
+    "promptEn": "matte silk nano-formica kitchen cabinet fronts in mouse gray, fingerprint resistant",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_nano_green",
+    "category": "מטבח",
+    "subcategory": "חזיתות",
+    "labelHe": "נאנו-פורמייקה ירוק מעושן",
+    "labelEn": "Nano formica smoked green",
+    "promptEn": "matte silk nano-formica kitchen cabinet fronts in smoked green, fingerprint resistant",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_baked_grooved",
+    "category": "מטבח",
+    "subcategory": "חזיתות",
+    "labelHe": "צבע בתנור עם חריצים",
+    "labelEn": "Baked paint shaker fronts",
+    "promptEn": "baked lacquer kitchen cabinet fronts with classic grooved shaker profile, modern rustic",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_fronts_veneer_oak",
+    "category": "מטבח",
+    "subcategory": "חזיתות",
+    "labelHe": "חזיתות פורניר אלון",
+    "labelEn": "Oak veneer fronts",
+    "promptEn": "real oak wood veneer kitchen cabinet fronts with continuous natural grain running across the doors",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_island_wood_clad",
+    "category": "מטבח",
+    "subcategory": "ריהוט",
+    "labelHe": "אי מחופה עץ",
+    "labelEn": "Wood-clad island",
+    "promptEn": "kitchen island clad in natural wood panels contrasting the stone countertop above",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_faucet_spring",
+    "category": "מטבח",
+    "subcategory": "ברזים",
+    "labelHe": "ברז קפיץ מקצועי",
+    "labelEn": "Professional spring faucet",
+    "promptEn": "professional pull-down spring coil kitchen faucet in brushed steel",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_service_niche_lit",
+    "category": "מטבח",
+    "subcategory": "חיפוי קיר",
+    "labelHe": "נישת שירות מוארת",
+    "labelEn": "Lit service niche",
+    "promptEn": "recessed horizontal service niche channel along the backsplash with integrated LED lighting",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_wine_fridge",
+    "category": "מטבח",
+    "subcategory": "אלמנטים",
+    "labelHe": "מקרר יין מובנה",
+    "labelEn": "Built-in wine fridge",
+    "promptEn": "built-in wine cooler with illuminated glass door integrated into the island",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_niche_wood_veneer",
+    "category": "מטבח",
+    "subcategory": "אלמנטים",
+    "labelHe": "נישה פתוחה מחופה פורניר",
+    "labelEn": "Wood-lined open niche",
+    "promptEn": "recessed open niche in the cabinet run fully lined in warm walnut veneer, used as a coffee station",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_display_cabinet_glass",
+    "category": "מטבח",
+    "subcategory": "אלמנטים",
+    "labelHe": "ארון תצוגה זכוכית ברונזה",
+    "labelEn": "Bronze glass display cabinet",
+    "promptEn": "tall display cabinet with smoked bronze glass doors and interior lighting",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_hanging_shelf",
+    "category": "מטבח",
+    "subcategory": "אלמנטים",
+    "labelHe": "מדף תלוי מהתקרה",
+    "labelEn": "Ceiling-suspended shelf",
+    "promptEn": "open shelving unit suspended from the ceiling on leather straps above the island, with warm interior lighting",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_fronts_black_gloss",
+    "category": "מטבח",
+    "subcategory": "חזיתות",
+    "labelHe": "חזיתות שחור מבריק",
+    "labelEn": "Gloss black fronts",
+    "promptEn": "high gloss black lacquer kitchen cabinet fronts with mirror-like reflection",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_fronts_light_gray",
+    "category": "מטבח",
+    "subcategory": "חזיתות",
+    "labelHe": "חזיתות אפור בהיר",
+    "labelEn": "Light gray fronts",
+    "promptEn": "matte light gray kitchen cabinet fronts, clean flat surfaces",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_handle_gold_bar",
+    "category": "מטבח",
+    "subcategory": "ידיות",
+    "labelHe": "ידית מוט זהב מוארכת",
+    "labelEn": "Long gold bar handle",
+    "promptEn": "long slim vertical bar handles in brushed gold spanning the cabinet fronts",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_handle_black_bar_long",
+    "category": "מטבח",
+    "subcategory": "ידיות",
+    "labelHe": "ידית מוט שחורה מוארכת",
+    "labelEn": "Long black bar handle",
+    "promptEn": "long slim vertical bar handles in matte black spanning the cabinet fronts",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_plinth_black",
+    "category": "מטבח",
+    "subcategory": "אלמנטים",
+    "labelHe": "סוקל שחור שקוע",
+    "labelEn": "Recessed black plinth",
+    "promptEn": "deeply recessed matte black toe-kick plinth making the cabinets appear to float",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_channel_black_top",
+    "category": "מטבח",
+    "subcategory": "אלמנטים",
+    "labelHe": "פס שחור שקוע מעל הארונות",
+    "labelEn": "Black recessed top channel",
+    "promptEn": "slim recessed matte black channel running above the tall cabinet run, framing the kitchen",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "counter_dark_veined",
+    "category": "מטבח",
+    "subcategory": "משטחי עבודה",
+    "labelHe": "משטח אבן כהה עם עורקים",
+    "labelEn": "Dark veined stone",
+    "promptEn": "dark brown-gray stone countertop with dramatic light veining",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "counter_caesarstone_concrete",
+    "category": "מטבח",
+    "subcategory": "משטחי עבודה",
+    "labelHe": "אבן קיסר דמוי בטון",
+    "labelEn": "Quartz concrete-look",
+    "promptEn": "Caesarstone quartz countertop with concrete-look gray surface",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "counter_caesarstone_veined",
+    "category": "מטבח",
+    "subcategory": "משטחי עבודה",
+    "labelHe": "אבן קיסר עורקי שיש",
+    "labelEn": "Quartz marble-veined",
+    "promptEn": "Caesarstone quartz countertop with subtle marble veining",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "counter_quartz_green_sage",
+    "category": "מטבח",
+    "subcategory": "משטחי עבודה",
+    "labelHe": "משטח קוורץ ירוק-אפור",
+    "labelEn": "Green-gray quartz countertop",
+    "promptEn": "engineered quartz countertop in a muted sage green-gray stone tone with subtle natural veining",
+    "roomTypes": [
+      "kitchen",
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "counter_porcelain",
+    "category": "מטבח",
+    "subcategory": "משטחי עבודה",
+    "labelHe": "משטח גרניט פורצלן",
+    "labelEn": "Porcelain countertop",
+    "promptEn": "large format porcelain slab countertop with stone appearance",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_fronts_white_gloss",
+    "category": "מטבח",
+    "subcategory": "חזיתות",
+    "labelHe": "חזיתות לבן מבריק",
+    "labelEn": "Gloss white fronts",
+    "promptEn": "glossy white kitchen cabinet fronts with clean flat surfaces",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_fronts_shaker",
+    "category": "מטבח",
+    "subcategory": "חזיתות",
+    "labelHe": "חזיתות שייקר (מסגרת)",
+    "labelEn": "Shaker frame fronts",
+    "promptEn": "classic shaker style kitchen cabinet fronts with a recessed central panel and raised frame",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_fronts_fluted",
+    "category": "מטבח",
+    "subcategory": "חזיתות",
+    "labelHe": "חזיתות מחורצות (ריפים)",
+    "labelEn": "Fluted reeded fronts",
+    "promptEn": "kitchen cabinet fronts with vertical fluted reeded texture, evenly spaced grooves",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_handle_bow_bronze",
+    "category": "מטבח",
+    "subcategory": "ידיות",
+    "labelHe": "ידית קשת ברונזה",
+    "labelEn": "Antique bow handle",
+    "promptEn": "antique bow-shaped cabinet handles in aged bronze finish",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_handle_integrated",
+    "category": "מטבח",
+    "subcategory": "ידיות",
+    "labelHe": "ידית אינטגרלית",
+    "labelEn": "Integrated routed handle",
+    "promptEn": "handleless kitchen cabinets with an integrated routed finger groove along the door edge",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_handle_bar",
+    "category": "מטבח",
+    "subcategory": "ידיות",
+    "labelHe": "ידית בולטת דקה",
+    "labelEn": "Slim bar handle",
+    "promptEn": "kitchen cabinets with slim protruding bar handles in matte black",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_handle_gola",
+    "category": "מטבח",
+    "subcategory": "ידיות",
+    "labelHe": "פרופיל גולה",
+    "labelEn": "Gola profile",
+    "promptEn": "handleless kitchen cabinets with a recessed aluminum gola profile channel between drawers",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_uppers_liftup",
+    "category": "מטבח",
+    "subcategory": "ארונות עליונים",
+    "labelHe": "קלאפות עליונות",
+    "labelEn": "Lift-up upper doors",
+    "promptEn": "horizontal lift-up flap upper kitchen cabinets spanning the wall, handleless",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_uppers_tall",
+    "category": "מטבח",
+    "subcategory": "ארונות עליונים",
+    "labelHe": "ארונות עליונים עד התקרה",
+    "labelEn": "Full-height uppers",
+    "promptEn": "upper kitchen cabinets extending all the way to the ceiling",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_no_uppers",
+    "category": "מטבח",
+    "subcategory": "ארונות עליונים",
+    "labelHe": "ללא ארונות עליונים",
+    "labelEn": "No upper cabinets",
+    "promptEn": "open kitchen wall with no upper cabinets, only a clean backsplash",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_backsplash_slab",
+    "category": "מטבח",
+    "subcategory": "חיפוי קיר",
+    "labelHe": "חיפוי שיש מלא",
+    "labelEn": "Full stone slab backsplash",
+    "promptEn": "full-height continuous stone slab backsplash matching the countertop, no visible joints",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_backsplash_glass",
+    "category": "מטבח",
+    "subcategory": "חיפוי קיר",
+    "labelHe": "חיפוי זכוכית",
+    "labelEn": "Glass backsplash",
+    "promptEn": "seamless painted glass backsplash panel behind the countertop",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_backsplash_tiles",
+    "category": "מטבח",
+    "subcategory": "חיפוי קיר",
+    "labelHe": "אריחי חיפוי",
+    "labelEn": "Tiled backsplash",
+    "promptEn": "ceramic tile backsplash behind the kitchen countertop",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_sink_stainless",
+    "category": "מטבח",
+    "subcategory": "כיורים",
+    "labelHe": "כיור נירוסטה",
+    "labelEn": "Stainless steel sink",
+    "promptEn": "brushed stainless steel kitchen sink set into the countertop",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_sink_granite",
+    "category": "מטבח",
+    "subcategory": "כיורים",
+    "labelHe": "כיור גרניט",
+    "labelEn": "Granite composite sink",
+    "promptEn": "matte granite composite kitchen sink in a dark tone",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_fronts_sage",
+    "category": "מטבח",
+    "subcategory": "חזיתות",
+    "labelHe": "חזיתות ירוק ערבה / זית",
+    "labelEn": "Sage green fronts",
+    "promptEn": "matte sage olive green kitchen cabinet fronts, soft muted tone",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_fronts_beige_sahara",
+    "category": "מטבח",
+    "subcategory": "חזיתות",
+    "labelHe": "חזיתות בז' סהרה",
+    "labelEn": "Sahara beige fronts",
+    "promptEn": "matte warm sahara beige handleless kitchen cabinet fronts",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_faucet_gold",
+    "category": "מטבח",
+    "subcategory": "ברזים",
+    "labelHe": "ברז מטבח זהב מוברש",
+    "labelEn": "Brushed gold kitchen faucet",
+    "promptEn": "tall gooseneck kitchen faucet in brushed gold finish",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_faucet_black",
+    "category": "מטבח",
+    "subcategory": "ברזים",
+    "labelHe": "ברז מטבח שחור מט",
+    "labelEn": "Matte black kitchen faucet",
+    "promptEn": "tall gooseneck kitchen faucet in matte black finish",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_faucet_steel",
+    "category": "מטבח",
+    "subcategory": "ברזים",
+    "labelHe": "ברז מטבח נירוסטה",
+    "labelEn": "Stainless kitchen faucet",
+    "promptEn": "tall gooseneck kitchen faucet in brushed stainless steel",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_sink_farmhouse",
+    "category": "מטבח",
+    "subcategory": "כיורים",
+    "labelHe": "כיור חזית חשופה (כפרי)",
+    "labelEn": "Farmhouse apron sink",
+    "promptEn": "farmhouse apron-front kitchen sink with its front face exposed through the cabinet line",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_sink_integrated",
+    "category": "מטבח",
+    "subcategory": "כיורים",
+    "labelHe": "כיור אינטגרלי במשטח",
+    "labelEn": "Integrated sink",
+    "promptEn": "sink fully integrated into the countertop material with seamless edges",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_island",
+    "category": "מטבח",
+    "subcategory": "ריהוט",
+    "labelHe": "אי מרכזי עם דלפק ישיבה",
+    "labelEn": "Central island with seating",
+    "promptEn": "wide central kitchen island combining work surface and bar seating",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_island_waterfall",
+    "category": "מטבח",
+    "subcategory": "ריהוט",
+    "labelHe": "אי עם שיש יורד (Waterfall)",
+    "labelEn": "Waterfall edge island",
+    "promptEn": "kitchen island with a waterfall stone edge where the countertop material continues down to the floor",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_floating_shelves",
+    "category": "מטבח",
+    "subcategory": "אלמנטים",
+    "labelHe": "מדפי עץ צפים עם לד",
+    "labelEn": "Floating shelves with LED",
+    "promptEn": "slim floating wooden shelves mounted on the backsplash with warm LED strip lighting beneath",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_builtin_ovens",
+    "category": "מטבח",
+    "subcategory": "אלמנטים",
+    "labelHe": "עמודת תנורים מובנים",
+    "labelEn": "Built-in oven column",
+    "promptEn": "tall cabinet column with stacked built-in ovens in black glass and steel",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_bar_stools",
+    "category": "מטבח",
+    "subcategory": "ריהוט",
+    "labelHe": "כיסאות בר ברזל ועץ",
+    "labelEn": "Iron and wood bar stools",
+    "promptEn": "bar stools in black iron frame with natural wood seats",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_bar_stools_upholstered",
+    "category": "מטבח",
+    "subcategory": "ריהוט",
+    "labelHe": "כיסאות בר מרופדים",
+    "labelEn": "Upholstered bar stools",
+    "promptEn": "upholstered bar stools in soft beige fabric with slim metal legs and curved backrests",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bath_cladding_dark",
+    "category": "חדר רחצה",
+    "subcategory": "חיפויים",
+    "labelHe": "חיפוי עד התקרה כהה",
+    "labelEn": "Full-height dark cladding",
+    "promptEn": "full-height wall cladding to the ceiling with large 120x240cm tiles in dark tones",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bath_cladding_light",
+    "category": "חדר רחצה",
+    "subcategory": "חיפויים",
+    "labelHe": "חיפוי עד התקרה בהיר",
+    "labelEn": "Full-height light cladding",
+    "promptEn": "full-height wall cladding to the ceiling with large 120x240cm tiles in light tones",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bath_shower_niche",
+    "category": "חדר רחצה",
+    "subcategory": "אלמנטים",
+    "labelHe": "נישה שקועה מוארת למקלחון",
+    "labelEn": "Lit recessed shower niche",
+    "promptEn": "recessed storage niche inside the shower wall with integrated LED lighting",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "bath_faucet_black",
+    "category": "חדר רחצה",
+    "subcategory": "ברזים ופרזול",
+    "labelHe": "ברזים שקועים שחור מט",
+    "labelEn": "Matte black wall faucets",
+    "promptEn": "wall-mounted concealed faucets in matte black finish",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bath_faucet_gold",
+    "category": "חדר רחצה",
+    "subcategory": "ברזים ופרזול",
+    "labelHe": "ברזים שקועים זהב מוברש",
+    "labelEn": "Brushed gold wall faucets",
+    "promptEn": "wall-mounted concealed faucets in brushed gold finish",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bath_shower_system_concealed_rain",
+    "category": "חדר רחצה",
+    "subcategory": "ברזים ופרזול",
+    "labelHe": "מערכת מקלחת שקועה עם ראש גשם",
+    "labelEn": "Concealed rain shower system",
+    "promptEn": "concealed thermostatic shower system with a round rain shower head, handheld shower, and wall-mounted control valve",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bath_faucet_deck_mounted_modern",
+    "category": "חדר רחצה",
+    "subcategory": "ברזים ופרזול",
+    "labelHe": "ברז כיור מונח מודרני",
+    "labelEn": "Modern deck-mounted basin faucet",
+    "promptEn": "slim modern deck-mounted single-lever basin faucet with a curved gooseneck spout",
+    "roomTypes": [
+      "kitchen",
+      "bathroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bath_faucet_deck_mounted_vintage_bronze",
+    "category": "חדר רחצה",
+    "subcategory": "ברזים ופרזול",
+    "labelHe": "ברז כיור מונח וינטג' ברונזה",
+    "labelEn": "Vintage bronze deck-mounted faucet",
+    "promptEn": "traditional-style deck-mounted basin faucet in aged bronze finish with a ceramic lever handle",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bath_faucet_chrome",
+    "category": "חדר רחצה",
+    "subcategory": "ברזים ופרזול",
+    "labelHe": "ברזים שקועים כרום מבריק",
+    "labelEn": "Polished chrome wall faucets",
+    "promptEn": "wall-mounted concealed faucets in polished chrome finish",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bath_shower_panel_multijet_column",
+    "category": "חדר רחצה",
+    "subcategory": "ברזים ופרזול",
+    "labelHe": "פאנל מקלחת עמוד רב-סילוני",
+    "labelEn": "Multi-jet shower panel column",
+    "promptEn": "surface-mounted vertical shower panel column with multiple adjustable body massage jets, an integrated overhead rain shower head, a handheld shower, and built-in control buttons",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "bath_faucet_freestanding_tub_filler",
+    "category": "חדר רחצה",
+    "subcategory": "ברזים ופרזול",
+    "labelHe": "ברז אמבטיה עומד על הרצפה",
+    "labelEn": "Freestanding floor-mounted tub filler",
+    "promptEn": "tall floor-mounted freestanding bathtub filler faucet on a slim standing pipe, paired with a freestanding soaking tub",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "bath_shower_mixer_exposed_chrome_standard",
+    "category": "חדר רחצה",
+    "subcategory": "ברזים ופרזול",
+    "labelHe": "ברז מקלחת חשוף כרום סטנדרטי",
+    "labelEn": "Standard exposed chrome shower mixer",
+    "promptEn": "simple standard exposed chrome shower/bath mixer valve with a handheld shower on a sliding rail, the common basic bathroom fixture",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bath_vanity_oak",
+    "category": "חדר רחצה",
+    "subcategory": "ריהוט",
+    "labelHe": "ארון רחצה מרחף עץ אלון",
+    "labelEn": "Floating oak vanity",
+    "promptEn": "wall-hung floating oak wood vanity cabinet with two soft-close drawers and slim black bar handles",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "bath_vanity_lacquer",
+    "category": "חדר רחצה",
+    "subcategory": "ריהוט",
+    "labelHe": "ארון רחצה צבע בתנור חלק",
+    "labelEn": "Smooth lacquered vanity",
+    "promptEn": "wall-hung floating vanity cabinet with smooth baked lacquer fronts and slim black bar handles",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "bath_vanity_fluted_white",
+    "category": "חדר רחצה",
+    "subcategory": "ריהוט",
+    "labelHe": "ארון רחצה חזית מחורצת לבן מט",
+    "labelEn": "Fluted matte white vanity",
+    "promptEn": "wall-hung floating bathroom vanity with matte white vertically fluted ribbed drawer fronts, slim black bar handles, two soft-close drawers",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "bath_top_ceramic_integrated",
+    "category": "חדר רחצה",
+    "subcategory": "כיורים ומשטחים",
+    "labelHe": "משטח חרס עם כיור אינטגרלי",
+    "labelEn": "Integrated ceramic top",
+    "promptEn": "seamless white ceramic vanity top with a fully integrated built-in basin, no visible joints",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "bath_sink_vessel",
+    "category": "חדר רחצה",
+    "subcategory": "כיורים ומשטחים",
+    "labelHe": "כיור מונח",
+    "labelEn": "Vessel sink",
+    "promptEn": "vessel basin mounted on top of the vanity counter",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "bath_vanity_freestanding",
+    "category": "חדר רחצה",
+    "subcategory": "ריהוט",
+    "labelHe": "ארון רחצה עומד על רגליים",
+    "labelEn": "Freestanding vanity",
+    "promptEn": "floor-standing bathroom vanity cabinet on slim chrome legs with plain white hinged doors, integrated ceramic top with built-in basin",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "bath_mirror_floating",
+    "category": "חדר רחצה",
+    "subcategory": "אלמנטים",
+    "labelHe": "מראה מרחפת ללא מסגרת",
+    "labelEn": "Frameless floating mirror",
+    "promptEn": "large frameless floating rectangular mirror mounted above the vanity",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "bath_mirror_framed",
+    "category": "חדר רחצה",
+    "subcategory": "אלמנטים",
+    "labelHe": "מראה עם מסגרת דקה",
+    "labelEn": "Slim-framed mirror",
+    "promptEn": "rectangular wall mirror with a slim minimal frame above the vanity",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "bath_mirror_round_led",
+    "category": "חדר רחצה",
+    "subcategory": "אלמנטים",
+    "labelHe": "מראה עגולה עם תאורת לד",
+    "labelEn": "Round backlit LED mirror",
+    "promptEn": "large round frameless mirror with a soft warm LED halo backlight glowing on the wall behind it",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "bath_vanity_curved_cream",
+    "category": "חדר רחצה",
+    "subcategory": "ריהוט",
+    "labelHe": "ארון רחצה מרחף מעוגל קרם",
+    "labelEn": "Curved cream floating vanity",
+    "promptEn": "wall-hung floating bathroom vanity with softly rounded curved corners in a warm cream tone, handleless drawers with recessed finger pulls",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "bath_vanity_vintage_antique_paneled",
+    "category": "חדר רחצה",
+    "subcategory": "ריהוט",
+    "labelHe": "ארון רחצה וינטג' עתיק עם דלתות מסגרת",
+    "labelEn": "Vintage antique-style paneled vanity",
+    "promptEn": "vanity styled as an antique furniture piece standing on legs, with raised-panel cabinet doors (some with glass fronts) and an aged rustic wood finish, distinct from smooth modern floating vanity styles",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "bath_open_niches",
+    "category": "חדר רחצה",
+    "subcategory": "אלמנטים",
+    "labelHe": "נישות פתוחות לאחסון",
+    "labelEn": "Open storage niches",
+    "promptEn": "built-in open wall niches with slim shelves for bathroom storage",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "bath_mirror_cabinet",
+    "category": "חדר רחצה",
+    "subcategory": "אלמנטים",
+    "labelHe": "ארונית מראה",
+    "labelEn": "Mirror cabinet",
+    "promptEn": "wall-mounted mirrored cabinet with hinged mirror doors and concealed storage above the vanity",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "bath_tall_column",
+    "category": "חדר רחצה",
+    "subcategory": "ריהוט",
+    "labelHe": "עמודת אחסון גבוהה",
+    "labelEn": "Tall storage column",
+    "promptEn": "tall narrow wall-hung storage column matching the vanity finish",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "bath_glass_enclosure",
+    "category": "חדר רחצה",
+    "subcategory": "אלמנטים",
+    "labelHe": "מקלחון זכוכית פרזול מושחר",
+    "labelEn": "Glass shower enclosure",
+    "promptEn": "clear glass shower enclosure with blackened steel hardware",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "bath_glass_enclosure_black_grid",
+    "category": "חדר רחצה",
+    "subcategory": "אלמנטים",
+    "labelHe": "מקלחון זכוכית עם רשת שחורה",
+    "labelEn": "Shower enclosure with black grid glass (Crittall style)",
+    "promptEn": "shower enclosure with clear glass divided into a grid of small panes by black metal Crittall-style bars, industrial loft look",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "bath_glass_enclosure_fluted",
+    "category": "חדר רחצה",
+    "subcategory": "אלמנטים",
+    "labelHe": "מקלחון זכוכית מחוקקת",
+    "labelEn": "Shower enclosure with fluted reeded glass",
+    "promptEn": "shower enclosure with fluted reeded textured glass panels and black hardware",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "toilet_smart_bidet_integrated",
+    "category": "חדר רחצה",
+    "subcategory": "אסלות",
+    "labelHe": "אסלה חכמה משולבת בידה",
+    "labelEn": "Smart integrated bidet toilet",
+    "promptEn": "smart integrated toilet with a built-in electronic bidet seat and control panel, white ceramic",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "toilet_floor_standing_black_monoblock",
+    "category": "חדר רחצה",
+    "subcategory": "אסלות",
+    "labelHe": "אסלה עומדת מונובלוק שחורה",
+    "labelEn": "Floor-standing black monoblock toilet",
+    "promptEn": "floor-standing two-piece monoblock toilet with a visible tank, matte black ceramic",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "toilet_wallhung_rimless_white",
+    "category": "חדר רחצה",
+    "subcategory": "אסלות",
+    "labelHe": "אסלה תלויה רימלס לבנה",
+    "labelEn": "Wall-hung rimless toilet, white",
+    "promptEn": "wall-hung rimless toilet with a sleek minimal silhouette and concealed cistern, white or light gray ceramic",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "toilet_wallhung_round_black",
+    "category": "חדר רחצה",
+    "subcategory": "אסלות",
+    "labelHe": "אסלה תלויה מעוגלת שחורה",
+    "labelEn": "Wall-hung round toilet, matte black",
+    "promptEn": "wall-hung round-silhouette toilet in matte black ceramic with concealed cistern",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "tub_built_in_rectangular",
+    "category": "חדר רחצה",
+    "subcategory": "אמבטיות",
+    "labelHe": "אמבטיה מובנית מלבנית",
+    "labelEn": "Built-in rectangular bathtub",
+    "promptEn": "built-in rectangular bathtub in white acrylic, simple minimalist design",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "tub_built_in_whirlpool_jets",
+    "category": "חדר רחצה",
+    "subcategory": "אמבטיות",
+    "labelHe": "אמבטיית ג'קוזי עם סילוני מים",
+    "labelEn": "Built-in whirlpool bathtub with jets",
+    "promptEn": "built-in rectangular whirlpool bathtub with hydro-massage jets, white acrylic",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "tub_freestanding_oval_modern",
+    "category": "חדר רחצה",
+    "subcategory": "אמבטיות",
+    "labelHe": "אמבטיה עומדת אובלית מודרנית",
+    "labelEn": "Freestanding oval modern soaking tub",
+    "promptEn": "freestanding oval soaking bathtub in a modern minimalist silhouette, white or matte stone-gray finish",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "tub_freestanding_clawfoot_vintage",
+    "category": "חדר רחצה",
+    "subcategory": "אמבטיות",
+    "labelHe": "אמבטיה עומדת וינטג' עם רגלי טופר",
+    "labelEn": "Freestanding vintage clawfoot bathtub",
+    "promptEn": "freestanding vintage clawfoot bathtub with ornate chrome or gold claw feet",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "tub_corner_builtin",
+    "category": "חדר רחצה",
+    "subcategory": "אמבטיות",
+    "labelHe": "אמבטיית פינה מובנית",
+    "labelEn": "Corner built-in bathtub",
+    "promptEn": "large corner-fitted built-in bathtub, white acrylic",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "toilet_floor_standing_white_rimless",
+    "category": "חדר רחצה",
+    "subcategory": "אסלות",
+    "labelHe": "אסלה עומדת מונובלוק רימלס לבנה",
+    "labelEn": "Floor-standing white rimless monoblock toilet",
+    "promptEn": "floor-standing two-piece rimless monoblock toilet with a squared tank, white ceramic",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "mirror_organic_freeform_led",
+    "category": "מראות",
+    "subcategory": "מראות קיר",
+    "labelHe": "מראה אורגנית חופשית עם תאורת לד",
+    "labelEn": "Organic freeform LED-backlit mirror",
+    "promptEn": "large asymmetrical organic freeform-shaped decorative mirror with a soft warm LED halo backlight glowing along its irregular silhouette, mounted above a console table or dresser",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "mirror_overlapping_circles_eclipse",
+    "category": "מראות",
+    "subcategory": "מראות קיר",
+    "labelHe": "מראה עיגולים חופפים (אפקט ליקוי)",
+    "labelEn": "Overlapping circle mirrors (eclipse effect)",
+    "promptEn": "decorative wall mirror composition formed by two overlapping circular or semi-circular mirror panes of different sizes creating an eclipse-like silhouette, with a soft warm LED backlight glow",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "mirror_floor_leaning_arched",
+    "category": "מראות",
+    "subcategory": "מראות עומדות",
+    "labelHe": "מראה עומדת גבוהה נשענת קשתית",
+    "labelEn": "Tall arched leaning floor mirror",
+    "promptEn": "full-length floor-standing mirror with a rounded arched top and a slim minimal metal frame, leaning casually against the wall, optionally with a soft warm LED backlight along the frame edge",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "mirror_floor_leaning_organic_curved",
+    "category": "מראות",
+    "subcategory": "מראות עומדות",
+    "labelHe": "מראה עומדת גבוהה נשענת קונטור אורגני",
+    "labelEn": "Tall organic-contour leaning floor mirror",
+    "promptEn": "full-length floor-standing mirror with an irregular organic curved silhouette and a slim minimal frame, leaning casually against the wall near a dresser",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "console_floating_wood_entryway",
+    "category": "ריהוט",
+    "subcategory": "קונסולות כניסה",
+    "labelHe": "קונסולת כניסה צפה מעץ",
+    "labelEn": "Floating wood entryway console table",
+    "promptEn": "slim floating wall-mounted wood entryway console table with a single drawer, paired with a decorative mirror hung on the wall above it",
+    "roomTypes": [
+      "living"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "light_spots_3000k",
+    "category": "תאורה",
+    "subcategory": "תאורת פנים",
+    "labelHe": "ספוטים שקועים 3000K",
+    "labelEn": "Recessed 3000K spots",
+    "promptEn": "recessed LED ceiling spotlights, warm white 3000K",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony",
+      "yard"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "light_spots_surface",
+    "category": "תאורה",
+    "subcategory": "תאורת פנים",
+    "labelHe": "ספוטים צמודי תקרה",
+    "labelEn": "Surface-mounted spots",
+    "promptEn": "cylindrical surface-mounted ceiling spotlights, warm white 3000K",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony",
+      "kitchen",
+      "yard"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "light_magnetic_track",
+    "category": "תאורה",
+    "subcategory": "תאורת פנים",
+    "labelHe": "פסי צבירה מגנטיים שחורים",
+    "labelEn": "Black magnetic tracks",
+    "promptEn": "black magnetic track lighting recessed into the ceiling with adjustable spotlights",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "light_track_surface_grid_pendant",
+    "category": "תאורה",
+    "subcategory": "תאורת פנים",
+    "labelHe": "מסילת תאורה שחורה עם ספוטים תלויים גליליים",
+    "labelEn": "Surface track grid with hanging cylindrical spots",
+    "promptEn": "black surface-mounted linear track lighting grid running across the ceiling with hanging cylindrical pendant spotlights, industrial loft style",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony",
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "light_led_profile",
+    "category": "תאורה",
+    "subcategory": "תאורת פנים",
+    "labelHe": "פרופילי אלומיניום ללד",
+    "labelEn": "Linear LED profiles",
+    "promptEn": "straight recessed aluminum LED profiles integrated into the wall and ceiling",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "light_pendant_gold",
+    "category": "תאורה",
+    "subcategory": "תאורת פנים",
+    "labelHe": "גופי תאורה תלויים זהב מוברש",
+    "labelEn": "Brushed gold pendants",
+    "promptEn": "suspended pendant light fixtures in brushed gold finish",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "light_pendant_black",
+    "category": "תאורה",
+    "subcategory": "תאורת פנים",
+    "labelHe": "גופי תאורה תלויים שחורים",
+    "labelEn": "Black pendants",
+    "promptEn": "suspended pendant light fixtures in black aluminum finish",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "light_pendant_glass_organic",
+    "category": "תאורה",
+    "subcategory": "תאורת פנים",
+    "labelHe": "גופי תאורה זכוכית נשופה",
+    "labelEn": "Blown glass pendants",
+    "promptEn": "cluster of hand-blown organic glass pendant lights in smoked clear glass, suspended at varying heights",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "light_pendant_linear",
+    "category": "תאורה",
+    "subcategory": "תאורת פנים",
+    "labelHe": "גוף תאורה ליניארי מוארך",
+    "labelEn": "Linear bar pendant",
+    "promptEn": "long slim linear bar pendant light suspended above the counter or dining table",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "light_pendant_globe",
+    "category": "תאורה",
+    "subcategory": "תאורת פנים",
+    "labelHe": "גופי תאורה כדוריים",
+    "labelEn": "Globe pendants",
+    "promptEn": "opal white glass globe pendant lights on slim brass stems",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "light_pendant_disc",
+    "category": "תאורה",
+    "subcategory": "תאורת פנים",
+    "labelHe": "גופי תאורה דיסק",
+    "labelEn": "Disc pendants",
+    "promptEn": "flat disc-shaped pendant lights in brushed brass",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "light_sconce_brass",
+    "category": "תאורה",
+    "subcategory": "תאורת קיר",
+    "labelHe": "מנורת קיר פליז",
+    "labelEn": "Brass wall sconce",
+    "promptEn": "slim brass wall sconce with a soft glowing globe shade",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony",
+      "kitchen",
+      "bathroom"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "light_sconce_articulated",
+    "category": "תאורה",
+    "subcategory": "תאורת קיר",
+    "labelHe": "מנורת קיר מפרקית",
+    "labelEn": "Articulated wall lamp",
+    "promptEn": "black articulated swing-arm wall lamp with adjustable cone shades",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony",
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "light_bedside_wall",
+    "category": "תאורה",
+    "subcategory": "תאורת קיר",
+    "labelHe": "תאורת קריאה לצד המיטה",
+    "labelEn": "Bedside reading lights",
+    "promptEn": "slim wall-mounted reading lights on both sides of the bed",
+    "roomTypes": [
+      "bedroom",
+      "mamad",
+      "kids"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_boucle_cream",
+    "category": "ריהוט",
+    "subcategory": "סלון",
+    "labelHe": "ספת רביצה בוקלה שמנת",
+    "labelEn": "Cream boucle deep sofa",
+    "promptEn": "deep lounge sofa upholstered in cream boucle fabric",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_boucle_gray",
+    "category": "ריהוט",
+    "subcategory": "סלון",
+    "labelHe": "ספת רביצה בוקלה אפור",
+    "labelEn": "Gray boucle deep sofa",
+    "promptEn": "deep lounge sofa upholstered in gray boucle fabric",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_linen_offwhite",
+    "category": "ריהוט",
+    "subcategory": "סלון",
+    "labelHe": "ספת פשתן אופווייט",
+    "labelEn": "Off-white linen sofa",
+    "promptEn": "modern minimalist sofa upholstered in off-white linen fabric",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_leather_cognac",
+    "category": "ריהוט",
+    "subcategory": "סלון",
+    "labelHe": "ספת עור קוניאק",
+    "labelEn": "Cognac leather sofa",
+    "promptEn": "sofa upholstered in warm cognac tan leather with soft natural creasing",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_leather_black",
+    "category": "ריהוט",
+    "subcategory": "סלון",
+    "labelHe": "ספת עור שחור",
+    "labelEn": "Black leather sofa",
+    "promptEn": "sofa upholstered in black leather with clean tailored lines",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_leather_cream",
+    "category": "ריהוט",
+    "subcategory": "סלון",
+    "labelHe": "ספת עור שמנת",
+    "labelEn": "Cream leather sofa",
+    "promptEn": "sofa upholstered in soft cream leather",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_metal_legs",
+    "category": "ריהוט",
+    "subcategory": "תצורת ספה",
+    "labelHe": "ספה על רגלי מתכת דקות",
+    "labelEn": "Sofa on slim metal legs",
+    "promptEn": "sofa raised on slim tapered metal legs in brushed brass, floating above the floor",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_organic_curved",
+    "category": "ריהוט",
+    "subcategory": "תצורת ספה",
+    "labelHe": "ספה אורגנית מעוגלת",
+    "labelEn": "Organic curved sofa",
+    "promptEn": "sculptural organic curved sofa with soft rounded pebble-like forms and no straight edges",
+    "roomTypes": [
+      "living"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_mustard",
+    "category": "ריהוט",
+    "subcategory": "סלון",
+    "labelHe": "ספה בגוון חרדל",
+    "labelEn": "Mustard sofa",
+    "promptEn": "low modular sofa upholstered in warm mustard ochre fabric",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_channel_tufted",
+    "category": "ריהוט",
+    "subcategory": "תצורת ספה",
+    "labelHe": "ספה מרופדת בתפר ריפים",
+    "labelEn": "Channel-tufted sofa",
+    "promptEn": "curved sofa with vertical channel-tufted ribbed upholstery in cream velvet on a polished gold base",
+    "roomTypes": [
+      "living"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_adjustable_headrest",
+    "category": "ריהוט",
+    "subcategory": "תצורת ספה",
+    "labelHe": "ספה עם משענות ראש מתכווננות",
+    "labelEn": "Adjustable headrest sofa",
+    "promptEn": "sofa with fold-up adjustable headrests and a slim wooden base rail",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_two_tone_leather_shell",
+    "category": "ריהוט",
+    "subcategory": "תצורת ספה",
+    "labelHe": "ספה דו-גונית עם מעטפת עור",
+    "labelEn": "Two-tone leather shell sofa",
+    "promptEn": "sofa with a tan leather outer shell and contrasting light fabric seat cushions",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_integrated_shelf",
+    "category": "ריהוט",
+    "subcategory": "תצורת ספה",
+    "labelHe": "ספה עם מדף צד משולב",
+    "labelEn": "Sofa with integrated shelf",
+    "promptEn": "sectional sofa with an integrated wooden side shelf built into the armrest",
+    "roomTypes": [
+      "living"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_sectional_l",
+    "category": "ריהוט",
+    "subcategory": "תצורת ספה",
+    "labelHe": "ספה פינתית L",
+    "labelEn": "L-shaped sectional",
+    "promptEn": "large L-shaped sectional sofa with a long chaise section",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_round_chaise",
+    "category": "ריהוט",
+    "subcategory": "תצורת ספה",
+    "labelHe": "ספה פינתית עם שזלונג מעוגל",
+    "labelEn": "Sectional with round chaise",
+    "promptEn": "modern sectional sofa ending in a softly rounded curved chaise",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_modular",
+    "category": "ריהוט",
+    "subcategory": "תצורת ספה",
+    "labelHe": "ספה מודולרית",
+    "labelEn": "Modular sofa",
+    "promptEn": "modular sofa composed of separate seat blocks that can be rearranged",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_modular_floor_foam_blocks",
+    "category": "ריהוט",
+    "subcategory": "תצורת ספה",
+    "labelHe": "ספה מודולרית נמוכה בלוקי ספוג",
+    "labelEn": "Low floor-level modular foam block sofa",
+    "promptEn": "low armless modular sectional sofa built from separate upholstered foam mattress blocks sitting directly on the floor without legs, mixed pattern upholstery",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "cabinet_tall_narrow_single_door",
+    "category": "ריהוט",
+    "subcategory": "ארונות אחסון",
+    "labelHe": "ארון אחסון צר גבוה דלת אחת",
+    "labelEn": "Tall narrow single-door storage cabinet",
+    "promptEn": "tall narrow freestanding single-door storage cabinet with adjustable interior shelves, available in white, natural oak, or black marble-look finish",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "cabinet_shoe_slat_drawers",
+    "category": "ריהוט",
+    "subcategory": "ארונות אחסון",
+    "labelHe": "ארון נעליים שיש שחור מגירות מסורגות",
+    "labelEn": "Black marble-look shoe cabinet with slat drawers",
+    "promptEn": "entryway shoe storage cabinet in black marble-look finish with ventilated slat-front drawers",
+    "roomTypes": [
+      "living"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "display_cabinet_wood_frame_glass_shelves",
+    "category": "ריהוט",
+    "subcategory": "ויטרינות",
+    "labelHe": "ויטרינת עץ עם מדפי זכוכית",
+    "labelEn": "Wood-framed glass display cabinet",
+    "promptEn": "tall wood-framed glass display cabinet with multiple internal glass shelves, classic style",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "display_cabinet_slim_metal_frame_led",
+    "category": "ריהוט",
+    "subcategory": "ויטרינות",
+    "labelHe": "ויטרינה מסגרת מתכת דקה עם לד",
+    "labelEn": "Slim metal-frame display cabinet with LED",
+    "promptEn": "slim glass display tower cabinet with a slender metal frame in white, gold, or chrome, and interior LED lighting",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "display_cabinet_curved_rounded_corner",
+    "category": "ריהוט",
+    "subcategory": "ויטרינות",
+    "labelHe": "ויטרינה מעוגלת פינתית",
+    "labelEn": "Curved rounded-corner display cabinet",
+    "promptEn": "curved rounded-corner glass display cabinet with a black or cream frame",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "display_cabinet_black_industrial_metal",
+    "category": "ריהוט",
+    "subcategory": "ויטרינות",
+    "labelHe": "ויטרינה שחורה תעשייתית",
+    "labelEn": "Black industrial-style display cabinet",
+    "promptEn": "glass-door display cabinet with a black metal frame and dark interior, industrial style, resting on slim legs",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "display_cabinet_classic_ornate_arched",
+    "category": "ריהוט",
+    "subcategory": "ויטרינות",
+    "labelHe": "ויטרינה קלאסית מעוטרת עם קשת",
+    "labelEn": "Classic ornate arched-top display cabinet",
+    "promptEn": "traditional ornate wood display cabinet with a carved arched pediment top and glass doors, gold accents",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "cabinet_wall_hanging_kitchen_niche",
+    "category": "מטבח",
+    "subcategory": "ריהוט",
+    "labelHe": "ארונית תלייה למטבח עם נישה פתוחה",
+    "labelEn": "Wall-hanging kitchen cabinet with open niche",
+    "promptEn": "wall-mounted hanging kitchen cabinet unit combining a closed cabinet section with an open display niche shelf, two-tone white and gray finish",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wardrobe_two_door_flat_white",
+    "category": "ריהוט",
+    "subcategory": "ארונות אחסון",
+    "labelHe": "ארון בגדים שתי דלתות לבן",
+    "labelEn": "Two-door flat-panel wardrobe",
+    "promptEn": "simple two-door freestanding bedroom wardrobe closet with flat panel doors in white or natural oak finish, on short legs",
+    "roomTypes": [
+      "bedroom",
+      "kids",
+      "mamad"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bookcase_classic_dark_wood_glass_doors",
+    "category": "ריהוט",
+    "subcategory": "ארונות ספרים",
+    "labelHe": "ארון ספרים קלאסי עץ כהה עם דלתות זכוכית",
+    "labelEn": "Classic dark wood bookcase with glass doors",
+    "promptEn": "tall traditional bookcase display cabinet in dark wood finish with glass-front upper doors and solid lower cabinet doors, classic ornate styling",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bookcase_modern_white_glass_upper",
+    "category": "ריהוט",
+    "subcategory": "ארונות ספרים",
+    "labelHe": "ארון ספרים מודרני לבן עם זכוכית עליון",
+    "labelEn": "Modern white bookcase with glass upper doors",
+    "promptEn": "tall modern flat-panel bookcase display cabinet in white or cream finish with glass-front upper cabinet doors and solid flat lower cabinet doors",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bookcase_modern_dark_mixed_open_glass",
+    "category": "ריהוט",
+    "subcategory": "ארונות ספרים",
+    "labelHe": "ארון ספרים מודרני כהה משולב פתוח וזכוכית",
+    "labelEn": "Modern dark bookcase, mixed open and glass sections",
+    "promptEn": "tall modern bookcase in dark gray or charcoal finish combining open display shelving with glass-front sections and solid cabinet doors",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "cabinet_washing_machine_surround",
+    "category": "חדר רחצה",
+    "subcategory": "ריהוט",
+    "labelHe": "ארון מקיף למכונת כביסה",
+    "labelEn": "Washing machine surround cabinet",
+    "promptEn": "bathroom washing-machine surround cabinet unit with an upper storage cabinet, an open display shelf, and a side wood counter",
+    "roomTypes": [
+      "bathroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_boucle_scroll_arm_leather_strap",
+    "category": "ריהוט",
+    "subcategory": "תצורת ספה",
+    "labelHe": "ספה בוקלה זרוע מגולגלת רצועת עור",
+    "labelEn": "Boucle sofa with scroll arm and leather strap",
+    "promptEn": "modern low-back sofa upholstered in white boucle fabric with sculptural rolled scroll armrests wrapped in a contrasting cognac leather strap band",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_side_wood_cylinder_drum",
+    "category": "ריהוט",
+    "subcategory": "תצורת שולחן",
+    "labelHe": "שולחן צד עץ גליל",
+    "labelEn": "Wood cylinder drum side table",
+    "promptEn": "simple solid wood cylinder drum side table with a clean natural wood finish",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_tube_bolster_modular",
+    "category": "ריהוט",
+    "subcategory": "תצורת ספה",
+    "labelHe": "ספה מודולרית צינורית",
+    "labelEn": "Tube bolster modular sofa",
+    "promptEn": "fully rounded modular sofa built from cylindrical pill-shaped bolster cushion segments, soft tube-like silhouette with no visible frame",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_wood_frame_trim_classic",
+    "category": "ריהוט",
+    "subcategory": "תצורת ספה",
+    "labelHe": "ספה קלאסית מסגרת עץ חשופה",
+    "labelEn": "Classic sofa with exposed wood frame trim",
+    "promptEn": "traditional-style sofa with an exposed natural wood frame trim rail along the base and tapered wood legs",
+    "roomTypes": [
+      "living"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "armchair_barrel_curved_velvet",
+    "category": "ריהוט",
+    "subcategory": "סלון",
+    "labelHe": "כורסת חבית מעוגלת קטיפה",
+    "labelEn": "Curved barrel velvet accent armchair",
+    "promptEn": "curved barrel-back accent armchair upholstered in velvet with slim natural wood legs",
+    "roomTypes": [
+      "living"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_horizontal_channel_roll_puffy",
+    "category": "ריהוט",
+    "subcategory": "תצורת ספה",
+    "labelHe": "ספה בגלילי ריפוד אופקיים תפוחים",
+    "labelEn": "Puffy horizontal channel-roll sofa",
+    "promptEn": "sofa with a continuous pillowy silhouette formed by thick horizontal channel-rolled upholstery rolls across the seat, back, and arms, no visible frame",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_three_seater",
+    "category": "ריהוט",
+    "subcategory": "תצורת ספה",
+    "labelHe": "ספה תלת מושבית ישרה",
+    "labelEn": "Straight three-seater",
+    "promptEn": "straight three-seat sofa with clean lines",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_wood_plinth",
+    "category": "ריהוט",
+    "subcategory": "תצורת ספה",
+    "labelHe": "ספה על בסיס עץ (במה)",
+    "labelEn": "Sofa on wood plinth",
+    "promptEn": "sofa raised on a solid walnut wood plinth base that extends beyond the upholstery",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_low_profile",
+    "category": "ריהוט",
+    "subcategory": "תצורת ספה",
+    "labelHe": "ספה נמוכה עמוקה",
+    "labelEn": "Low deep-seat sofa",
+    "promptEn": "low profile deep-seated lounge sofa with soft loose cushions",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_round_oak",
+    "category": "ריהוט",
+    "subcategory": "סלון",
+    "labelHe": "שולחן סלון עגול אלון",
+    "labelEn": "Round oak coffee table",
+    "promptEn": "round natural oak coffee table",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_marble",
+    "category": "ריהוט",
+    "subcategory": "סלון",
+    "labelHe": "שולחן סלון שיש",
+    "labelEn": "Marble coffee table",
+    "promptEn": "marble top coffee table with elegant profile",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_black_metal",
+    "category": "ריהוט",
+    "subcategory": "סלון",
+    "labelHe": "שולחן סלון מתכת שחורה",
+    "labelEn": "Black metal coffee table",
+    "promptEn": "coffee table with slim black metal frame",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_organic_lacquer_glass",
+    "category": "ריהוט",
+    "subcategory": "תצורת שולחן",
+    "labelHe": "שולחן קפה אורגני לכה עם זכוכית",
+    "labelEn": "Organic-shape lacquer coffee table with glass inlay",
+    "promptEn": "organic freeform pebble-shaped coffee table in high-gloss dark charcoal lacquer with an inset smoked glass panel, sculptural pedestal base",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_leather_drum_stitch",
+    "category": "ריהוט",
+    "subcategory": "תצורת שולחן",
+    "labelHe": "שולחן תוף עור עם תפר אוכף",
+    "labelEn": "Leather drum table with saddle stitching",
+    "promptEn": "round drum-shaped coffee or side table wrapped in stitched leather upholstery with visible contrast saddle-stitch detailing",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_marble_organic_brass_legs",
+    "category": "ריהוט",
+    "subcategory": "תצורת שולחן",
+    "labelHe": "שולחן קפה שיש אורגני רגלי פליז",
+    "labelEn": "Organic marble coffee table on brass legs",
+    "promptEn": "organic freeform elongated marble-top coffee table resting on three cylindrical brushed brass legs",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_marble_waterfall_tray_inset",
+    "category": "ריהוט",
+    "subcategory": "תצורת שולחן",
+    "labelHe": "שולחן קפה שיש עם מגש שקוע",
+    "labelEn": "Marble waterfall coffee table with recessed tray",
+    "promptEn": "square bookmatched marble slab coffee table with thick waterfall edges and a recessed black metal serving tray inset into the top",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_marble_thin_angled_legs",
+    "category": "ריהוט",
+    "subcategory": "תצורת שולחן",
+    "labelHe": "שולחן קפה שיש רגלי מתכת דקות",
+    "labelEn": "Marble coffee table on slim angled legs",
+    "promptEn": "low-profile square white marble-top coffee table resting on four slender angled black metal legs",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_nesting_organic_flower",
+    "category": "ריהוט",
+    "subcategory": "תצורת שולחן",
+    "labelHe": "סט שולחנות אורגני בצורת פרח",
+    "labelEn": "Organic flower-shaped nesting table set",
+    "promptEn": "nesting set of organic clover or flower-shaped low tables in mixed finishes such as wood veneer and matte lacquer",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_nesting_stacked_rounded_square",
+    "category": "ריהוט",
+    "subcategory": "תצורת שולחן",
+    "labelHe": "סט שולחנות מוערמים פינות מעוגלות",
+    "labelEn": "Stacked nesting tables with rounded corners",
+    "promptEn": "stacked nesting set of low rounded-square tables in mixed finishes including wood, matte lacquer, and dark metal",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_glass_vase_base_tray_top",
+    "category": "ריהוט",
+    "subcategory": "תצורת שולחן",
+    "labelHe": "שולחן צד בסיס זכוכית ומגש מתכת",
+    "labelEn": "Glass vase-base side table with metal tray top",
+    "promptEn": "round pedestal side table with a bottle-shaped colored glass base and a slim round metal tray top",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_marble_pinwheel_slab_legs",
+    "category": "ריהוט",
+    "subcategory": "תצורת שולחן",
+    "labelHe": "שולחן קפה שיש רגלי לוח משיש",
+    "labelEn": "Marble coffee table with interlocking slab legs",
+    "promptEn": "rectangular coffee table with a bookmatched dark marble top and interlocking marble-clad slab legs forming a pinwheel base, trimmed in black metal",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_marble_oval_stone_legs",
+    "category": "ריהוט",
+    "subcategory": "תצורת שולחן",
+    "labelHe": "שולחן קפה שיש אליפסה רגלי אבן",
+    "labelEn": "Oval marble coffee table on matching stone legs",
+    "promptEn": "oval marble-top coffee table resting on four thick cylindrical legs carved from the same marble, monolithic matching-stone look",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_glass_sculptural_stone_legs",
+    "category": "ריהוט",
+    "subcategory": "תצורת שולחן",
+    "labelHe": "שולחן קפה זכוכית רגלי אבן פסלית",
+    "labelEn": "Glass coffee table on sculptural stone legs",
+    "promptEn": "round smoked-glass-top coffee table resting on organic pebble-shaped sculptural stone legs, paired with a matching side table on a single oval stone pedestal base",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "tv_console_slatted_backboard",
+    "category": "ריהוט",
+    "subcategory": "יחידת טלוויזיה",
+    "labelHe": "יחידת טלוויזיה עם גב מסורג",
+    "labelEn": "TV console with slatted backboard",
+    "promptEn": "long low TV console composed of a tall vertical slatted wood backboard combined with a floating low cabinet box with drawers in leather or lacquer front, resting on slim angled metal legs",
+    "roomTypes": [
+      "living"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "tv_console_marble_stone_base",
+    "category": "ריהוט",
+    "subcategory": "יחידת טלוויזיה",
+    "labelHe": "יחידת טלוויזיה שיש בסיס אבן פסלי",
+    "labelEn": "Marble TV console on sculptural stone base",
+    "promptEn": "long thin bookmatched marble-top TV console resting on two irregular sculptural black stone supports",
+    "roomTypes": [
+      "living"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "tv_console_wood_stone_center",
+    "category": "ריהוט",
+    "subcategory": "יחידת טלוויזיה",
+    "labelHe": "יחידת טלוויזיה עץ כהה ואבן במרכז",
+    "labelEn": "TV console with dark wood and center stone slab",
+    "promptEn": "long TV console with dark wood drawer units flanking a raised light stone or travertine center console section, mounted on a plinth base with a thin vertical metal divider",
+    "roomTypes": [
+      "living"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "tv_console_gray_marble_tray_top",
+    "category": "ריהוט",
+    "subcategory": "יחידת טלוויזיה",
+    "labelHe": "יחידת טלוויזיה אפורה משטח שיש מוגבה",
+    "labelEn": "Gray TV console with raised marble tray top",
+    "promptEn": "long gray matte-lacquer TV console with flush cabinet doors, topped with a marble slab that has a raised tray-like edge",
+    "roomTypes": [
+      "living"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "nightstand_floating_leather_wood",
+    "category": "ריהוט",
+    "subcategory": "שידות לילה",
+    "labelHe": "שידת לילה צפה עור ועץ",
+    "labelEn": "Floating leather and wood nightstand",
+    "promptEn": "small floating nightstand with a leather-fronted drawer and an open wood shelf, on a slim angled metal leg, matching a slatted-backboard console design language",
+    "roomTypes": [
+      "bedroom",
+      "mamad",
+      "kids"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bed_upholstered_diamond_tufted",
+    "category": "ריהוט",
+    "subcategory": "מיטות",
+    "labelHe": "מיטה מרופדת מרוקעת יהלומים",
+    "labelEn": "Upholstered bed with diamond-tufted headboard",
+    "promptEn": "upholstered bed frame with a low diamond-quilted tufted headboard",
+    "roomTypes": [
+      "bedroom",
+      "mamad",
+      "kids"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bed_upholstered_vertical_channel_tufted",
+    "category": "ריהוט",
+    "subcategory": "מיטות",
+    "labelHe": "מיטה מרופדת ריפוד ריפים אנכי",
+    "labelEn": "Upholstered bed with vertical channel-tufted headboard",
+    "promptEn": "upholstered bed frame with a tall vertical channel-tufted headboard",
+    "roomTypes": [
+      "bedroom",
+      "mamad",
+      "kids"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bed_headboard_wall_nook_arched_led",
+    "category": "ריהוט",
+    "subcategory": "מיטות",
+    "labelHe": "מיטה עם גומחת קיר מקומרת ולד",
+    "labelEn": "Bed with arched wall niche headboard and LED",
+    "promptEn": "bed set against a curved arched wall niche headboard nook with integrated warm LED cove lighting",
+    "roomTypes": [
+      "bedroom",
+      "mamad",
+      "kids"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bed_wood_slat_wall_integrated_headboard",
+    "category": "ריהוט",
+    "subcategory": "מיטות",
+    "labelHe": "מיטה עם ראש מיטה משולב בקיר סרגלי עץ",
+    "labelEn": "Bed with headboard integrated into wood slat wall",
+    "promptEn": "bed with an upholstered headboard set into a full-height wood slat accent wall behind it",
+    "roomTypes": [
+      "bedroom",
+      "mamad",
+      "kids"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bed_platform_plain_upholstered",
+    "category": "ריהוט",
+    "subcategory": "מיטות",
+    "labelHe": "מיטה מרופדת פשוטה",
+    "labelEn": "Simple plain upholstered platform bed",
+    "promptEn": "simple platform bed with a plain low upholstered headboard, minimal design with no decorative tufting",
+    "roomTypes": [
+      "bedroom",
+      "mamad",
+      "kids"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bed_metal_frame_industrial",
+    "category": "ריהוט",
+    "subcategory": "מיטות",
+    "labelHe": "מיטת מתכת תעשייתית",
+    "labelEn": "Industrial metal frame bed",
+    "promptEn": "bed frame with a black tubular metal headboard and footboard, industrial vintage style",
+    "roomTypes": [
+      "bedroom",
+      "mamad",
+      "kids"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "bed_upholstered_storage_lift_base",
+    "category": "ריהוט",
+    "subcategory": "מיטות",
+    "labelHe": "מיטה מרופדת עם ארגז מצעים הידראולי",
+    "labelEn": "Upholstered bed with hydraulic storage base",
+    "promptEn": "upholstered bed with a hydraulic lift-up storage base beneath the mattress",
+    "roomTypes": [
+      "bedroom",
+      "mamad",
+      "kids"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "fridge_american_steel",
+    "category": "ריהוט",
+    "subcategory": "מוצרי חשמל",
+    "labelHe": "מקרר אמריקאי נירוסטה",
+    "labelEn": "American-style steel fridge",
+    "promptEn": "large American-style side-by-side refrigerator in brushed stainless steel",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "fridge_integrated",
+    "category": "ריהוט",
+    "subcategory": "מוצרי חשמל",
+    "labelHe": "מקרר מובנה בחזית",
+    "labelEn": "Integrated panel fridge",
+    "promptEn": "refrigerator fully integrated behind a cabinet panel matching the kitchen fronts",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "curtain_sheer",
+    "category": "ריהוט",
+    "subcategory": "וילונות",
+    "labelHe": "וילון שקוף",
+    "labelEn": "Sheer curtain",
+    "promptEn": "floor-to-ceiling sheer white curtains diffusing soft daylight",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "curtain_blackout",
+    "category": "ריהוט",
+    "subcategory": "וילונות",
+    "labelHe": "וילון האפלה",
+    "labelEn": "Blackout curtain",
+    "promptEn": "heavy floor-to-ceiling blackout curtains in a soft neutral tone",
+    "roomTypes": [
+      "bedroom",
+      "mamad",
+      "kids",
+      "living"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "curtain_roman",
+    "category": "ריהוט",
+    "subcategory": "וילונות",
+    "labelHe": "וילון רומאי",
+    "labelEn": "Roman blind",
+    "promptEn": "fabric roman blind mounted inside the window recess",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "curtain_roller",
+    "category": "ריהוט",
+    "subcategory": "וילונות",
+    "labelHe": "וילון גליל",
+    "labelEn": "Roller blind",
+    "promptEn": "minimal roller blind mounted above the window",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony",
+      "kitchen",
+      "bathroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "curtain_venetian",
+    "category": "ריהוט",
+    "subcategory": "וילונות",
+    "labelHe": "תריס ונציאני אופקי",
+    "labelEn": "Venetian blinds",
+    "promptEn": "horizontal aluminum venetian blinds inside the window recess",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony",
+      "kitchen",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_round_oak",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל עגול עץ אלון",
+    "labelEn": "Round oak dining table",
+    "promptEn": "large round solid oak dining table with a central pedestal base",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_marble_tulip_base",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל שיש בסיס טוליפ",
+    "labelEn": "Marble café table on tulip base",
+    "promptEn": "small round marble-top café-style dining table on a slim trumpet-shaped tulip pedestal base in brushed brass or matte black metal",
+    "roomTypes": [
+      "living",
+      "kitchen",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_marble_cone_base",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל שיש בסיס חרוט",
+    "labelEn": "Marble café table on cone base",
+    "promptEn": "round or organic-edge marble-top café-style dining table resting on a solid tapered cone pedestal base in brushed brass or gold metal",
+    "roomTypes": [
+      "living",
+      "kitchen",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_marble_column_base",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל שיש בסיס עמוד פליז",
+    "labelEn": "Marble café table on brass column base",
+    "promptEn": "square or round marble-top café-style dining table on a slim straight cylindrical brass column with a flat round metal foot",
+    "roomTypes": [
+      "living",
+      "kitchen",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_marble_hourglass_base",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל שיש בסיס שעון חול",
+    "labelEn": "Marble café table on hourglass stone base",
+    "promptEn": "round marble-top café-style dining table on a two-tone hourglass base formed by two stone cones joined at a narrow brass-ringed waist",
+    "roomTypes": [
+      "living",
+      "kitchen",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_marble_cage_base",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל שיש בסיס כלוב פליז",
+    "labelEn": "Marble café table on brass cage base",
+    "promptEn": "round marble-top café-style dining table on an open hourglass-shaped cage base formed by curved brass rods with a central ring",
+    "roomTypes": [
+      "living",
+      "kitchen",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_marble_sculptural_spiral_base",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל שיש בסיס ספירלה פסלי",
+    "labelEn": "Marble café table on sculptural spiral base",
+    "promptEn": "round marble-top café-style dining table on an asymmetric sculptural brass spiral pedestal base with a small contrasting dark accent block",
+    "roomTypes": [
+      "living",
+      "kitchen",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_marble_monolithic_stone_base",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל שיש בסיס עמוד שיש",
+    "labelEn": "Marble café table on monolithic marble pedestal",
+    "promptEn": "round marble-top café-style dining table on a solid monolithic marble pedestal column matching the top, set on a slim brass ring foot",
+    "roomTypes": [
+      "living",
+      "kitchen",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_round_interlocking_rings_base",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל עגול בסיס טבעות שזורות",
+    "labelEn": "Round dining table on interlocking ring base",
+    "promptEn": "large round dining table in dark metal with a sculptural base of overlapping interlocking oval rings and a built-in round rotating lazy-susan center insert",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_rect_angular_blade_base",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל מלבני בסיס להבים זוויתי",
+    "labelEn": "Rectangular dining table on angular blade base",
+    "promptEn": "large rectangular marble-top dining table resting on an angular faceted base of crossing metal blade legs in dark bronze finish",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_rect_infinity_loop_base",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל מלבני בסיס לולאת אינסוף",
+    "labelEn": "Rectangular dining table on infinity loop base",
+    "promptEn": "large rectangular dramatic-veined stone-top dining table resting on a sculptural infinity figure-eight metal loop base",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_rect_pyramid_base",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל מלבני בסיס פירמידה",
+    "labelEn": "Rectangular dining table on pyramid base",
+    "promptEn": "rectangular organic-edge marble-top dining table resting on a single angular faceted pyramid pedestal base in dark charcoal finish",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_rect_crescent_base",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל מלבני בסיס סהר פליז",
+    "labelEn": "Rectangular dining table on crescent brass base",
+    "promptEn": "rectangular dark veined stone-top dining table resting on a solid sculptural crescent-shaped brass pedestal base",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_round_glass_jack_base",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל עגול זכוכית בסיס פליז זוויתי",
+    "labelEn": "Round glass dining table on sculptural bronze base",
+    "promptEn": "round glass-top dining table resting on a sculptural angular bronze base with sharp crossing jack-like legs",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_round_slab_leg_lazy_susan",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל עגול שיש רגלי לוח ומגש מסתובב",
+    "labelEn": "Round marble dining table with slab legs and lazy susan",
+    "promptEn": "large round dark marble-top dining table with a built-in round rotating lazy-susan center insert, resting on four flat rectangular bronze slab legs",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_round_spider_leg_lazy_susan",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל עגול רגלי עכביש ומגש מסתובב",
+    "labelEn": "Round marble dining table with spider legs and lazy susan",
+    "promptEn": "round marble-top dining table with a built-in round rotating lazy-susan center insert, resting on a sculptural chrome base of multiple thin angular splayed spider-like legs",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_marble_fluted_cone_base",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל שיש בסיס חרוט מקומר",
+    "labelEn": "Marble dining table on fluted cone base",
+    "promptEn": "round marble-top dining table on a tapered cone pedestal base with vertical fluted ribbing texture in off-white, set on a slim bronze ring foot",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_rect_wood_slab_leg_trestle",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל עץ רגלי לוח טרסלה",
+    "labelEn": "Wood dining table on trestle slab legs",
+    "promptEn": "rectangular walnut wood-top dining table with a dark trim edge, resting on two flat rectangular metal trestle slab legs",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_organic_wood_fluted_base",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל עץ אורגני בסיס מקומר",
+    "labelEn": "Organic wood dining table on fluted base",
+    "promptEn": "organic amoeba-shaped light wood-top dining table resting on a tapered white cylindrical pedestal base with vertical fluted ribbing",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_extendable_marble_glass_hairpin",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל נפתח מרבל גלאס רגלי שיער",
+    "labelEn": "Extendable marble-glass dining table on hairpin legs",
+    "promptEn": "large rectangular extendable marble-look glass-top dining table resting on a dense base of multiple thin angled hairpin-style metal legs",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_oval_double_fluted_pedestal",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל אליפסה שני עמודים מקומרים",
+    "labelEn": "Oval dining table on double fluted pedestals",
+    "promptEn": "oval marble-look top dining table resting on two oval cream-colored fluted pedestal legs with vertical ribbing",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "chairs_dining_channel_tufted_gold_legs",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "כיסאות אוכל מתועלים רגלי זהב",
+    "labelEn": "Channel-tufted dining chairs on gold legs",
+    "promptEn": "upholstered dining chairs with vertical channel-tufted backs in cream fabric, resting on slim gold metal legs",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_oval_flat_fluted_pedestal",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל אובלי בסיס עמוד מקומר שטוח",
+    "labelEn": "Oval dining table on flat fluted pedestal",
+    "promptEn": "small oval matte-finish dining table in warm sahara cream, resting on a single flat oval fluted pedestal column with a matching oval foot base",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_oval_arched_wood_legs",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל אובלי רגלי עץ קשתיות",
+    "labelEn": "Oval dining table on arched wood legs",
+    "promptEn": "oval black-stained solid oak dining table resting on two sculptural arched wood panel legs",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "chairs_dining_curved_wraparound_wood_legs",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "כיסאות אוכל גב עוטף רגלי עץ",
+    "labelEn": "Curved wraparound-back dining chairs on wood legs",
+    "promptEn": "dining chairs with a curved wraparound wing-shaped backrest in faux-leather cream upholstery, resting on natural walnut wood legs",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_extendable_wood_v_base",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל נפתח עץ בסיס וי",
+    "labelEn": "Extendable wood dining table on V-shaped base",
+    "promptEn": "extendable oak wood-top dining table with a hidden butterfly-leaf extension mechanism, resting on a single wide V-shaped pedestal base in anthracite and oak",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "sofa_round_full_circle_boucle",
+    "category": "ריהוט",
+    "subcategory": "תצורת ספה",
+    "labelHe": "ספה עגולה מלאה בוקלה",
+    "labelEn": "Full round boucle sofa",
+    "promptEn": "fully circular round sofa upholstered in cream boucle fabric with plush loose back cushions",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_coffee_travertine_stepped_plinth",
+    "category": "ריהוט",
+    "subcategory": "תצורת שולחן",
+    "labelHe": "שולחן קפה טרוורטין בסיס מדורג",
+    "labelEn": "Travertine coffee table on stepped plinth",
+    "promptEn": "round organic travertine-top coffee table resting on a stepped travertine plinth base, natural stone texture throughout",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "armchair_slouchy_bouclé_ottoman",
+    "category": "ריהוט",
+    "subcategory": "סלון",
+    "labelHe": "כורסת רביצה רכה עם הדום",
+    "labelEn": "Slouchy lounge armchair with ottoman",
+    "promptEn": "low slouchy soft lounge armchair with sloped angular armrests upholstered in textured beige chenille fabric, paired with a matching rectangular ottoman",
+    "roomTypes": [
+      "living",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "outdoor_lounge_pine_pallet_frame",
+    "category": "מטבח חוץ ואירוח",
+    "subcategory": "ריהוט",
+    "labelHe": "פינת ישיבה חוץ מסגרת אורן גולמית",
+    "labelEn": "Outdoor lounge set on raw pine frame",
+    "promptEn": "rustic outdoor lounge seating set built from raw unfinished pine wood slat frames with removable weather-resistant loose cushions",
+    "roomTypes": [
+      "yard",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "outdoor_lounge_rattan_weave",
+    "category": "מטבח חוץ ואירוח",
+    "subcategory": "ריהוט",
+    "labelHe": "פינת ישיבה חוץ ראטן קלוע",
+    "labelEn": "Woven rattan outdoor lounge set",
+    "promptEn": "outdoor lounge seating set woven from synthetic rattan wicker in dark brown or black, with cream cushions and a glass-top coffee table",
+    "roomTypes": [
+      "yard",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "outdoor_lounge_metal_sling_low_profile",
+    "category": "מטבח חוץ ואירוח",
+    "subcategory": "ריהוט",
+    "labelHe": "פינת ישיבה חוץ מתכת דקה ובד מתוח",
+    "labelEn": "Low-profile metal sling outdoor lounge set",
+    "promptEn": "low-profile outdoor lounge set with a thin powder-coated metal frame and taut sling mesh fabric seating in a reclined chaise-like shape",
+    "roomTypes": [
+      "yard",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "outdoor_lounge_boxy_metal_deep_cushion",
+    "category": "מטבח חוץ ואירוח",
+    "subcategory": "ריהוט",
+    "labelHe": "פינת ישיבה חוץ מתכת קופסתית ריפוד עמוק",
+    "labelEn": "Boxy metal-frame outdoor lounge set",
+    "promptEn": "modern boxy black powder-coated metal frame outdoor lounge set with deep thick cushions resembling an indoor sofa silhouette",
+    "roomTypes": [
+      "yard",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "outdoor_bistro_diamond_lattice_frame",
+    "category": "מטבח חוץ ואירוח",
+    "subcategory": "ריהוט",
+    "labelHe": "פינת בוסטון מרפסת רשת יהלומים",
+    "labelEn": "Bistro balcony set with diamond lattice frame",
+    "promptEn": "small two-seat bistro balcony set with a diamond lattice-pattern bronze wire metal frame, beige cushions, and a round matching side table",
+    "roomTypes": [
+      "balcony",
+      "yard"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "outdoor_hanging_egg_chair",
+    "category": "מטבח חוץ ואירוח",
+    "subcategory": "ריהוט",
+    "labelHe": "ערסל כורסה תלוי בצורת ביצה",
+    "labelEn": "Hanging egg swing chair",
+    "promptEn": "woven wicker egg-shaped hanging swing chair suspended by a chain from a freestanding black steel C-frame stand, with a cream cushion",
+    "roomTypes": [
+      "balcony",
+      "yard"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_dining_rect",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "שולחן אוכל מלבני",
+    "labelEn": "Rectangular dining table",
+    "promptEn": "rectangular dining table in natural wood with slim metal legs",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "chairs_dining_upholstered",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "כיסאות אוכל מרופדים",
+    "labelEn": "Upholstered dining chairs",
+    "promptEn": "upholstered dining chairs in soft neutral fabric with slim legs",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "chairs_dining_shell",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "כיסאות אוכל מעטפת",
+    "labelEn": "Shell dining chairs",
+    "promptEn": "molded shell dining chairs with slim metal legs",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "chairs_wishbone",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "כיסאות ויש-בון",
+    "labelEn": "Wishbone chairs",
+    "promptEn": "classic wishbone chairs in natural wood with woven paper cord seats",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "chairs_dining_bentwood_oval_open_back",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "כיסא אוכל גב עץ מעוגל פתוח",
+    "labelEn": "Bentwood chair with oval open back",
+    "promptEn": "dining chair with a curved bentwood open oval backrest frame and an upholstered seat pad, natural or dark wood finish",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "chairs_dining_sculptural_cantilever",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "כיסא אוכל פסלי בסיס מעוקל",
+    "labelEn": "Sculptural cantilever dining chair",
+    "promptEn": "sculptural dining chair with a molded shell seat and dramatic sweeping curved cantilever legs, no traditional four-leg base",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "chairs_dining_armchair_curved_upholstered",
+    "category": "ריהוט",
+    "subcategory": "פינת אוכל",
+    "labelHe": "כורסת אוכל מרופדת עם ידיות",
+    "labelEn": "Upholstered dining armchair with arms",
+    "promptEn": "upholstered dining armchair with a curved barrel-shaped back and armrests, wood legs",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "chairs_bar_rattan",
+    "category": "מטבח",
+    "subcategory": "ריהוט",
+    "labelHe": "כיסאות בר ראטן קלוע",
+    "labelEn": "Woven rattan bar stools",
+    "promptEn": "bar stools with woven rattan seats and natural wood frames",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_breakfast_bar",
+    "category": "מטבח",
+    "subcategory": "ריהוט",
+    "labelHe": "דלפק בר צמוד למטבח",
+    "labelEn": "Attached breakfast bar",
+    "promptEn": "raised breakfast bar counter extending from the kitchen worktop with stool seating",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_open_upper_color",
+    "category": "מטבח",
+    "subcategory": "ארונות עליונים",
+    "labelHe": "ארון עליון פתוח בצבע",
+    "labelEn": "Colored open upper unit",
+    "promptEn": "open upper shelving unit finished in a soft muted color, contrasting the main cabinets",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "desk_office_corner_angled_legs_wood",
+    "category": "ריהוט",
+    "subcategory": "שולחן משרדי",
+    "labelHe": "שולחן משרדי פינתי רגלי מתכת זוויתיות",
+    "labelEn": "Corner office desk on angled metal legs",
+    "promptEn": "L-shaped corner office desk with a warm wood-look top, resting on angular tapered black metal V-shaped frame legs, with a small attached drawer pedestal underneath",
+    "roomTypes": [
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "desk_office_corner_white_frame",
+    "category": "ריהוט",
+    "subcategory": "שולחן משרדי",
+    "labelHe": "שולחן משרדי פינתי מסגרת לבנה",
+    "labelEn": "Corner office desk on white frame legs",
+    "promptEn": "L-shaped corner office desk with a wood-look top resting on a full white powder-coated square-tube metal frame with a front modesty stretcher rail",
+    "roomTypes": [
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "desk_office_corner_black_monochrome",
+    "category": "ריהוט",
+    "subcategory": "שולחן משרדי",
+    "labelHe": "שולחן משרדי פינתי שחור מונוכרומטי",
+    "labelEn": "Monochrome black corner office desk",
+    "promptEn": "L-shaped corner office desk finished entirely in matte black — top, square-tube metal legs, and front modesty panel all in black — minimalist boxy silhouette",
+    "roomTypes": [
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "desk_office_x_legs_wood",
+    "category": "ריהוט",
+    "subcategory": "שולחן משרדי",
+    "labelHe": "שולחן משרדי רגלי X",
+    "labelEn": "Office desk on X-shaped crossed legs",
+    "promptEn": "rectangular office desk with a wood-look top resting on crossed X-shaped metal legs in black or white, sometimes paired with a matching low storage credenza",
+    "roomTypes": [
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "desk_office_straight_thin_legs",
+    "category": "ריהוט",
+    "subcategory": "שולחן משרדי",
+    "labelHe": "שולחן משרדי ישר רגלי מתכת דקות",
+    "labelEn": "Straight office desk on thin metal legs",
+    "promptEn": "simple rectangular office desk with a wood-look top on slim straight black metal legs, no side panel or pedestal",
+    "roomTypes": [
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "desk_office_straight_thick_square_legs",
+    "category": "ריהוט",
+    "subcategory": "שולחן משרדי",
+    "labelHe": "שולחן מנהלים ישר רגלי ריבועיות עבות",
+    "labelEn": "Executive desk on thick square legs",
+    "promptEn": "large rectangular executive office desk with a wood-look top resting on thick straight black square-tube metal legs, minimalist with no side panel",
+    "roomTypes": [
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "desk_office_bowfront_curved",
+    "category": "ריהוט",
+    "subcategory": "שולחן משרדי",
+    "labelHe": "שולחן מנהלים חזית מעוגלת",
+    "labelEn": "Executive desk with curved bow front",
+    "promptEn": "large executive office desk with a wood-look top and a gently curved bow-shaped front edge, resting on straight square metal legs in black or white",
+    "roomTypes": [
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "table_meeting_stone_cone_legs",
+    "category": "ריהוט",
+    "subcategory": "שולחן ישיבות",
+    "labelHe": "שולחן ישיבות משופע קנט עם רגלי חרוט",
+    "labelEn": "Meeting table with beveled edge on cone legs",
+    "promptEn": "large rectangular boardroom meeting table with a stone-look top and a finely beveled edge profile, resting on tapered black cone-shaped legs",
+    "roomTypes": [
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "reception_desk_wood_marble_accent",
+    "category": "ריהוט",
+    "subcategory": "דלפק קבלה",
+    "labelHe": "דלפק קבלה עץ עם פס שיש",
+    "labelEn": "Reception desk with marble accent panel",
+    "promptEn": "standing-height reception desk counter with a wood-grain body, featuring a contrasting white marble-look vertical accent divider panel on the front face",
+    "roomTypes": [
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "facade_plaster_gray",
+    "category": "שליכט חיצוני",
+    "subcategory": "גוונים",
+    "labelHe": "שליכט אקרילי אפור",
+    "labelEn": "Acrylic plaster gray",
+    "promptEn": "thick acrylic exterior plaster with classic Israeli grooved texture in warm gray",
+    "roomTypes": [
+      "facade"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "facade_plaster_beige",
+    "category": "שליכט חיצוני",
+    "subcategory": "גוונים",
+    "labelHe": "שליכט אקרילי בז'",
+    "labelEn": "Acrylic plaster beige",
+    "promptEn": "thick acrylic exterior plaster with classic Israeli grooved texture in beige",
+    "roomTypes": [
+      "facade"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "facade_plaster_camel",
+    "category": "שליכט חיצוני",
+    "subcategory": "גוונים",
+    "labelHe": "שליכט אקרילי קאמל",
+    "labelEn": "Acrylic plaster camel",
+    "promptEn": "thick acrylic exterior plaster with classic Israeli grooved texture in camel tone",
+    "roomTypes": [
+      "facade"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "facade_plaster_teal",
+    "category": "שליכט חיצוני",
+    "subcategory": "גוונים",
+    "labelHe": "שליכט אקרילי טורקיז",
+    "labelEn": "Acrylic plaster teal",
+    "promptEn": "thick acrylic exterior plaster with classic Israeli grooved texture in saturated teal turquoise tone",
+    "roomTypes": [
+      "facade"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "facade_plaster_dark_green",
+    "category": "שליכט חיצוני",
+    "subcategory": "גוונים",
+    "labelHe": "שליכט אקרילי ירוק כהה",
+    "labelEn": "Acrylic plaster dark green",
+    "promptEn": "thick acrylic exterior plaster with classic Israeli grooved texture in deep saturated green tone",
+    "roomTypes": [
+      "facade"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "facade_jerusalem_tobzeh",
+    "category": "חיפוי אבן",
+    "subcategory": "חיפוי חזית",
+    "labelHe": "אבן ירושלמית טובזה",
+    "labelEn": "Jerusalem stone tobzeh",
+    "promptEn": "Jerusalem stone cladding in tobzeh chiselled finish",
+    "roomTypes": [
+      "facade"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "facade_jerusalem_mutbaz",
+    "category": "חיפוי אבן",
+    "subcategory": "חיפוי חזית",
+    "labelHe": "אבן ירושלמית מוטבז",
+    "labelEn": "Jerusalem stone mutbaz",
+    "promptEn": "Jerusalem stone cladding in mutbaz textured finish",
+    "roomTypes": [
+      "facade"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "facade_stone_havlanit",
+    "category": "חיפוי אבן",
+    "subcategory": "חיפוי חזית",
+    "labelHe": "אבן חבלנית",
+    "labelEn": "Havlanit stone",
+    "promptEn": "havlanit natural stone cladding with rough split face",
+    "roomTypes": [
+      "facade"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "facade_alucobond",
+    "category": "אלומיניום",
+    "subcategory": "חיפוי חזית",
+    "labelHe": "חיפוי אלוקובונד",
+    "labelEn": "Alucobond cladding",
+    "promptEn": "modern Alucobond aluminum composite panel facade cladding, hi-tech appearance",
+    "roomTypes": [
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "facade_alu_wood_look",
+    "category": "אלומיניום",
+    "subcategory": "חיפוי חזית",
+    "labelHe": "אלומיניום דמוי עץ",
+    "labelEn": "Wood-look aluminum",
+    "promptEn": "wood-look aluminum panel facade cladding",
+    "roomTypes": [
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "facade_brick_exterior",
+    "category": "חיפויי קירות",
+    "subcategory": "בריקים",
+    "labelHe": "בריקים חיצוניים",
+    "labelEn": "Exterior brick",
+    "promptEn": "reclaimed brick cladding on the ground floor facade",
+    "roomTypes": [
+      "facade"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "yard_synthetic_grass",
+    "category": "פיתוח חצר",
+    "subcategory": "דשא",
+    "labelHe": "דשא סינתטי צפוף",
+    "labelEn": "Dense synthetic grass",
+    "promptEn": "high-density synthetic grass with natural realistic appearance, 40-45mm fiber height",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "yard_natural_grass",
+    "category": "פיתוח חצר",
+    "subcategory": "דשא",
+    "labelHe": "דשא טבעי",
+    "labelEn": "Natural lawn",
+    "promptEn": "healthy natural green lawn",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "yard_deck_ipe",
+    "category": "פיתוח חצר",
+    "subcategory": "דקים",
+    "labelHe": "דק איפאה טבעי",
+    "labelEn": "Natural ipe deck",
+    "promptEn": "premium natural ipe hardwood decking",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "yard_deck_pine",
+    "category": "פיתוח חצר",
+    "subcategory": "דקים",
+    "labelHe": "דק אורן גושני",
+    "labelEn": "Solid pine deck",
+    "promptEn": "solid pine wood decking with rustic appearance",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "yard_deck_composite",
+    "category": "פיתוח חצר",
+    "subcategory": "דקים",
+    "labelHe": "דק סינתטי קומפוזיט",
+    "labelEn": "Composite decking",
+    "promptEn": "durable composite synthetic decking around the seating area",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "yard_basalt_steppers",
+    "category": "פיתוח חצר",
+    "subcategory": "שבילים",
+    "labelHe": "אבני מדרך בזלת",
+    "labelEn": "Basalt stepping stones",
+    "promptEn": "black basalt stepping stones set between planting",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "yard_limestone_steppers",
+    "category": "פיתוח חצר",
+    "subcategory": "שבילים",
+    "labelHe": "אבני מדרך אבן גיר",
+    "labelEn": "Limestone stepping stones",
+    "promptEn": "limestone stepping stones set between planting",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "yard_gravel_sesame",
+    "category": "פיתוח חצר",
+    "subcategory": "שבילים",
+    "labelHe": "חצץ שומשום",
+    "labelEn": "Sesame gravel",
+    "promptEn": "fine sesame gravel ground cover",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "yard_gravel_tuff",
+    "category": "פיתוח חצר",
+    "subcategory": "שבילים",
+    "labelHe": "חצץ טוף",
+    "labelEn": "Tuff gravel",
+    "promptEn": "red tuff gravel ground cover",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "yard_outdoor_r11",
+    "category": "פיתוח חצר",
+    "subcategory": "ריצוף חוץ",
+    "labelHe": "ריצוף חוץ נגד החלקה R11",
+    "labelEn": "Anti-slip R11 paving",
+    "promptEn": "anti-slip R11 rated porcelain outdoor tiles with natural stone appearance",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "yard_stamped_concrete_wood_look",
+    "category": "פיתוח חצר",
+    "subcategory": "ריצוף חוץ",
+    "labelHe": "ריצוף בטון מוטבע דמוי עץ",
+    "labelEn": "Stamped concrete, wood-plank look",
+    "promptEn": "stamped and textured concrete outdoor flooring finished to imitate a wood plank deck pattern",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "shade_pergola_electric",
+    "category": "הצללה",
+    "subcategory": "פרגולות",
+    "labelHe": "פרגולת אלומיניום חשמלית",
+    "labelEn": "Electric aluminum pergola",
+    "promptEn": "modern electric aluminum pergola with adjustable louvers and integrated LED lighting",
+    "roomTypes": [
+      "yard",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "shade_pergola_wood",
+    "category": "הצללה",
+    "subcategory": "פרגולות",
+    "labelHe": "פרגולת עץ גושני",
+    "labelEn": "Solid wood pergola",
+    "promptEn": "solid pine wood pergola with thick beams, rustic appearance",
+    "roomTypes": [
+      "yard",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "shade_pergola_aluminum_wood_look",
+    "category": "הצללה",
+    "subcategory": "פרגולות",
+    "labelHe": "פרגולת אלומיניום דמוי עץ",
+    "labelEn": "Wood-look aluminum pergola",
+    "promptEn": "aluminum pergola with slim horizontal slats finished in a realistic wood-look coating, combining low-maintenance aluminum with a natural wood appearance",
+    "roomTypes": [
+      "yard",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "shade_pergola_retractable_folding_fabric",
+    "category": "הצללה",
+    "subcategory": "פרגולות",
+    "labelHe": "פרגולה חשמלית מתקפלת בד",
+    "labelEn": "Retractable folding fabric pergola",
+    "promptEn": "pergola with an electric retractable folding fabric or mesh roof screen that concertinas along aluminum tracks, rather than fixed louvers",
+    "roomTypes": [
+      "yard",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "shade_awning",
+    "category": "הצללה",
+    "subcategory": "סוככים",
+    "labelHe": "סוכך זרועות / מרקיזה",
+    "labelEn": "Retractable awning",
+    "promptEn": "retractable folding arm awning over the terrace",
+    "roomTypes": [
+      "yard",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "balcony_folding_glass",
+    "category": "הצללה",
+    "subcategory": "סגירת מרפסת",
+    "labelHe": "סגירת מרפסת זכוכית מתקפלת",
+    "labelEn": "Folding glass enclosure",
+    "promptEn": "frameless folding glass balcony enclosure",
+    "roomTypes": [
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "balcony_belgian_sliding",
+    "category": "הצללה",
+    "subcategory": "סגירת מרפסת",
+    "labelHe": "סגירת מרפסת הזזה בלגית",
+    "labelEn": "Belgian sliding enclosure",
+    "promptEn": "balcony enclosure with black Belgian profile sliding windows",
+    "roomTypes": [
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "balcony_glass_room_addition",
+    "category": "הצללה",
+    "subcategory": "סגירת מרפסת",
+    "labelHe": "מרפסת/פטיו זכוכית מקורה מלאה",
+    "labelEn": "Full glass sunroom addition",
+    "promptEn": "glass sunroom veranda addition attached to the building with full glass walls and a pitched glass or polycarbonate roof, aluminum frame",
+    "roomTypes": [
+      "balcony",
+      "yard"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "balcony_retractable_screen_shade",
+    "category": "הצללה",
+    "subcategory": "סגירת מרפסת",
+    "labelHe": "מסך גלילה נשלף למרפסת",
+    "labelEn": "Retractable balcony screen shade",
+    "promptEn": "retractable motorized roller shade or mesh screen system for enclosing a balcony, fabric or mesh curtain running in an aluminum track",
+    "roomTypes": [
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "stairs_floating_wood",
+    "category": "מדרגות ומעקות",
+    "subcategory": "מדרגות",
+    "labelHe": "מדרגות מרחפות עץ ופלדה",
+    "labelEn": "Floating wood & steel stairs",
+    "promptEn": "floating staircase with solid oak treads cantilevered from a black steel stringer",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "stairs_concrete",
+    "category": "מדרגות ומעקות",
+    "subcategory": "מדרגות",
+    "labelHe": "מדרגות בטון",
+    "labelEn": "Concrete stairs",
+    "promptEn": "solid cast concrete staircase with clean smooth finish",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "stairs_stone_clad",
+    "category": "מדרגות ומעקות",
+    "subcategory": "מדרגות",
+    "labelHe": "מדרגות מחופות אבן / פורצלן",
+    "labelEn": "Stone-clad stairs",
+    "promptEn": "staircase clad in large format porcelain tiles with matching risers",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "stairs_folded_steel_plate_wood",
+    "category": "מדרגות ומעקות",
+    "subcategory": "מדרגות",
+    "labelHe": "מדרגות פלטת פלדה מקופלת שחורה",
+    "labelEn": "Folded black steel plate staircase",
+    "promptEn": "dramatic sculptural staircase with a folded black steel plate zigzag structure supporting wood treads, paired with a minimal thin steel rod railing",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "stairs_spiral_steel_wood",
+    "category": "מדרגות ומעקות",
+    "subcategory": "מדרגות",
+    "labelHe": "מדרגות ספירלה פלדה ועץ",
+    "labelEn": "Spiral staircase, steel and wood",
+    "promptEn": "spiral helical staircase with a slender black steel structure and wood treads, minimal thin rod railing",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "stairs_sculptural_white_monolith",
+    "category": "מדרגות ומעקות",
+    "subcategory": "מדרגות",
+    "labelHe": "מדרגות פסלית לבנה מקופלת",
+    "labelEn": "Sculptural white folded monolith staircase",
+    "promptEn": "sculptural monolithic staircase in glossy white lacquer with a folded zigzag profile and closed risers, paired with a frameless glass railing",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "stairs_floating_wood_stone_wall",
+    "category": "מדרגות ומעקות",
+    "subcategory": "מדרגות",
+    "labelHe": "מדרגות מרחפות עץ אלון מקיר אבן/בטון",
+    "labelEn": "Floating oak treads from a textured wall",
+    "promptEn": "floating solid oak wood treads cantilevered directly from a textured accent wall (natural stone cladding or board-formed exposed concrete), no visible stringer, thin black rod or frameless glass railing",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "stairs_floating_triangular_white_treads",
+    "category": "מדרגות ומעקות",
+    "subcategory": "מדרגות",
+    "labelHe": "מדרגות מרחפות לבנות מדף משולש",
+    "labelEn": "Floating stairs with triangular white wedge treads",
+    "promptEn": "floating staircase with solid white triangular-profile wedge-shaped treads cantilevered from the wall, open risers, paired with a frameless glass railing",
+    "roomTypes": [
+      "living",
+      "office"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "railing_glass",
+    "category": "מדרגות ומעקות",
+    "subcategory": "מעקות",
+    "labelHe": "מעקה זכוכית",
+    "labelEn": "Glass railing",
+    "promptEn": "frameless clear glass railing with slim metal top rail",
+    "roomTypes": [
+      "living",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "railing_steel_rods",
+    "category": "מדרגות ומעקות",
+    "subcategory": "מעקות",
+    "labelHe": "מעקה פלדה שחורה",
+    "labelEn": "Black steel rod railing",
+    "promptEn": "black steel railing with slim vertical rods and a minimal handrail",
+    "roomTypes": [
+      "living",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "railing_wrought_iron_classic_ornate",
+    "category": "מדרגות ומעקות",
+    "subcategory": "מעקות",
+    "labelHe": "מעקה ברזל אמנותי קלאסי מעוטר",
+    "labelEn": "Classic ornate wrought iron railing",
+    "promptEn": "classic ornate wrought iron railing with decorative scroll and curl details, black wrought metal with brushed gold accent rings",
+    "roomTypes": [
+      "living",
+      "office",
+      "balcony"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "railing_cable",
+    "category": "מדרגות ומעקות",
+    "subcategory": "מעקות",
+    "labelHe": "מעקה כבלים",
+    "labelEn": "Cable railing",
+    "promptEn": "horizontal stainless steel cable railing with slim posts",
+    "roomTypes": [
+      "living",
+      "office",
+      "balcony",
+      "yard"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "beam_exposed_steel",
+    "category": "מדרגות ומעקות",
+    "subcategory": "אלמנטים מבניים",
+    "labelHe": "קורת פלדה חשופה",
+    "labelEn": "Exposed steel beam",
+    "promptEn": "exposed black structural steel beam spanning the ceiling, industrial character",
+    "roomTypes": [
+      "living",
+      "kitchen",
+      "office"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "ac_linear_exposed",
+    "category": "מדרגות ומעקות",
+    "subcategory": "אלמנטים מבניים",
+    "labelHe": "תעלת מיזוג חשופה",
+    "labelEn": "Exposed linear AC duct",
+    "promptEn": "exposed slim linear air conditioning duct running along the ceiling",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "kitchen",
+      "bathroom",
+      "office",
+      "balcony",
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "outdoor_kitchen_stone",
+    "category": "מטבח חוץ ואירוח",
+    "subcategory": "מטבחי חוץ",
+    "labelHe": "מטבח חוץ מחופה אבן סינטרטית",
+    "labelEn": "Sintered stone outdoor kitchen",
+    "promptEn": "luxury outdoor kitchen island fully clad in sintered stone with marble appearance, built-in grill and integrated countertop",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "outdoor_kitchen_steel",
+    "category": "מטבח חוץ ואירוח",
+    "subcategory": "מטבחי חוץ",
+    "labelHe": "מטבח חוץ נירוסטה שחור",
+    "labelEn": "Black steel outdoor kitchen",
+    "promptEn": "modular outdoor kitchen unit in black powder-coated stainless steel with built-in grill, sink and refrigerated drawer",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "outdoor_kitchen_stainless",
+    "category": "מטבח חוץ ואירוח",
+    "subcategory": "מטבחי חוץ",
+    "labelHe": "מטבח חוץ נירוסטה מוברשת",
+    "labelEn": "Brushed stainless outdoor kitchen",
+    "promptEn": "modular outdoor kitchen in brushed stainless steel with multi-burner grill, glass-door fridge and brass handles",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "yard_raised_deck_led",
+    "category": "מטבח חוץ ואירוח",
+    "subcategory": "במות",
+    "labelHe": "במה מוגבהת עם תאורת לד",
+    "labelEn": "Raised deck with LED",
+    "promptEn": "raised deck platform with a continuous warm LED strip glowing along its perimeter edge",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "outdoor_kitchen_masonry",
+    "category": "מטבח חוץ ואירוח",
+    "subcategory": "מטבחי חוץ",
+    "labelHe": "מטבח חוץ בנוי",
+    "labelEn": "Built masonry outdoor kitchen",
+    "promptEn": "custom built masonry outdoor kitchen counter finished in stone cladding",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "outdoor_grill_builtin",
+    "category": "מטבח חוץ ואירוח",
+    "subcategory": "ציוד",
+    "labelHe": "גריל מובנה",
+    "labelEn": "Built-in grill",
+    "promptEn": "built-in stainless steel gas grill integrated into the outdoor counter",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "outdoor_fridge",
+    "category": "מטבח חוץ ואירוח",
+    "subcategory": "ציוד",
+    "labelHe": "מקרר משקאות עם דלת זכוכית",
+    "labelEn": "Glass-door beverage fridge",
+    "promptEn": "outdoor beverage refrigerator with illuminated glass door built into the counter",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "outdoor_bar_counter",
+    "category": "מטבח חוץ ואירוח",
+    "subcategory": "ריהוט",
+    "labelHe": "דלפק בר עם ישיבה",
+    "labelEn": "Outdoor bar counter",
+    "promptEn": "raised outdoor bar counter with stools for seating",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "outdoor_lounge_seating",
+    "category": "מטבח חוץ ואירוח",
+    "subcategory": "ריהוט",
+    "labelHe": "פינת ישיבה חוץ",
+    "labelEn": "Outdoor lounge seating",
+    "promptEn": "modern outdoor lounge sofa set with weather-resistant cushions",
+    "roomTypes": [
+      "yard",
+      "balcony"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "yard_pool",
+    "category": "מטבח חוץ ואירוח",
+    "subcategory": "בריכה",
+    "labelHe": "בריכת שחייה",
+    "labelEn": "Swimming pool",
+    "promptEn": "rectangular swimming pool with clear blue water and stone coping edge",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "yard_pool_overflow",
+    "category": "מטבח חוץ ואירוח",
+    "subcategory": "בריכה",
+    "labelHe": "בריכת גלישה (אינפיניטי)",
+    "labelEn": "Infinity overflow pool",
+    "promptEn": "infinity edge overflow swimming pool with a seamless water horizon",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "fence_alu_black",
+    "category": "גדרות ושערים",
+    "subcategory": "גדרות",
+    "labelHe": "גדר אלומיניום הייטק שחורה",
+    "labelEn": "Black hi-tech aluminum fence",
+    "promptEn": "black aluminum hi-tech fence with precisely spaced horizontal slats",
+    "roomTypes": [
+      "yard",
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "gate_electric_sliding",
+    "category": "גדרות ושערים",
+    "subcategory": "שערים",
+    "labelHe": "שער הזזה חשמלי",
+    "labelEn": "Electric sliding gate",
+    "promptEn": "electric sliding entrance gate matching the fence, with recessed lighting",
+    "roomTypes": [
+      "yard",
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "fence_alu_wood_look_horizontal",
+    "category": "גדרות ושערים",
+    "subcategory": "גדרות",
+    "labelHe": "גדר אלומיניום דמוי עץ אופקית",
+    "labelEn": "Wood-look horizontal aluminum fence",
+    "promptEn": "horizontal slat aluminum fence in a warm wood-look finish, evenly spaced boards on slim posts",
+    "roomTypes": [
+      "yard",
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "fence_alu_white_horizontal",
+    "category": "גדרות ושערים",
+    "subcategory": "גדרות",
+    "labelHe": "גדר אלומיניום לבנה אופקית",
+    "labelEn": "White horizontal aluminum fence",
+    "promptEn": "horizontal slat aluminum fence in white or off-white finish, clean modern profile",
+    "roomTypes": [
+      "yard",
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "fence_alu_louvered_privacy",
+    "category": "גדרות ושערים",
+    "subcategory": "גדרות",
+    "labelHe": "גדר אלומיניום רפפה אטומה",
+    "labelEn": "Louvered privacy aluminum fence",
+    "promptEn": "aluminum privacy fence of densely packed angled louvre blades with no visible gaps, gray finish",
+    "roomTypes": [
+      "yard",
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "fence_metal_vertical_pickets_classic",
+    "category": "גדרות ושערים",
+    "subcategory": "גדרות",
+    "labelHe": "גדר מוטות אנכיים קלאסית",
+    "labelEn": "Classic vertical picket metal fence",
+    "promptEn": "classic wrought-iron style fence of evenly spaced vertical metal pickets with pointed or flat tops, black finish",
+    "roomTypes": [
+      "yard",
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "fence_wood_slat",
+    "category": "גדרות ושערים",
+    "subcategory": "גדרות",
+    "labelHe": "גדר עץ סרגלים",
+    "labelEn": "Wood slat fence",
+    "promptEn": "garden fence built of natural wood slats on a wood frame, warm timber tone",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "fence_glass_metal_frame",
+    "category": "גדרות ושערים",
+    "subcategory": "גדרות",
+    "labelHe": "גדר זכוכית במסגרת מתכת",
+    "labelEn": "Glass fence with metal frame",
+    "promptEn": "fence panels of clear or tinted glass set within a slim dark metal frame",
+    "roomTypes": [
+      "yard",
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "fence_on_stone_base_wall",
+    "category": "גדרות ושערים",
+    "subcategory": "גדרות",
+    "labelHe": "גדר על קיר בסיס אבן/טיח",
+    "labelEn": "Fence on a stone or plaster base wall",
+    "promptEn": "low solid base wall clad in natural stone or textured plaster, with a horizontal slat aluminum fence mounted along its top",
+    "roomTypes": [
+      "yard",
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "fence_laser_cut_decorative_panel",
+    "category": "גדרות ושערים",
+    "subcategory": "גדרות",
+    "labelHe": "גדר פאנל מחורר בחיתוך לייזר",
+    "labelEn": "Laser-cut decorative panel fence",
+    "promptEn": "decorative metal fence panels with an ornamental laser-cut pattern pierced through the sheet",
+    "roomTypes": [
+      "yard",
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "gate_swing_double_leaf",
+    "category": "גדרות ושערים",
+    "subcategory": "שערים",
+    "labelHe": "שער כנף כפול",
+    "labelEn": "Double-leaf swing gate",
+    "promptEn": "double-leaf swinging entrance gate matching the fence design, opening inward on side hinges",
+    "roomTypes": [
+      "yard",
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "gate_pedestrian_side",
+    "category": "גדרות ושערים",
+    "subcategory": "שערים",
+    "labelHe": "שער כניסה להולכי רגל",
+    "labelEn": "Pedestrian side gate",
+    "promptEn": "narrow single-leaf pedestrian entrance gate set beside the main driveway gate, matching the fence design, with an intercom panel and mailbox slot",
+    "roomTypes": [
+      "yard",
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "light_ground_spots",
+    "category": "תאורה",
+    "subcategory": "תאורת חוץ",
+    "labelHe": "ספוטים שקועים באדמה",
+    "labelEn": "In-ground spotlights",
+    "promptEn": "recessed in-ground spotlights uplighting trees and walls",
+    "roomTypes": [
+      "yard",
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "light_updown",
+    "category": "תאורה",
+    "subcategory": "תאורת חוץ",
+    "labelHe": "צמודי קיר דו-כיווניים",
+    "labelEn": "Up-down wall lights",
+    "promptEn": "bidirectional up-down wall mounted exterior lights",
+    "roomTypes": [
+      "yard",
+      "facade"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "light_garden_solar",
+    "category": "תאורה",
+    "subcategory": "תאורת חוץ",
+    "labelHe": "תאורת גן סולארית",
+    "labelEn": "Solar garden lights",
+    "promptEn": "low voltage solar garden path lighting",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "light_pendant_wire_cage_geometric",
+    "category": "תאורה",
+    "subcategory": "תאורת פנים",
+    "labelHe": "גוף תאורה תלוי כלוב חוטי גיאומטרי",
+    "labelEn": "Wire-cage geometric pendant",
+    "promptEn": "industrial-style pendant light with a black wire-frame geometric cage enclosing an exposed bulb",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office",
+      "balcony",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "light_chandelier_ring_bulb",
+    "category": "תאורה",
+    "subcategory": "תאורת פנים",
+    "labelHe": "נברשת טבעת עם נורות/קריסטל חשופים",
+    "labelEn": "Ring chandelier with exposed bulbs",
+    "promptEn": "statement circular ring-shaped chandelier holding multiple exposed bulbs or vertical crystal-look tube elements around its perimeter, suspended from a slim center rod",
+    "roomTypes": [
+      "living"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "light_sconce_geometric_block_array",
+    "category": "תאורה",
+    "subcategory": "תאורת קיר",
+    "labelHe": "מנורת קיר אריחי בטון/קוביות גיאומטרי",
+    "labelEn": "Geometric block wall sconce array",
+    "promptEn": "decorative wall uplighter made of multiple small geometric cube or block-shaped fixtures arranged in a pattern, casting dramatic light-and-shadow patterns on the wall",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "light_floor_lamp_fabric_shade",
+    "category": "תאורה",
+    "subcategory": "מנורות עומדות ושולחן",
+    "labelHe": "מנורה עומדת עם אהיל בד",
+    "labelEn": "Floor lamp with fabric shade",
+    "promptEn": "freestanding floor lamp on a slim metal stand with a fabric drum lampshade",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "light_table_lamp_ceramic_base",
+    "category": "תאורה",
+    "subcategory": "מנורות עומדות ושולחן",
+    "labelHe": "מנורת שולחן בסיס קרמי",
+    "labelEn": "Table lamp with ceramic base",
+    "promptEn": "freestanding table lamp with a sculptural ceramic base and a fabric lampshade",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "light_pendant_cluster_staggered",
+    "category": "תאורה",
+    "subcategory": "תאורת פנים",
+    "labelHe": "אשכול גופי תאורה תלויים בגבהים משתנים",
+    "labelEn": "Staggered cluster pendant group",
+    "promptEn": "a cluster of multiple matching pendant light fixtures hung together at staggered varying heights above a dining table or kitchen island",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "plant_olive_trees",
+    "category": "צמחייה",
+    "subcategory": "עצים",
+    "labelHe": "עצי זית עתיקים",
+    "labelEn": "Ancient olive trees",
+    "promptEn": "ancient olive trees with thick gnarled trunks",
+    "roomTypes": [
+      "yard",
+      "facade"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "plant_lavender",
+    "category": "צמחייה",
+    "subcategory": "שיחים",
+    "labelHe": "שיחי לבנדר",
+    "labelEn": "Lavender shrubs",
+    "promptEn": "lavender shrubs in bloom",
+    "roomTypes": [
+      "yard",
+      "facade"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "plant_succulents",
+    "category": "צמחייה",
+    "subcategory": "שיחים",
+    "labelHe": "סוקולנטים",
+    "labelEn": "Succulents",
+    "promptEn": "assorted succulent plants",
+    "roomTypes": [
+      "yard",
+      "facade"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "plant_fruit_trees",
+    "category": "צמחייה",
+    "subcategory": "עצים",
+    "labelHe": "עצי פרי",
+    "labelEn": "Fruit trees",
+    "promptEn": "Mediterranean fruit trees",
+    "roomTypes": [
+      "yard"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "rug_solid_plain",
+    "category": "שטיחים",
+    "subcategory": "דוגמאות",
+    "labelHe": "שטיח חלק גוון אחיד",
+    "labelEn": "Solid plain area rug",
+    "promptEn": "solid plain-colored area rug with no pattern, soft plush texture",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "kids",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "rug_bordered_traditional",
+    "category": "שטיחים",
+    "subcategory": "דוגמאות",
+    "labelHe": "שטיח קלאסי עם מסגרת",
+    "labelEn": "Traditional bordered area rug",
+    "promptEn": "traditional area rug with a distinct decorative border frame surrounding a plainer or subtly patterned center field",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "rug_medallion_oriental",
+    "category": "שטיחים",
+    "subcategory": "דוגמאות",
+    "labelHe": "שטיח מזרחי עם מדליון מרכזי",
+    "labelEn": "Oriental medallion rug",
+    "promptEn": "traditional oriental or Persian-style area rug with an ornate central medallion and dense decorative pattern throughout",
+    "roomTypes": [
+      "living",
+      "bedroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "rug_abstract_modern",
+    "category": "שטיחים",
+    "subcategory": "דוגמאות",
+    "labelHe": "שטיח מופשט מודרני",
+    "labelEn": "Modern abstract area rug",
+    "promptEn": "modern abstract area rug with a distressed marbled, painterly, or scribbled linear pattern in muted tones",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "rug_geometric_color_block",
+    "category": "שטיחים",
+    "subcategory": "דוגמאות",
+    "labelHe": "שטיח גיאומטרי מדורג צבעים",
+    "labelEn": "Geometric color-block rug",
+    "promptEn": "modern geometric area rug composed of bold color-blocked or diamond-patterned shapes",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "kids"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "rug_kilim_striped",
+    "category": "שטיחים",
+    "subcategory": "דוגמאות",
+    "labelHe": "שטיח קילים מפוספס",
+    "labelEn": "Striped kilim flat-weave rug",
+    "promptEn": "flat-weave kilim-style area rug with multicolor horizontal stripes and geometric folk-pattern accents",
+    "roomTypes": [
+      "living",
+      "bedroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "rug_herringbone_chevron",
+    "category": "שטיחים",
+    "subcategory": "דוגמאות",
+    "labelHe": "שטיח דגם פישבון/שברון",
+    "labelEn": "Herringbone chevron pattern rug",
+    "promptEn": "area rug with a herringbone or chevron zigzag weave pattern in earth tones",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wallpaper_geometric_mid_century",
+    "category": "טפטים",
+    "subcategory": "דוגמאות",
+    "labelHe": "טפט גיאומטרי משולשים",
+    "labelEn": "Geometric triangular mid-century wallpaper",
+    "promptEn": "feature wall wallpaper with a bold geometric mid-century pattern of angular triangular mountain-like shapes in mustard, olive, and cream tones",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wallpaper_botanical_branches",
+    "category": "טפטים",
+    "subcategory": "דוגמאות",
+    "labelHe": "טפט בוטני ענפים וציפורים",
+    "labelEn": "Botanical branches and birds wallpaper",
+    "promptEn": "feature wall wallpaper with an illustrated botanical pattern of bare tree branches and small bird silhouettes, watercolor style",
+    "roomTypes": [
+      "living",
+      "bedroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wallpaper_striped_vertical",
+    "category": "טפטים",
+    "subcategory": "דוגמאות",
+    "labelHe": "טפט פסים אנכיים",
+    "labelEn": "Vertical striped wallpaper",
+    "promptEn": "feature wall wallpaper with bold vertical stripes in contrasting colors",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wallpaper_brick_look",
+    "category": "טפטים",
+    "subcategory": "דוגמאות",
+    "labelHe": "טפט דמוי לבנים",
+    "labelEn": "Brick-look decorative wallpaper",
+    "promptEn": "decorative peel-and-stick wallpaper printed with a realistic exposed brick pattern",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wallpaper_3d_textured_wood_panel",
+    "category": "טפטים",
+    "subcategory": "דוגמאות",
+    "labelHe": "טפט תלת-ממד דמוי פאנל עץ",
+    "labelEn": "3D textured wood-look wallpaper panel",
+    "promptEn": "self-adhesive 3D textured wallpaper panel tiles with a raised wood-plank relief surface",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wallpaper_botanical_leaf_silhouette",
+    "category": "טפטים",
+    "subcategory": "דוגמאות",
+    "labelHe": "טפט בוטני עלים",
+    "labelEn": "Botanical leaf silhouette wallpaper",
+    "promptEn": "feature wall wallpaper with a botanical pattern of large realistic leaf silhouettes",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wallpaper_damask_ornate_classic",
+    "category": "טפטים",
+    "subcategory": "דוגמאות",
+    "labelHe": "טפט דמשק קלאסי מעוטר",
+    "labelEn": "Classic ornate damask wallpaper",
+    "promptEn": "traditional wallpaper with a dense ornate damask scroll pattern",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wallpaper_leaf_pattern_colorful_midcentury",
+    "category": "טפטים",
+    "subcategory": "דוגמאות",
+    "labelHe": "טפט עלים צבעוני רטרו",
+    "labelEn": "Colorful mid-century leaf pattern wallpaper",
+    "promptEn": "retro mid-century style wallpaper with a repeating pattern of colorful stylized leaf motifs",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "kids"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wallpaper_photo_mural_scenic",
+    "category": "טפטים",
+    "subcategory": "דוגמאות",
+    "labelHe": "טפט צילומי נופי (פרסקו)",
+    "labelEn": "Photo-realistic scenic mural wallpaper",
+    "promptEn": "large-format photo-realistic scenic mural wallpaper covering a full wall, black and white or muted tone cityscape or landscape image",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wallpaper_plain_textured",
+    "category": "טפטים",
+    "subcategory": "דוגמאות",
+    "labelHe": "טפט חלק במרקם טקסטיל",
+    "labelEn": "Plain textured wallpaper",
+    "promptEn": "plain solid-color wallpaper with a subtle woven fabric-like surface texture, no visible pattern",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "wallpaper_abstract_marble_agate_gold_veining",
+    "category": "טפטים",
+    "subcategory": "דוגמאות",
+    "labelHe": "טפט שיש אבסטרקטי עם עורקי זהב",
+    "labelEn": "Abstract agate marble wallpaper with gold veining",
+    "promptEn": "abstract agate / marble-look wallpaper with soft blended pastel watercolor tones (turquoise, pink, purple) and fine metallic gold vein lines",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "fireplace_electric_linear_builtin",
+    "category": "קמין",
+    "subcategory": "חשמלי",
+    "labelHe": "קמין חשמלי ליניארי שקוע",
+    "labelEn": "Linear built-in electric fireplace",
+    "promptEn": "long linear built-in electric fireplace recessed into the wall with a slim black frame and realistic flame effect",
+    "roomTypes": [
+      "living"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "fireplace_electric_freestanding_stove_round",
+    "category": "קמין",
+    "subcategory": "חשמלי",
+    "labelHe": "קמין חשמלי עומד עגול (תנור)",
+    "labelEn": "Round-front freestanding electric stove fireplace",
+    "promptEn": "freestanding electric stove-style fireplace cabinet with a round glass door and black metal body",
+    "roomTypes": [
+      "living"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "fireplace_electric_freestanding_stove_classic",
+    "category": "קמין",
+    "subcategory": "חשמלי",
+    "labelHe": "קמין חשמלי עומד קלאסי עם גחלים",
+    "labelEn": "Classic freestanding electric fireplace stove with visible coal bed",
+    "promptEn": "freestanding rectangular electric fireplace stove on short legs with a visible glowing coal and log bed effect, retro appliance look",
+    "roomTypes": [
+      "living"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "fireplace_electric_classic_ornate_mantel",
+    "category": "קמין",
+    "subcategory": "חשמלי",
+    "labelHe": "קמין חשמלי דקורטיבי במסגרת עץ מעוטרת",
+    "labelEn": "Classic ornate wood mantel electric fireplace",
+    "promptEn": "classic electric fireplace insert set within an ornate carved wood mantel surround, antique dark wood finish",
+    "roomTypes": [
+      "living"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "decor_vase_ceramic_sculptural",
+    "category": "אקססוריז דקורטיביים",
+    "subcategory": "כללי",
+    "labelHe": "אגרטל קרמיקה פיסולי",
+    "labelEn": "Sculptural ceramic vase",
+    "promptEn": "decorative sculptural ceramic or organic-shaped vase placed on a surface as a styling accent",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "decor_dried_flower_arrangement",
+    "category": "אקססוריז דקורטיביים",
+    "subcategory": "כללי",
+    "labelHe": "סידור פרחים/עשבים מיובשים",
+    "labelEn": "Dried flower / pampas arrangement",
+    "promptEn": "decorative dried flower or pampas grass arrangement displayed in a vase",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "decor_wall_macrame",
+    "category": "אקססוריז דקורטיביים",
+    "subcategory": "כללי",
+    "labelHe": "מקרמה תלויה לקיר",
+    "labelEn": "Macrame wall hanging",
+    "promptEn": "handwoven macrame wall hanging in natural cotton cord, decorative textile wall accent",
+    "roomTypes": [
+      "living",
+      "bedroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "decor_tray_bowl_decorative",
+    "category": "אקססוריז דקורטיביים",
+    "subcategory": "כללי",
+    "labelHe": "קערה/מגש דקורטיבי לסידור",
+    "labelEn": "Decorative styling tray or bowl",
+    "promptEn": "decorative bowl or tray used for surface styling on a console, coffee table, or counter",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office",
+      "kitchen",
+      "bathroom"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "decor_wall_art_sculptural_disc",
+    "category": "אקססוריז דקורטיביים",
+    "subcategory": "כללי",
+    "labelHe": "אמנות קיר פיסולית עגולה",
+    "labelEn": "Sculptural round wall art piece",
+    "promptEn": "round sculptural decorative wall art piece, such as a woven rattan or wood sunburst-style disc, hung as a wall accent",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "judaica_mezuzah_decorative_wall",
+    "category": "יודאיקה",
+    "subcategory": "כללי",
+    "labelHe": "מזוזה דקורטיבית לקיר",
+    "labelEn": "Decorative wall mezuzah case",
+    "promptEn": "decorative mezuzah case (metal or acrylic, sometimes with warm LED backlighting) mounted on a doorframe",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "mamad",
+      "kids",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "judaica_shabbat_candlesticks",
+    "category": "יודאיקה",
+    "subcategory": "כללי",
+    "labelHe": "פמוטי שבת",
+    "labelEn": "Shabbat candlesticks",
+    "promptEn": "pair of decorative Shabbat candlesticks (crystal, silver, or metal) displayed on a dining table or sideboard",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "judaica_kiddush_cup_set",
+    "category": "יודאיקה",
+    "subcategory": "כללי",
+    "labelHe": "גביע קידוש",
+    "labelEn": "Kiddush cup",
+    "promptEn": "decorative kiddush wine cup (silver, glass, or crystal, with or without a matching saucer) displayed on a dining table",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "judaica_havdalah_set",
+    "category": "יודאיקה",
+    "subcategory": "כללי",
+    "labelHe": "סט הבדלה",
+    "labelEn": "Havdalah set",
+    "promptEn": "decorative Havdalah set including a candle holder, spice box, and cup, displayed together on a tray",
+    "roomTypes": [
+      "living",
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "judaica_wall_art_blessing_text",
+    "category": "יודאיקה",
+    "subcategory": "כללי",
+    "labelHe": "אמנות קיר עם פסוק/ברכה",
+    "labelEn": "Wall art with Hebrew blessing text",
+    "promptEn": "decorative wall art or cutout plaque (metal or acrylic, sometimes backlit) displaying a Hebrew blessing or verse",
+    "roomTypes": [
+      "living",
+      "bedroom",
+      "office"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "counter_calacatta_white",
+    "category": "מטבח",
+    "subcategory": "משטחי עבודה",
+    "labelHe": "משטח שיש קלאקטה לבן",
+    "labelEn": "Calacatta white marble",
+    "promptEn": "white Calacatta marble countertop with dramatic gray veining",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "counter_black_marble",
+    "category": "מטבח",
+    "subcategory": "משטחי עבודה",
+    "labelHe": "משטח שיש שחור עורקים לבנים",
+    "labelEn": "Black marble, white veining",
+    "promptEn": "black marble countertop with bold dramatic white veining",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "counter_terrazzo",
+    "category": "מטבח",
+    "subcategory": "משטחי עבודה",
+    "labelHe": "משטח טרצו מנומר",
+    "labelEn": "Terrazzo countertop",
+    "promptEn": "terrazzo countertop with scattered white and gray stone chip aggregate pattern",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "counter_butcher_block",
+    "category": "מטבח",
+    "subcategory": "משטחי עבודה",
+    "labelHe": "משטח עץ בוצ'ר בלוק",
+    "labelEn": "Wood butcher block countertop",
+    "promptEn": "solid wood butcher block countertop with a warm oiled finish and visible grain pattern",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "counter_stainless_steel",
+    "category": "מטבח",
+    "subcategory": "משטחי עבודה",
+    "labelHe": "משטח נירוסטה מקצועי",
+    "labelEn": "Professional stainless steel countertop",
+    "promptEn": "seamless brushed stainless steel countertop, professional kitchen appearance",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "counter_corian_white",
+    "category": "מטבח",
+    "subcategory": "משטחי עבודה",
+    "labelHe": "משטח קוריאן לבן חלק",
+    "labelEn": "White solid-surface (Corian) countertop",
+    "promptEn": "seamless matte white solid-surface countertop with an integrated look and no visible joints",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "counter_edge_straight",
+    "category": "מטבח",
+    "subcategory": "גימור קצוות ופינות",
+    "labelHe": "גימור קצה ישר פשוט",
+    "labelEn": "Straight eased edge",
+    "promptEn": "simple straight eased-edge countertop profile with a slightly softened corner",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "counter_edge_bullnose",
+    "category": "מטבח",
+    "subcategory": "גימור קצוות ופינות",
+    "labelHe": "גימור קצה מעוגל (בולנוז)",
+    "labelEn": "Bullnose rounded edge",
+    "promptEn": "fully rounded bullnose countertop edge profile",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "counter_edge_waterfall",
+    "category": "מטבח",
+    "subcategory": "גימור קצוות ופינות",
+    "labelHe": "גימור פינה מפל מים (ווטרפול)",
+    "labelEn": "Mitered waterfall edge",
+    "promptEn": "mitered waterfall countertop edge where the stone continues seamlessly down the side to the floor",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "counter_edge_beveled",
+    "category": "מטבח",
+    "subcategory": "גימור קצוות ופינות",
+    "labelHe": "גימור קצה משופע",
+    "labelEn": "Beveled edge",
+    "promptEn": "beveled angled countertop edge profile with a crisp chamfered line",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": true,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_faucet_matte_white",
+    "category": "מטבח",
+    "subcategory": "ברזים",
+    "labelHe": "ברז מטבח לבן מט",
+    "labelEn": "Matte white kitchen faucet",
+    "promptEn": "tall gooseneck kitchen faucet in matte white finish",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_faucet_chrome_pulldown",
+    "category": "מטבח",
+    "subcategory": "ברזים",
+    "labelHe": "ברז מטבח כרום עם ראש נשלף",
+    "labelEn": "Chrome pull-down kitchen faucet",
+    "promptEn": "polished chrome kitchen faucet with a pull-down spray head",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_faucet_bridge_vintage",
+    "category": "מטבח",
+    "subcategory": "ברזים",
+    "labelHe": "ברז מטבח גשר וינטג'",
+    "labelEn": "Vintage bridge kitchen faucet",
+    "promptEn": "traditional bridge-style kitchen faucet with two separate handles and an arched spout, aged brass finish",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  },
+  {
+    "id": "kitchen_faucet_copper",
+    "category": "מטבח",
+    "subcategory": "ברזים",
+    "labelHe": "ברז מטבח נחושת",
+    "labelEn": "Copper kitchen faucet",
+    "promptEn": "tall gooseneck kitchen faucet in a warm copper finish",
+    "roomTypes": [
+      "kitchen"
+    ],
+    "isConstructive": false,
+    "metadata": ""
+  }
+];
+
+export const ROOM_TYPES: RoomType[] = [
+  {
+    "code": "living",
+    "labelHe": "סלון",
+    "labelEn": "Living room",
+    "isExterior": false
+  },
+  {
+    "code": "bedroom",
+    "labelHe": "חדר שינה",
+    "labelEn": "Bedroom",
+    "isExterior": false
+  },
+  {
+    "code": "mamad",
+    "labelHe": "ממ\"ד",
+    "labelEn": "MAMAD (safe room)",
+    "isExterior": false
+  },
+  {
+    "code": "kids",
+    "labelHe": "חדר ילדים",
+    "labelEn": "Kids room",
+    "isExterior": false
+  },
+  {
+    "code": "kitchen",
+    "labelHe": "מטבח",
+    "labelEn": "Kitchen",
+    "isExterior": false
+  },
+  {
+    "code": "bathroom",
+    "labelHe": "חדר רחצה",
+    "labelEn": "Bathroom",
+    "isExterior": false
+  },
+  {
+    "code": "office",
+    "labelHe": "משרד / חדר עבודה",
+    "labelEn": "Home office",
+    "isExterior": false
+  },
+  {
+    "code": "balcony",
+    "labelHe": "מרפסת",
+    "labelEn": "Balcony / terrace",
+    "isExterior": false
+  },
+  {
+    "code": "facade",
+    "labelHe": "חזית הבית",
+    "labelEn": "House facade",
+    "isExterior": true
+  },
+  {
+    "code": "yard",
+    "labelHe": "חצר וגינה",
+    "labelEn": "Yard & garden",
+    "isExterior": true
+  },
+  {
+    "code": "dining",
+    "labelHe": "פינת אוכל / חדר אוכל",
+    "labelEn": "Dining area",
+    "isExterior": false
+  },
+  {
+    "code": "hallway",
+    "labelHe": "מסדרון",
+    "labelEn": "Hallway",
+    "isExterior": false
+  },
+  {
+    "code": "wc",
+    "labelHe": "שירותים",
+    "labelEn": "Powder room (WC)",
+    "isExterior": false
+  },
+  {
+    "code": "closet_room",
+    "labelHe": "חדר ארונות",
+    "labelEn": "Walk-in closet",
+    "isExterior": false
+  },
+  {
+    "code": "rental_unit",
+    "labelHe": "יחידת דיור",
+    "labelEn": "Rental unit / studio",
+    "isExterior": false
+  },
+  {
+    "code": "whole_house",
+    "labelHe": "הבית כולו",
+    "labelEn": "Whole house",
+    "isExterior": false
+  }
+];
+
+export const PROTECTED_ELEMENTS: ProtectedElement[] = [
+  {
+    "roomScopeHe": "כל החדרים",
+    "labelHe": "פתחי חלונות קיימים",
+    "labelEn": "existing window openings",
+    "reason": "מונע המצאת חלונות חדשים ומונע טשטוש הנוף — הכשל שזוהה בשלב 3"
+  },
+  {
+    "roomScopeHe": "כל החדרים",
+    "labelHe": "דלתות כניסה ופנים",
+    "labelEn": "existing doors",
+    "reason": "המודל נוטה להזיז או למחוק דלתות"
+  },
+  {
+    "roomScopeHe": "ממ\"ד",
+    "labelHe": "יחידת סינון אוויר",
+    "labelEn": "MAMAD air filtration unit",
+    "reason": "אלמנט חובה על פי תקנות. נמחק בכל ההרצות ובכל ההגדרות — רק מיסוך פותר"
+  },
+  {
+    "roomScopeHe": "ממ\"ד",
+    "labelHe": "חלון הדף פלדתי",
+    "labelEn": "MAMAD blast-resistant steel window",
+    "reason": "אלמנט חובה על פי תקנות, לא ניתן להחלפה"
+  },
+  {
+    "roomScopeHe": "ממ\"ד",
+    "labelHe": "דלת הדף פלדתית",
+    "labelEn": "MAMAD blast-resistant steel door",
+    "reason": "אלמנט חובה על פי תקנות, לא ניתן להחלפה"
+  },
+  {
+    "roomScopeHe": "ממ\"ד",
+    "labelHe": "קירות בטון מזוין",
+    "labelEn": "MAMAD reinforced concrete walls",
+    "reason": "לא ניתן לפרק, ומוגבל בקידוח ובתלייה — לאמת מול פיקוד העורף"
+  },
+  {
+    "roomScopeHe": "כל החדרים",
+    "labelHe": "מזגן מיני מרכזי / מפוצל",
+    "labelEn": "air conditioning unit",
+    "reason": "אופציונלי — המשתמש מסמן אם ברצונו לשמר"
+  },
+  {
+    "roomScopeHe": "סלון",
+    "labelHe": "טלוויזיה תלויה",
+    "labelEn": "wall-mounted television",
+    "reason": "נמחקה בבדיקת הסלון. אופציונלי לסימון ע\"י המשתמש"
+  },
+  {
+    "roomScopeHe": "כל החדרים",
+    "labelHe": "דוד חשמל / מערכות גלויות",
+    "labelEn": "water heater and exposed systems",
+    "reason": "אופציונלי — לרוב המשתמש ירצה שיישארו"
+  }
+];
+
+export const MATERIALS_BY_ID: Map<string, MaterialItem> = new Map(
+  MATERIALS.map((m) => [m.id, m]),
+);
+
+export const ROOMS_BY_CODE: Map<string, RoomType> = new Map(
+  ROOM_TYPES.map((r) => [r.code, r]),
+);

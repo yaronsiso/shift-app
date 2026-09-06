@@ -37,7 +37,17 @@ class UploadPhotoScreen extends ConsumerWidget {
     final roomType = flow.roomTypeCode;
     if (roomType == null || flow.selectedGroupCodes.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) context.go(AppRoutes.home);
+        // תיקון סשן 13: לא לנווט הביתה אם המסך הזה כבר לא זה שבחזית —
+        // למשל אם הוא שוכב שקט בתחתית המחסנית מתחת למסך העיבוד, ו-
+        // renderFlowProvider אופס כי ההגשה כבר הצליחה (ראו processing_screen
+        // _run()). בלי הבדיקה הזו, האיפוס גורם למסך הזה להיבנות מחדש עם
+        // flow ריק ולקפוץ הביתה — וה-context.go() מוחק את כל המחסנית,
+        // כולל את מסך העיבוד שבאמת עדיין עוקב אחרי ההדמיה. זה שורש הבאג
+        // "קפיצה למסך הבית" שדווח לאורך הפרויקט.
+        if (context.mounted &&
+            (ModalRoute.of(context)?.isCurrent ?? true)) {
+          context.go(AppRoutes.home);
+        }
       });
       return const Scaffold(body: SizedBox.shrink());
     }
