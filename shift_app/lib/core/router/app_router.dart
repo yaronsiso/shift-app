@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/presentation/auth_screen.dart';
 import '../../features/coupon/presentation/coupon_screen.dart';
 import '../../features/design_studio/presentation/design_studio_screen.dart';
 import '../../features/gallery/presentation/gallery_screen.dart';
@@ -26,6 +27,8 @@ import 'route_names.dart';
 ///
 /// **סשן 9:** נוסף `AppRoutes.gallery` (הגלריה האישית). מסך העיבוד יכול
 /// גם לקבל `ProcessingResumeArgs` דרך `extra` — ראו route_names.dart.
+///
+/// **סשן 13 (המשך):** נוסף `AppRoutes.auth` (מסך התחברות/הרשמה/חשבון).
 class AppRouter {
   AppRouter._();
 
@@ -66,6 +69,11 @@ class AppRouter {
         path: AppRoutes.gallery,
         name: 'gallery',
         builder: (context, state) => const GalleryScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.auth,
+        name: 'auth',
+        builder: (context, state) => const AuthScreen(),
       ),
     ],
   );

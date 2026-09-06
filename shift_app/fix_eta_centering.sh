@@ -1,3 +1,8 @@
+#!/bin/bash
+set -e
+cd /workspaces/shift-app/shift_app
+
+cat > lib/features/processing/presentation/processing_screen.dart << 'SHIFTEOF_PROC'
 import 'dart:async';
 
 import 'package:easy_localization/easy_localization.dart';
@@ -538,3 +543,6 @@ class _FailureView extends StatelessWidget {
     );
   }
 }
+SHIFTEOF_PROC
+
+echo "✅ processing_screen.dart עודכן (מרכוז מוחלט של הטקסט במסך העיבוד)."

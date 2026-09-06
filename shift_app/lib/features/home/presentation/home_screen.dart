@@ -30,6 +30,9 @@ import '../../render_flow/data/render_flow_notifier.dart';
 /// תקועה (למשל כי המצלמה הרגה את התהליך אחרי בחירת חדר + חומרים —
 /// ראו render_flow_notifier.dart), המשתמש מנווט אוטומטית בחזרה למסך
 /// הנכון במקום להישאר במסך בית שנראה ריק וגורם לו לחשוב שהכל אבד.
+///
+/// **סשן 13 (המשך):** נוסף אייקון "החשבון שלי" בסרגל העליון, שמוביל
+/// למסך ההתחברות/הרשמה (`AppRoutes.auth`) — ראו auth_screen.dart.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -113,6 +116,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             icon: const Icon(Icons.confirmation_number_outlined),
             tooltip: 'coupon_screen.entry_tooltip'.tr(),
             onPressed: () => context.push(AppRoutes.coupon),
+          ),
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            tooltip: 'auth_screen.entry_tooltip'.tr(),
+            onPressed: () => context.push(AppRoutes.auth),
           ),
           PopupMenuButton<Locale>(
             icon: const Icon(Icons.language),
