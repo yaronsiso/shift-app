@@ -56,7 +56,8 @@
     "quota_button": "На главный экран",
     "error_title": "Что-то пошло не так",
     "retry_button": "Попробовать снова",
-    "back_button": "Назад"
+    "back_button": "Назад",
+    "quota_signup_button": "Регистрация / Вход"
   },
   "result_screen": {
     "app_title": "SHIFT",
@@ -82,7 +83,9 @@
     "milestone_yes": "Да",
     "milestone_no": "Нет",
     "milestone_missing_hint": "Мы хотим улучшить систему — чего вам не хватает?",
-    "milestone_send": "Отправить"
+    "milestone_send": "Отправить",
+    "saved_to_gallery_snackbar": "В вашу галерею добавлено новое изображение",
+    "back_home_button": "Назад на главный экран"
   },
   "coupon_screen": {
     "app_title": "Промокод",

@@ -1,11 +1,22 @@
+#!/bin/bash
+set -e
+cd /workspaces/shift-app/shift_app
+
+mkdir -p supabase/functions/_shared
+
+cat > supabase/functions/_shared/prompt_engine.ts << 'SHIFTEOF'
 // מנוע הפרומפטים — צד שרת.
 //
 // עד סשן 14 היה זהה בלוגיקה ל-lib/features/prompt_engine/prompt_engine.dart
 // שבאפליקציה. **מסשן 14 השניים הופרדו במכוון**: הקובץ הזה עודכן למעבר
-// למודלי Gemini image-editing (ראו קבוצת ההערות מתחת ל-imports), אבל
-// הגרסה בצד הלקוח לא עודכנה — היא ממילא לא נצרכת בשום מקום בפועל
+// ל-Nano Banana Pro (ראו קבוצת ההערות מתחת ל-imports), אבל הגרסה בצד
+// הלקוח לא עודכנה — היא ממילא לא נצרכת בשום מקום בפועל
 // (RenderService.submitRender שולח רק roomTypeCode + selections, לא
-// פרומפט מוכן; toReplicateInput() ב-Dart הוא קוד מת).
+// פרומפט מוכן; toReplicateInput() ב-Dart הוא קוד מת). לפני שנוגעים שוב
+// בגרסת הלקוח (או משתמשים בה לתצוגה מקדימה אמיתית למשתמש) — צריך קודם
+// לעדכן אותה ואת test/prompt_engine_test.dart בהתאם לשינוי כאן (בייחוד
+// הבדיקה שבודקת שהמילה "window" לא מופיעה כשלא נבחר פריט רלוונטי —
+// היא כבר לא נכונה לגרסה כאן, ראו ההסבר על PRESERVE_BASE למטה).
 //
 // **למה הוא קיים גם כאן:** האפליקציה לא שולחת את הפרומפט המוכן. היא שולחת
 // את סוג החדר ואת רשימת מזהי הפריטים, והשרת בונה את הפרומפט בעצמו מהמילון
@@ -15,26 +26,17 @@
 // הגרסה הזו (שרת) היא **הקובעת** — מה שנשלח בפועל ל-Replicate.
 //
 // ============================================================================
-// סשן 15 — שני שינויים: (1) מעבר ל-google/nano-banana-2 (ראו index.ts),
-// (2) שכתוב מבנה הפרומפט כדי לתקן "המצאת" אביזרים/ריהוט/ציוד שלא נבחרו.
+// סשן 15 — תיקון "המצאת" אביזרים/ריהוט/ציוד שלא נבחרו (מזגן, דוד שמש,
+// צינורות וכו' הופיעו בתוצאה בלי שנבחרו) — ראו PRESERVE_BASE למטה.
 // ============================================================================
-// **מה קרה בפועל (7.9.2026):** ירון בחר חדר שינה + מיטה עם גומחת קיר
-// מקומרת ופס לד, ולחיצת SHIFT הביאה תוצאה עם מזגן, דוד שמש וצינורות שלא
-// היו בתמונה המקורית ולא נבחרו. שורש שני: (א) הוראת השימור הישנה (סשן 14)
-// לא כללה שום משפט כללי "אל תוסיף שום דבר אחר" — רק שימור מבנה/פתחים
-// ואלמנטים רגולטוריים ספציפיים; (ב) ההוראה ישבה **בסוף** הפרומפט, אחרי
-// רשימת הפריטים שנבחרו — למודלי שפה/תמונה מבוססי-הוראה, מה שבא קודם
-// מקבל בדרך כלל יותר משקל.
-//
-// **התיקון, שנבדק ישירות מול Gemini לפני שנכתב כאן (ולא רק תיאוריה):**
-// מבנה הפרומפט שונה משרשור שטוח של "חדר + פריטים + הערת שימור בסוף"
-// לשלושה בלוקים ברורים, בסדר הזה: (1) איזה חדר; (2) "שנה רק את הבאים,
-// ולא כלום מעבר לזה" + רשימת הפריטים שנבחרו; (3) בלוק שימור מפורש וגדול
-// שאומר איך שאר כל התמונה (כולל כל ריהוט/אביזר/ציוד קיים שלא הוזכר)
-// חייבת להישאר זהה פיקסל-פיקסל, ובנוסף "אל תוסיף שום דבר חדש". ניסוח
-// זה תואם גם את ההנחיה הרשמית של גוגל לעריכת תמונות (blog.google,
-// "prompting-tips-nano-banana-pro"): לתאר בדיוק מה **משתנה**, לא לבקש
-// הוספות — זה עוזר למודל לשמר את שאר הסצנה.
+// שורש הבעיה: PRESERVE_BASE (מסשן 14) כיסתה רק מבנה/קירות/חלונות/דלתות/
+// זווית מצלמה + אלמנטים רגולטוריים ספציפיים (protectedLabels) — לא היה
+// אף משפט כללי שאומר למודל לא להוסיף שום דבר אחר. במודל הישן (adirik)
+// prompt_strength/guidance_scale ריסנו חלק מ"ההמצאות" האלה כפרמטר טכני;
+// ל-Nano Banana Pro אין את הפרמטרים האלה בכלל (ראו למטה), אז השכבה הזו
+// נעלמה עם המעבר בלי שפיצינו עליה בניסוח הפרומפט. נבדק בפועל 7.9.2026 —
+// ירון בחר חדר שינה + מיטה עם גומחה מקומרת ופס לד, וקיבל תוצאה עם מזגן,
+// דוד שמש וצינורות שלא היו בתמונה המקורית ולא נבחרו.
 
 import {
   MATERIALS_BY_ID,
@@ -43,49 +45,57 @@ import {
   type MaterialItem,
 } from "./dictionary.ts";
 
+// ============================================================================
+// סשן 14 — מעבר ל-Nano Banana Pro (google/nano-banana-pro ב-Replicate)
+// ============================================================================
+// שלושת הקבועים האלה (GUIDANCE_SCALE / NUM_INFERENCE_STEPS / STRENGTH_*)
+// נועדו למודל דיפוזיה קלאסי (adirik/interior-design). ל-Nano Banana Pro
+// (מודל Gemini רב-מודלי) **אין** guidance_scale, num_inference_steps או
+// prompt_strength בסכמת הקלט שלו כלל — הוא לא עובד ב"חוזק החלה" גרדואלי
+// אלא מפרש את כל הפרומפט כהוראה טקסטואלית אחת. השארתי את הקבועים והשדות
+// האלה ב-RenderJob ובטבלת renders (בהמשך הקובץ ובקוד ה-Edge Function)
+// **רק** לצורך המשכיות/דיבוג של הדמיות ישנות — `generate-render/index.ts`
+// כבר לא שולח אותם ל-Replicate. אין לצרף אותם לקריאה למודל החדש.
 export const GUIDANCE_SCALE = 7.5;
 export const NUM_INFERENCE_STEPS = 50;
 export const STRENGTH_SURFACE = 0.55;
 export const STRENGTH_CONSTRUCTIVE = 0.65;
-// ^ שלושת הקבועים האלה נועדו למודל דיפוזיה קלאסי (adirik/interior-design,
-// המודל הישן לפני סשן 14). לאף אחד ממודלי ה-Gemini image-editing (לא
-// nano-banana-pro ולא nano-banana-2) אין guidance_scale, num_inference_steps
-// או prompt_strength בסכמת הקלט שלהם כלל. השארתי את הקבועים והשדות האלה
-// ב-RenderJob ובטבלת renders **רק** לצורך המשכיות/דיבוג של הדמיות ישנות —
-// generate-render/index.ts כבר לא שולח אותם ל-Replicate.
 
 const PREFIX_INTERIOR =
   "A high-end photorealistic interior design render of an Israeli";
 const PREFIX_EXTERIOR =
   "A high-end photorealistic exterior architectural render of an Israeli";
 
-// נשאר קיים ומחושב כדי שעמודת renders.negative_prompt תמשיך להתמלא
-// לצורכי תיעוד/דיבוג בלבד — **לא נשלח יותר ל-Replicate**.
+// **סשן 14:** ל-Nano Banana Pro אין שדה `negative_prompt` נפרד (זה מושג
+// שרלוונטי רק למודלי דיפוזיה כמו Stable Diffusion) — יש רק שדה `prompt`
+// אחד, וההוראה למודל להימנע ממשהו צריכה להיות מנוסחת בחיוב בתוך אותו
+// טקסט. לכן ה"נגטיב" הישן תורגם כאן לשני חלקים שמצטרפים ל-segments של
+// הפרומפט הראשי: PRESERVE_BASE (מבנה/זוויות/בלי הוספת פתחים, **וכעת גם
+// בלי הוספת אביזרים/ריהוט/ציוד חדש — סשן 15**) ו-QUALITY_SUFFIX
+// (איכות/בלי watermark/בלי קריקטורה). ה-constant הישן NEGATIVE_BASE נשאר
+// קיים ומחושב כדי שעמודת renders.negative_prompt תמשיך להתמלא לצורכי
+// תיעוד/דיבוג — אבל **הוא לא נשלח יותר ל-Replicate**.
 export const NEGATIVE_BASE =
   "changing room structure, moving walls, different window positions, " +
   "distorted perspective, warped geometry, extra windows, extra doors, " +
   "mirror, mirrored, " +
   "blurry, low quality, watermark, text, cartoon, illustration";
 
-// **סשן 15:** בלוק השימור הועבר לבוא **אחרי** תיאור השינוי (לא בסוף כל
-// הפרומפט אחרי כל שאר הפרטים כמו בסשן 14), ונוסף לו משפט מפורש שאוסר
-// הוספת אביזרים/ריהוט/ציוד חדש. זה הניסוח שנבדק ואומת ישירות מול Gemini
-// (7.9.2026) לפני שהוכנס לכאן.
-const PRESERVE_BLOCK =
-  "Everything else in the photo must remain exactly, pixel-for-pixel " +
-  "identical to the original photo — including the room's structure, " +
-  "wall positions, window and door placement, camera perspective and " +
-  "angle, floor, ceiling, all existing furniture, fixtures, appliances, " +
-  "and decor not mentioned above, and every other object visible in the " +
-  "original photo. Do not add any new object, furniture, appliance, " +
-  "fixture, or equipment of any kind. Do not remove or move anything " +
-  "that was not explicitly mentioned above. Do not add extra windows or " +
-  "doors. No mirrored or flipped layout.";
+// **סשן 15:** נוספו שתי הוראות חדשות בסוף (אחרי "no mirrored or flipped
+// layout") — זה כל השינוי בקובץ הזה. הכל אחרי זה זהה לסשן 14.
+const PRESERVE_BASE =
+  "the room's structure, wall positions, window and door placement, and " +
+  "camera perspective must stay exactly identical to the original photo; " +
+  "do not add extra windows or doors; no mirrored or flipped layout; " +
+  "do not add any new furniture, decor, appliances, fixtures, or equipment " +
+  "beyond what is explicitly described above; every other object already " +
+  "present in the original photo that is not explicitly changed above must " +
+  "remain exactly as it is, in its original position and appearance";
 
 const QUALITY_SUFFIX =
-  "Photorealistic result, 8k resolution, architectural photography, " +
+  "photorealistic result, 8k resolution, architectural photography, " +
   "highly detailed, sharp focus, no watermark, no text overlay, no " +
-  "illustration or cartoon style.";
+  "illustration or cartoon style";
 
 /** שינוי מובנה שהלקוח ביקש. מנוסח באנגלית באפליקציה, ומאומת כאן. */
 export type StructuredModifier =
@@ -236,7 +246,7 @@ export function buildRenderJob(
   }
 
   const prefix = room.isExterior ? PREFIX_EXTERIOR : PREFIX_INTERIOR;
-  const itemTexts: string[] = [];
+  const segments: string[] = [`${prefix} ${room.labelEn}`];
   const overrides: string[] = [];
   const resolved: RenderJob["resolvedSelections"] = [];
   let hasConstructive = false;
@@ -248,10 +258,13 @@ export function buildRenderJob(
     // **סשן 12:** ההגבלה "פריט הזה זמין רק בחדרים האלה" הוסרה גם כאן,
     // בהתאמה מלאה להחלטה שכבר יושמה בצד הלקוח (סשן 10,
     // MaterialItem.isAvailableIn תמיד מחזירה true) — ירון ביקש במפורש
-    // שכל החומרים יהיו זמינים בכל חדר, בלי הגבלה. השדה roomTypes נשאר
-    // במודל לתיעוד בלבד, לא נאכף יותר.
+    // שכל החומרים יהיו זמינים בכל חדר, בלי הגבלה. עד לתיקון הזה השרת
+    // עדיין אכף את ההגבלה הישנה בזמן שהלקוח כבר לא, מה שגרם לכל בקשה
+    // "לא שגרתית" (למשל פריט חומרי-בניין במרפסת) להיכשל עם 400
+    // ("הקרדיט לא נוצל, נסה שוב") — למרות שהלקוח עצמו הרשה למשתמש
+    // לבחור אותה. השדה roomTypes נשאר במודל לתיעוד בלבד, לא נאכף יותר.
     if (item.isConstructive) hasConstructive = true;
-    itemTexts.push(item.promptEn);
+    segments.push(item.promptEn);
 
     const modsHe: string[] = [];
     for (const mod of sel.modifiers ?? []) {
@@ -278,58 +291,38 @@ export function buildRenderJob(
     });
   }
 
-  // **סשן 15 — בלוק 2: "שנה רק את הבאים, ולא כלום מעבר לזה."** זה שינוי
-  // המבנה המרכזי — לפני שהיה שרשור שטוח של הפריטים בלי מסגור מפורש
-  // שמדגיש שזו רשימה סגורה. הניסוח הזה נבדק ישירות מול Gemini לפני
-  // שהוכנס לכאן.
-  let changeBlock = `Change ONLY the following, and nothing else: ${itemTexts.join(", ")}.`;
   if (overrides.length) {
-    changeBlock +=
-      " important, these requirements override the descriptions above: " +
-      overrides.join("; ") + ".";
+    segments.push(
+      "important, these requirements override the descriptions above: " +
+        overrides.join("; "),
+    );
   }
 
-  // **סשן 15 — תיקון קריטי:** נמצא בבדיקה בפועל (7.9.2026) שהפרומפט הישן
-  // כלל תמיד, בכל הדמיה, "must remain fully visible and completely
-  // unchanged: ... air conditioning unit, water heater and exposed
-  // systems" — גם כשאין בכלל מזגן/דוד שמש/צנרת גלויה בתמונה המקורית!
-  // המקור: ב-claude/08 שני הפריטים האלה מתויגים "כל החדרים" עם ההערה
-  // "אופציונלי — המשתמש מסמן אם ברצונו לשמר" — אבל אף פעם לא נבנה מנגנון
-  // סימון כזה בממשק, וה-filter למטה כלל אותם תמיד, בלי תנאי. התוצאה:
-  // הפרומפט "משכנע" את המודל שהאלמנטים האלה כבר קיימים בתמונה וחייבים
-  // "להישאר גלויים" — והמודל, בהיעדרם בפועל, ממציא אותם כדי לצייתי.
-  // עד שייבנה מנגנון סימון אמיתי בממשק (המשתמש מסמן בפועל "יש לי מזגן,
-  // שמור עליו"), שני האלמנטים האלה מוצאים מרשימת השימור האוטומטי — הם
-  // היחידים שהיו מסומנים "אופציונלי" מלכתחילה; פתחי חלונות ודלתות (וכל
-  // אלמנט ספציפי-לחדר כמו יחידת סינון ממ"ד) נשארים, כי הם לא מסומנים
-  // "אופציונלי" וקיימים כמעט תמיד בפועל בכל תמונת חדר.
-  const NOT_ACTUALLY_UNCONDITIONAL = new Set([
-    "air conditioning unit",
-    "water heater and exposed systems",
-  ]);
+  // **סשן 14:** האלמנטים המוגנים (למשל יחידת סינון של ממ"ד — ראו claude/07
+  // ו-claude/21) עוברים עכשיו כהוראת שימור מפורשת *בתוך* הפרומפט עצמו,
+  // ולא רק כמטא-דאטה שמוחזרת ללקוח (protectedLabels למטה עדיין מוחזר,
+  // לתאימות ולמסך הסיכום — אבל עד כה שום קוד לא באמת "שיחזר" אלמנט לפי
+  // הרשימה הזו אחרי היצירה; זו הפעם הראשונה שהיא בפועל משפיעה על
+  // התוצאה). בכוונה **צר**: רק אלמנטים רגולטוריים/מבניים קבועים, לא כל
+  // חפץ בפריים — ראו הכיול המפורט ב-claude/36 (בדיקות ישירות מול ירון,
+  // 6.9.2026): סחיפה קוסמטית של פרטים לא-קשורים (שלט טלוויזיה, סידור)
+  // היא זניחה ותוקנת בקלות בהערת המשך; מה שבאמת קריטי הוא לא להעלים
+  // בשקט אלמנט שיש לו משמעות תקנית/מקצועית.
   const protectedLabels = PROTECTED_ELEMENTS.filter(
-    (p) =>
-      (p.roomScopeHe === "כל החדרים" || p.roomScopeHe === room.labelHe) &&
-      !NOT_ACTUALLY_UNCONDITIONAL.has(p.labelEn),
+    (p) => p.roomScopeHe === "כל החדרים" || p.roomScopeHe === room.labelHe,
   ).map((p) => p.labelEn);
 
-  let preserveBlock = PRESERVE_BLOCK;
+  const preserveParts = [PRESERVE_BASE];
   if (protectedLabels.length) {
-    preserveBlock +=
-      " The following existing elements must remain fully visible and " +
-      `completely unchanged: ${protectedLabels.join(", ")}.`;
+    preserveParts.push(
+      "the following existing elements must remain fully visible and " +
+        `completely unchanged: ${protectedLabels.join(", ")}`,
+    );
   }
+  segments.push(`important, preserve exactly: ${preserveParts.join("; ")}`);
+  segments.push(QUALITY_SUFFIX);
 
-  // **סשן 15 — סדר הבלוקים החדש (נבדק מול Gemini):** (1) חדר, (2) שינוי
-  // מבוקש בלבד, (3) שימור מפורש של כל השאר, (4) איכות. בסשן 14 הכל היה
-  // שרשור פסיקים אחד ארוך; עכשיו זה ארבעה בלוקים ברורים שמחוברים ברווח,
-  // כל אחד מסתיים בנקודה — קרוב יותר למבנה שגוגל עצמם ממליצים עליו.
-  const prompt = [
-    `${prefix} ${room.labelEn}.`,
-    changeBlock,
-    preserveBlock,
-    QUALITY_SUFFIX,
-  ].join(" ");
+  const prompt = segments.join(", ");
 
   // רשת ביטחון אחרונה: המודל מקבל אנגלית בלבד.
   if (HEBREW.test(prompt) || ARABIC.test(prompt) || CYRILLIC.test(prompt)) {
@@ -351,3 +344,13 @@ export function buildRenderJob(
     resolvedSelections: resolved,
   };
 }
+SHIFTEOF
+
+echo ""
+echo "✅ prompt_engine.ts עודכן (תיקון: לא להמציא ריהוט/אביזרים/ציוד חדש)."
+echo "מריץ פריסה ל-generate-render..."
+~/sbcli/supabase functions deploy generate-render
+
+echo ""
+echo "✅ פריסה הושלמה. אפשר לבדוק הדמיה חדשה מהאפליקציה."
+echo "לוגים: https://supabase.com/dashboard/project/iywhxmuzvincfmezijtv/functions/generate-render/logs"

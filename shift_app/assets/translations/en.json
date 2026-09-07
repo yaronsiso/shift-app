@@ -56,7 +56,8 @@
     "quota_button": "Back to home",
     "error_title": "Something went wrong",
     "retry_button": "Try again",
-    "back_button": "Back"
+    "back_button": "Back",
+    "quota_signup_button": "Sign up / Log in"
   },
   "result_screen": {
     "app_title": "SHIFT",
@@ -82,7 +83,9 @@
     "milestone_yes": "Yes",
     "milestone_no": "No",
     "milestone_missing_hint": "We'd love to know — what's missing?",
-    "milestone_send": "Send"
+    "milestone_send": "Send",
+    "saved_to_gallery_snackbar": "A new image was added to your gallery",
+    "back_home_button": "Back to home"
   },
   "coupon_screen": {
     "app_title": "Coupon Code",

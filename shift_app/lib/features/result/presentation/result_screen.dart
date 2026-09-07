@@ -89,6 +89,17 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
         _afterImageUrl = url;
         _loadingImage = false;
       });
+      // סשן 15: הודעה קצרה שמזכירה למשתמש שיש גלריה אישית — ההדמיה כבר
+      // שמורה שם אוטומטית (השרת שומר את after_image_path ברגע
+      // שההדמיה מצליחה, עוד לפני שהמסך הזה בכלל נטען).
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('result_screen.saved_to_gallery_snackbar'.tr()),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -222,6 +233,19 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
                             onPressed: () => context.go(AppRoutes.home),
                             child: Text(
                                 'result_screen.design_again_button'.tr()),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        // סשן 15: כפתור נפרד וברור "חזרה למסך הבית" —
+                        // ירון דיווח שאחרי קבלת התמונה אין דרך ברורה
+                        // לחזור הביתה חוץ מ"עיצוב נוסף לחדר הזה" (שגם
+                        // הוא בפועל הולך הביתה, אבל הניסוח לא ברור לזה).
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton(
+                            onPressed: () => context.go(AppRoutes.home),
+                            child:
+                                Text('result_screen.back_home_button'.tr()),
                           ),
                         ),
                         const SizedBox(height: 4),

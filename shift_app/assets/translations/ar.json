@@ -56,7 +56,8 @@
     "quota_button": "العودة للشاشة الرئيسية",
     "error_title": "حدث خطأ ما",
     "retry_button": "حاول مرة أخرى",
-    "back_button": "رجوع"
+    "back_button": "رجوع",
+    "quota_signup_button": "التسجيل / تسجيل الدخول"
   },
   "result_screen": {
     "app_title": "SHIFT",
@@ -82,7 +83,9 @@
     "milestone_yes": "نعم",
     "milestone_no": "لا",
     "milestone_missing_hint": "يسعدنا تحديث النظام — ما الذي ينقصك؟",
-    "milestone_send": "إرسال"
+    "milestone_send": "إرسال",
+    "saved_to_gallery_snackbar": "تمت إضافة صورة جديدة إلى معرضك",
+    "back_home_button": "العودة إلى الشاشة الرئيسية"
   },
   "coupon_screen": {
     "app_title": "رمز الكوبون",

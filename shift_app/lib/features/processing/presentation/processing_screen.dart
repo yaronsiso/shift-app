@@ -150,6 +150,13 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
 
       if (!mounted) return;
 
+      // סשן 15: מונה הקרדיטים במסך הבית (renderEligibilityProvider,
+      // FutureProvider.autoDispose) לא היה מתרענן אחרי הגשת הדמיה —
+      // כי HomeScreen נשאר חי מתחת למסך העיבוד (push, לא pushReplacement)
+      // וממשיך להחזיק את הערך הישן. מבטלים אותו כאן כדי שייטען
+      // מחדש בפעם הבאה שמישהו צופה בו.
+      ref.invalidate(renderEligibilityProvider);
+
       switch (outcome) {
         case RenderSubmitted submitted:
           _renderId = submitted.renderId;
@@ -212,6 +219,10 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
 
       if (status.isTerminalFailure) {
         _pollTimer?.cancel();
+        // סשן 15: כישלון בעיבוד ברקע מחזיר קרדיט אוטומטית בשרת
+        // (refund_render_credit) — מבטלים את מונה הזכאות כדי שמסך הבית יראה
+        // את הקרדיט המוחזר בפעם הבאה שהוא נטען.
+        ref.invalidate(renderEligibilityProvider);
         setState(() {
           _phase = _ProcessingPhase.postFailure;
           _failure = RenderFailure(status.status, status.errorMessage);
@@ -243,6 +254,7 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
           _ProcessingPhase.running =>
             _RunningView(tipIndex: _tipIndex, isResume: _isResume),
           _ProcessingPhase.quotaExhausted => _QuotaExhaustedView(
+              onSignUp: () => context.push(AppRoutes.auth),
               onBackHome: () => context.go(AppRoutes.home),
             ),
           _ProcessingPhase.submitFailure => _FailureView(
@@ -319,13 +331,6 @@ class _RunningView extends ConsumerWidget {
           const SizedBox(height: 6),
           SizedBox(
             width: double.infinity,
-            child: Text(
-              'processing_screen.leave_ok_note'.tr(),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: context.palette.inkFaint,
-                  ),
-            ),
           ),
           const SizedBox(height: 32),
           // מקום לפרסומת/הודעת מערכת (לא הפס הנייד העליון — זה במפורש לא
@@ -366,9 +371,15 @@ class _RunningView extends ConsumerWidget {
   }
 }
 
+/// סשן 15: נוסף onSignUp — כפתור ראשי חדש שמוביל למסך ההרשמה/התחברות
+/// (AppRoutes.auth), כמיתון לפרצה "מחיקה+התקנה מחדש = עוד 3 הדמיות חינם".
 class _QuotaExhaustedView extends StatelessWidget {
+  final VoidCallback onSignUp;
   final VoidCallback onBackHome;
-  const _QuotaExhaustedView({required this.onBackHome});
+  const _QuotaExhaustedView({
+    required this.onSignUp,
+    required this.onBackHome,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -399,6 +410,14 @@ class _QuotaExhaustedView extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
+              onPressed: onSignUp,
+              child: Text('processing_screen.quota_signup_button'.tr()),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
               onPressed: onBackHome,
               child: Text('processing_screen.quota_button'.tr()),
             ),

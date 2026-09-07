@@ -1,3 +1,10 @@
+#!/bin/bash
+set -e
+cd /workspaces/shift-app/shift_app
+
+mkdir -p supabase/functions/generate-render
+
+cat > supabase/functions/generate-render/index.ts << 'SHIFTEOF'
 // SHIFT — Edge Function ‏`generate-render`
 //
 // 🔑 **זו הנקודה היחידה במערכת שמחזיקה את מפתח ה-Replicate ואת ספירת
@@ -368,3 +375,11 @@ Deno.serve(async (req) => {
     return json({ error: "internal_error", detail, renderId }, 500);
   }
 });
+SHIFTEOF
+
+echo ""
+echo "✅ generate-render/index.ts עודכן (resolution: 2K). מריץ פריסה..."
+~/sbcli/supabase functions deploy generate-render
+
+echo ""
+echo "✅✅ פריסה הושלמה בהצלחה — עכשיו תריץ הדמיה חדשה ותבדוק את החדות. ✅✅"

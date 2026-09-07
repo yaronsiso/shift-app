@@ -56,7 +56,8 @@
     "quota_button": "חזרה למסך הבית",
     "error_title": "משהו השתבש",
     "retry_button": "נסה שוב",
-    "back_button": "חזרה"
+    "back_button": "חזרה",
+    "quota_signup_button": "מעבר להרשמה / התחברות"
   },
   "result_screen": {
     "app_title": "SHIFT",
@@ -82,7 +83,9 @@
     "milestone_yes": "כן",
     "milestone_no": "לא",
     "milestone_missing_hint": "נשמח לעדכן את המערכת — מה חסר לך?",
-    "milestone_send": "שליחה"
+    "milestone_send": "שליחה",
+    "saved_to_gallery_snackbar": "נוספה תמונה חדשה לגלריה שלך",
+    "back_home_button": "חזרה למסך הבית"
   },
   "coupon_screen": {
     "app_title": "קוד קופון",
