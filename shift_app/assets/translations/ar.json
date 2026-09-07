@@ -28,7 +28,10 @@
     "continue_button": "متابعة لرفع الصورة",
     "note_hint": "أضف ملاحظة اختيارية لهذا الاختيار",
     "note_field_hint": "مثال: فقط على جدار واحد، وليس الغرفة كلها",
-    "note_save": "حفظ"
+    "note_save": "حفظ",
+    "recommended_badge": "موصى به لغرفتك",
+    "subcategory_item_count": "{} عناصر",
+    "back_to_categories": "العودة إلى الفئات"
   },
   "upload_photo_screen": {
     "app_title": "SHIFT",

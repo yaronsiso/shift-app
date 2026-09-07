@@ -108,22 +108,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         title: Text('home_screen.app_title'.tr()),
         actions: [
           IconButton(
-            icon: const Icon(Icons.photo_library_outlined),
+            icon: Icon(
+              Icons.photo_library_outlined,
+              color: Theme.of(context).colorScheme.primary,
+            ),
             tooltip: 'gallery_screen.entry_tooltip'.tr(),
             onPressed: () => context.push(AppRoutes.gallery),
           ),
           IconButton(
-            icon: const Icon(Icons.confirmation_number_outlined),
+            icon: Icon(
+              Icons.confirmation_number_outlined,
+              color: Theme.of(context).colorScheme.primary,
+            ),
             tooltip: 'coupon_screen.entry_tooltip'.tr(),
             onPressed: () => context.push(AppRoutes.coupon),
           ),
           IconButton(
-            icon: const Icon(Icons.person_outline),
+            icon: Icon(
+              Icons.person_outline,
+              color: Theme.of(context).colorScheme.primary,
+            ),
             tooltip: 'auth_screen.entry_tooltip'.tr(),
             onPressed: () => context.push(AppRoutes.auth),
           ),
           PopupMenuButton<Locale>(
-            icon: const Icon(Icons.language),
+            icon: Icon(
+              Icons.language,
+              color: Theme.of(context).colorScheme.primary,
+            ),
             tooltip: 'language.select'.tr(),
             onSelected: (l) => context.setLocale(l),
             itemBuilder: (context) => context.supportedLocales

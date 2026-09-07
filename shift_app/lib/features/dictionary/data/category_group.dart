@@ -217,6 +217,25 @@ const List<CategoryGroup> kCategoryGroups = [
   ),
 ];
 
+/// סיכום תת-קטגוריה אחת בתוך קבוצת-על נתונה, לצורך מסך הביניים של בחירת
+/// תת-קטגוריה (סשן 15, המשך 3 — "לך תראה איך זה מסודר... נעבור קטגוריה
+/// קטגוריה"). [relevant] = יש בתת-הקטגוריה הזו לפחות פריט אחד המתויג
+/// לסוג החדר שנבחר (`MaterialItem.roomTypes`) — לא הסתרה, רק סימון
+/// לצורך מיון (תתי-קטגוריות רלוונטיות מוצגות ראשונות).
+class SubcategorySummary {
+  final String category;
+  final String subcategory;
+  final List<MaterialItem> items;
+  final bool relevant;
+
+  const SubcategorySummary({
+    required this.category,
+    required this.subcategory,
+    required this.items,
+    required this.relevant,
+  });
+}
+
 /// עוזרי גישה — כל הלוגיקה שמסך הבית וסטודיו העיצוב צריכים כדי לעבוד עם
 /// קבוצות-העל, כולל "ועוד" (הקטגוריות המפורטות שלא שויכו לאף קבוצה קבועה
 /// — למשל מטבח/חדר רחצה/שטיחים/סגנון/יודאיקה/קמין/מטבח-חוץ-ואירוח —
@@ -241,6 +260,63 @@ class CategoryGroups {
     return kMaterials
         .where((m) => m.isAvailableIn(roomTypeCode) && g.matches(m))
         .toList();
+  }
+
+  /// **סשן 15 (המשך 3) — מיון לפי רלוונטיות לחדר, בלי הסתרה.** ציטוט
+  /// ירון: "לא נסתיר, רק נציג את הרלוונטי לחדר קודם, אחר כך כל השאר".
+  /// זהה ל-[itemsForRoomAndGroup] אבל ממוין: פריטים שמתויגים לסוג החדר
+  /// הזה (`item.roomTypes.contains(roomTypeCode)`) מופיעים קודם, ואז כל
+  /// השאר — בסדר יציב (הסדר היחסי המקורי בתוך כל קבוצה נשמר).
+  static List<MaterialItem> itemsForRoomAndGroupSorted(
+    String roomTypeCode,
+    String groupCode,
+  ) {
+    final items = itemsForRoomAndGroup(roomTypeCode, groupCode);
+    final relevant = <MaterialItem>[];
+    final rest = <MaterialItem>[];
+    for (final item in items) {
+      if (item.roomTypes.contains(roomTypeCode)) {
+        relevant.add(item);
+      } else {
+        rest.add(item);
+      }
+    }
+    return [...relevant, ...rest];
+  }
+
+  /// **סשן 15 (המשך 3).** תתי-הקטגוריות בתוך קבוצה נתונה, כ"כרטיסים"
+  /// למסך הביניים (ראו design_studio_screen.dart) — למשל בתוך "רהיטים":
+  /// מיטות, שידות, ספות וכו', כל אחת עם דגל [SubcategorySummary.relevant].
+  /// תתי-הקטגוריות הרלוונטיות לחדר שנבחר מופיעות ראשונות, השאר אחריהן —
+  /// שום תת-קטגוריה לא מוסתרת. הסדר בתוך כל קבוצה (רלוונטי/לא) הוא סדר
+  /// ההופעה המקורי במילון.
+  static List<SubcategorySummary> subcategoriesForRoomAndGroup(
+    String roomTypeCode,
+    String groupCode,
+  ) {
+    final items = itemsForRoomAndGroup(roomTypeCode, groupCode);
+    final order = <String>[]; // "category|subcategory", בסדר הופעה
+    final byKey = <String, List<MaterialItem>>{};
+    for (final item in items) {
+      final key = '${item.category}|${item.subcategory}';
+      if (!byKey.containsKey(key)) order.add(key);
+      byKey.putIfAbsent(key, () => []).add(item);
+    }
+
+    final summaries = order.map((key) {
+      final list = byKey[key]!;
+      final relevant = list.any((i) => i.roomTypes.contains(roomTypeCode));
+      return SubcategorySummary(
+        category: list.first.category,
+        subcategory: list.first.subcategory,
+        items: list,
+        relevant: relevant,
+      );
+    }).toList();
+
+    final relevantOnes = summaries.where((s) => s.relevant).toList();
+    final restOnes = summaries.where((s) => !s.relevant).toList();
+    return [...relevantOnes, ...restOnes];
   }
 
   /// קבוצות-העל שיש להן לפחות פריט אחד רלוונטי לסוג החדר הזה — אלה
@@ -286,3 +362,4 @@ class CategoryGroups {
     };
   }
 }
+</content>

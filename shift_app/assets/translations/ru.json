@@ -28,7 +28,10 @@
     "continue_button": "Далее к загрузке фото",
     "note_hint": "Добавьте необязательное примечание к этому выбору",
     "note_field_hint": "например: только на одной стене, не по всей комнате",
-    "note_save": "Сохранить"
+    "note_save": "Сохранить",
+    "recommended_badge": "Рекомендовано для вашей комнаты",
+    "subcategory_item_count": "{} шт.",
+    "back_to_categories": "Назад к категориям"
   },
   "upload_photo_screen": {
     "app_title": "SHIFT",

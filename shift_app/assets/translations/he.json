@@ -28,7 +28,10 @@
     "continue_button": "המשך להעלאת תמונה",
     "note_hint": "הוסף הערה חופשית לבחירה הזו (רשות)",
     "note_field_hint": "לדוגמה: רק על קיר אחד, לא בכל החדר",
-    "note_save": "שמירה"
+    "note_save": "שמירה",
+    "recommended_badge": "מומלץ לחדר שלך",
+    "subcategory_item_count": "{} פריטים",
+    "back_to_categories": "חזרה לקטגוריות"
   },
   "upload_photo_screen": {
     "app_title": "SHIFT",

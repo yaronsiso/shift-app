@@ -28,7 +28,10 @@
     "continue_button": "Continue to upload photo",
     "note_hint": "Add an optional note for this choice",
     "note_field_hint": "e.g. only on one wall, not the whole room",
-    "note_save": "Save"
+    "note_save": "Save",
+    "recommended_badge": "Recommended for your room",
+    "subcategory_item_count": "{} items",
+    "back_to_categories": "Back to categories"
   },
   "upload_photo_screen": {
     "app_title": "SHIFT",

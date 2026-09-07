@@ -14,21 +14,30 @@ import '../../marquee/data/marquee_repository.dart';
 import '../../render_flow/data/render_flow_notifier.dart';
 
 /// מסך 2/5 — "בחירת חומרים". רק קבוצות-העל שנבחרו במסך הבית מופיעות
-/// כטאבים; לכל טאב — רשימת פריטים מהמילון, מקובצת לפי **קטגוריה ← תת-
-/// קטגוריה** (סשן 10 — ראו למטה), לא רשת שטוחה אחת מעורבבת. לכל
-/// פריט **נבחר** אפשר להוסיף הערה חופשית (`FreeTextNote`) — מתועדת כמו
-/// שהיא, ומעובדת לאילוץ באנגלית בשרת רק בזמן היצירה עצמה
+/// כטאבים.
+///
+/// **סשן 15 (המשך 3) — נוספה רמת ביניים של תתי-קטגוריות (בקשת ירון,
+/// אחרי שסידרנו את הבאגים מהבדיקה על המכשיר: "נעבור קטגוריה קטגוריה
+/// ונשנה את כל הצורה של זה"):** במקום להציג ישר את כל תתי-הקטגוריות
+/// של הקבוצה הפעילה מוערמות זו מתחת לזו על מסך אחד גולל, כל טאב (קבוצת-
+/// על, למשל "רהיטים") פותח קודם **רשימת תתי-קטגוריות** (למשל "מיטות",
+/// "שידות", "ספות"...) — ורק לחיצה על תת-קטגוריה ספציפית פותחת את
+/// רשימת הפריטים בתוכה. תתי-הקטגוריות **הרלוונטיות לסוג החדר שנבחר
+/// מוצגות ראשונות**, ואחריהן כל השאר — שום דבר לא מוסתר, רק מסודר לפי
+/// רלוונטיות (ראו `CategoryGroups.subcategoriesForRoomAndGroup` ב-
+/// category_group.dart). זה בדיוק המנגנון שירון תיאר: "לחדר שינה
+/// שהקטגוריות שנפתחות ראשונות על ריהוט אמורות להיות מיטות... ואחרי זה
+/// כל שאר הדברים".
+///
+/// לכל פריט **נבחר** אפשר להוסיף הערה חופשית (`FreeTextNote`) — מתועדת
+/// כמו שהיא, ומעובדת לאילוץ באנגלית בשרת רק בזמן היצירה עצמה
 /// (note_resolver.ts, שלב 5). **אין כאן צילום תמונה** — זה עבר במפורש
 /// למסך נפרד לפי בקשת ירון (ראו home_screen.dart).
 ///
-/// **סשן 10 — שני שינויים לפי משוב ירון:**
-/// 1. הפריטים הזמינים בכל קבוצת-על **כבר לא מסוננים לפי סוג החדר** —
-///    `MaterialItem.isAvailableIn` תמיד מחזירה `true` כעת (ראו
-///    material_item.dart). "לא צריך להיות מתוייג כלום... הכל צריך
-///    להיות פתוח לו... בכל חדר וחדר לא להגביל אנשים."
-/// 2. הרשת השטוחה הוחלפה בחלוקה היררכית קטגוריה ← תת-קטגוריה, עם
-///    כותרת לכל רמה — למשל בתוך "רהיטים": "מיטות", "מראות", "יחידת
-///    טלוויזיה" וכו' כל אחת בנפרד, ולא כל הרהיטים מעורבבים ברשת אחת.
+/// **סשן 10 (עדיין בתוקף):** הפריטים הזמינים בכל קבוצת-על **לא מסוננים
+/// לפי סוג החדר** — `MaterialItem.isAvailableIn` תמיד מחזירה `true`
+/// (ראו material_item.dart). זה לא השתנה בסשן 15 — סוג החדר משפיע רק
+/// על **סדר ההצגה**, לא על מה שמוצג.
 class DesignStudioScreen extends ConsumerStatefulWidget {
   const DesignStudioScreen({super.key});
 
@@ -39,6 +48,10 @@ class DesignStudioScreen extends ConsumerStatefulWidget {
 
 class _DesignStudioScreenState extends ConsumerState<DesignStudioScreen> {
   String? _activeGroupCode;
+
+  /// "category|subcategory" של תת-הקטגוריה הפתוחה כרגע, או null אם
+  /// עדיין מציגים את רשימת תתי-הקטגוריות של הקבוצה הפעילה (סשן 15).
+  String? _activeSubcategoryKey;
 
   @override
   Widget build(BuildContext context) {
@@ -73,12 +86,7 @@ class _DesignStudioScreenState extends ConsumerState<DesignStudioScreen> {
     if (groups.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         // תיקון סשן 13: לא לנווט הביתה אם המסך הזה כבר לא זה שבחזית —
-        // למשל אם הוא שוכב שקט בתחתית המחסנית מתחת למסך העיבוד, ו-
-        // renderFlowProvider אופס כי ההגשה כבר הצליחה (ראו processing_screen
-        // _run()). בלי הבדיקה הזו, האיפוס גורם למסך הזה להיבנות מחדש עם
-        // flow ריק ולקפוץ הביתה — וה-context.go() מוחק את כל המחסנית,
-        // כולל את מסך העיבוד שבאמת עדיין עוקב אחרי ההדמיה. זה שורש הבאג
-        // "קפיצה למסך הבית" שדווח לאורך הפרויקט.
+        // ראו ההסבר המלא למעלה.
         if (context.mounted &&
             (ModalRoute.of(context)?.isCurrent ?? true)) {
           context.go(AppRoutes.home);
@@ -90,13 +98,25 @@ class _DesignStudioScreenState extends ConsumerState<DesignStudioScreen> {
     if (_activeGroupCode == null ||
         !groups.any((g) => g.code == _activeGroupCode)) {
       _activeGroupCode = groups.first.code;
+      _activeSubcategoryKey = null;
     }
     final activeGroup =
         groups.firstWhere((g) => g.code == _activeGroupCode);
 
-    final items =
-        CategoryGroups.itemsForRoomAndGroup(roomType, activeGroup.code);
-    final sections = _groupByCategoryAndSubcategory(items);
+    final subcategories =
+        CategoryGroups.subcategoriesForRoomAndGroup(roomType, activeGroup.code);
+    SubcategorySummary? activeSubcategory;
+    if (_activeSubcategoryKey != null) {
+      for (final s in subcategories) {
+        if ('${s.category}|${s.subcategory}' == _activeSubcategoryKey) {
+          activeSubcategory = s;
+          break;
+        }
+      }
+      // תת-הקטגוריה שהייתה פתוחה כבר לא קיימת בקבוצה הזו (למשל אחרי
+      // מעבר טאב) — חוזרים לרשימת תתי-הקטגוריות במקום למסך ריק.
+      if (activeSubcategory == null) _activeSubcategoryKey = null;
+    }
 
     return Scaffold(
       appBar: AppBar(title: Text('design_studio_screen.app_title'.tr())),
@@ -146,38 +166,44 @@ class _DesignStudioScreenState extends ConsumerState<DesignStudioScreen> {
                   return ChoiceChip(
                     label: Text(locale == 'he' ? g.labelHe : g.labelEn),
                     selected: selected,
-                    onSelected: (_) =>
-                        setState(() => _activeGroupCode = g.code),
+                    onSelected: (_) => setState(() {
+                      _activeGroupCode = g.code;
+                      _activeSubcategoryKey = null;
+                    }),
                   );
                 },
               ),
             ),
             const SizedBox(height: 12),
             Expanded(
-              child: sections.isEmpty
-                  ? Center(
-                      child: Text(
-                        'design_studio_screen.no_items'.tr(),
-                        style: TextStyle(color: context.palette.inkFaint),
-                      ),
+              child: activeSubcategory != null
+                  ? _SubcategoryItemsView(
+                      subcategory: activeSubcategory,
+                      locale: locale,
+                      notifier: notifier,
+                      isSelected: notifier.isSelected,
+                      hasNoteFor: (id) =>
+                          flow.selections[id]?.hasModifiers ?? false,
+                      onNoteTap: (item) =>
+                          _editNote(context, ref, item, locale),
+                      onBack: () =>
+                          setState(() => _activeSubcategoryKey = null),
                     )
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                      itemCount: sections.length,
-                      itemBuilder: (context, i) {
-                        final section = sections[i];
-                        return _CategorySection(
-                          section: section,
+                  : subcategories.isEmpty
+                      ? Center(
+                          child: Text(
+                            'design_studio_screen.no_items'.tr(),
+                            style: TextStyle(color: context.palette.inkFaint),
+                          ),
+                        )
+                      : _SubcategoryListView(
+                          subcategories: subcategories,
                           locale: locale,
-                          notifier: notifier,
                           isSelected: notifier.isSelected,
-                          hasNoteFor: (id) =>
-                              flow.selections[id]?.hasModifiers ?? false,
-                          onNoteTap: (item) =>
-                              _editNote(context, ref, item, locale),
-                        );
-                      },
-                    ),
+                          onTap: (s) => setState(() =>
+                              _activeSubcategoryKey =
+                                  '${s.category}|${s.subcategory}'),
+                        ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -195,36 +221,6 @@ class _DesignStudioScreenState extends ConsumerState<DesignStudioScreen> {
         ),
       ),
     );
-  }
-
-  /// **סשן 10:** מקבץ את הפריטים הזמינים לפי `category` ואז לפי
-  /// `subcategory` בתוכה, בסדר ההופעה המקורי במילון (לא ממוין מחדש) —
-  /// כך שהסדר הקיים והמכוון של המילון (claude/08) נשמר, רק מוצג
-  /// בצורה היררכית ברורה במקום רשת שטוחה אחת מעורבבת. `Map` הרגיל של
-  /// Dart שומר על סדר הכנסה, אז מספיק לעבור על `items` פעם אחת.
-  List<_CategoryBlock> _groupByCategoryAndSubcategory(
-    List<MaterialItem> items,
-  ) {
-    final byCategory = <String, Map<String, List<MaterialItem>>>{};
-    for (final item in items) {
-      final bySub = byCategory.putIfAbsent(item.category, () => {});
-      bySub.putIfAbsent(item.subcategory, () => []).add(item);
-    }
-    return byCategory.entries
-        .map(
-          (catEntry) => _CategoryBlock(
-            category: catEntry.key,
-            subcategories: catEntry.value.entries
-                .map(
-                  (subEntry) => _SubcategoryBlock(
-                    subcategory: subEntry.key,
-                    items: subEntry.value,
-                  ),
-                )
-                .toList(),
-          ),
-        )
-        .toList();
   }
 
   String _subtitle(
@@ -320,74 +316,207 @@ class _DesignStudioScreenState extends ConsumerState<DesignStudioScreen> {
   }
 }
 
-/// קטגוריה מפורטת אחת (למשל "ריהוט") וכל תתי-הקטגוריות שבתוכה, בהקשר
-/// קבוצת-העל הפעילה (סשן 10).
-class _CategoryBlock {
-  final String category;
-  final List<_SubcategoryBlock> subcategories;
-  const _CategoryBlock({required this.category, required this.subcategories});
+/// **סשן 15 (המשך 3).** רשימת "כרטיסי" תתי-קטגוריה של הקבוצה הפעילה —
+/// המסך שנפתח כשבוחרים למשל "רהיטים". תתי-קטגוריות רלוונטיות לחדר
+/// שנבחר (`SubcategorySummary.relevant`) מגיעות כבר ממוינות ראשונות
+/// מ-`CategoryGroups.subcategoriesForRoomAndGroup` — כאן רק מציגים,
+/// כולל תג "מומלץ לחדר שלך" על אלה הרלוונטיות.
+class _SubcategoryListView extends StatelessWidget {
+  final List<SubcategorySummary> subcategories;
+  final String locale;
+  final bool Function(String itemId) isSelected;
+  final void Function(SubcategorySummary subcategory) onTap;
+
+  const _SubcategoryListView({
+    required this.subcategories,
+    required this.locale,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 1.35,
+      ),
+      itemCount: subcategories.length,
+      itemBuilder: (context, i) {
+        final s = subcategories[i];
+        final selectedCount =
+            s.items.where((item) => isSelected(item.id)).length;
+        return _SubcategoryCard(
+          subcategory: s,
+          locale: locale,
+          selectedCount: selectedCount,
+          onTap: () => onTap(s),
+        );
+      },
+    );
+  }
 }
 
-/// תת-קטגוריה אחת (למשל "מיטות") וכל הפריטים שבתוכה.
-class _SubcategoryBlock {
-  final String subcategory;
-  final List<MaterialItem> items;
-  const _SubcategoryBlock({required this.subcategory, required this.items});
+class _SubcategoryCard extends StatelessWidget {
+  final SubcategorySummary subcategory;
+  final String locale;
+  final int selectedCount;
+  final VoidCallback onTap;
+
+  const _SubcategoryCard({
+    required this.subcategory,
+    required this.locale,
+    required this.selectedCount,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    final palette = context.palette;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardTheme.color,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selectedCount > 0 ? primary : palette.line,
+            width: selectedCount > 0 ? 2 : 1,
+          ),
+        ),
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            if (subcategory.relevant)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: palette.accentSoft,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: palette.accentSoftLine),
+                ),
+                child: Text(
+                  'design_studio_screen.recommended_badge'.tr(),
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: primary,
+                  ),
+                ),
+              )
+            else
+              const SizedBox(height: 19),
+            const Spacer(),
+            Text(
+              subcategory.subcategory,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Text(
+                  'design_studio_screen.subcategory_item_count'
+                      .tr(args: ['${subcategory.items.length}']),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: palette.inkFaint,
+                  ),
+                ),
+                if (selectedCount > 0) ...[
+                  const SizedBox(width: 6),
+                  Icon(Icons.check_circle, size: 14, color: primary),
+                  const SizedBox(width: 2),
+                  Text(
+                    '$selectedCount',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: primary,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-/// כותרת קטגוריה + כל תתי-הקטגוריות שלה, כל אחת עם כותרת-משנה ורשת
-/// פריטים משלה. לא גוללת בעצמה — היא חלק מ-`ListView` חיצוני אחד.
-class _CategorySection extends StatelessWidget {
-  final _CategoryBlock section;
+/// **סשן 15 (המשך 3).** רשימת הפריטים בתוך תת-קטגוריה אחת שנבחרה —
+/// כותרת + חץ חזרה לרשימת תתי-הקטגוריות, ואז רשת הפריטים (אותו כרטיס
+/// פריט כמו קודם, `_MaterialCard`, בלי שינוי בלוגיקת הבחירה/ההערות).
+class _SubcategoryItemsView extends StatelessWidget {
+  final SubcategorySummary subcategory;
   final String locale;
   final RenderFlowNotifier notifier;
   final bool Function(String itemId) isSelected;
   final bool Function(String itemId) hasNoteFor;
   final void Function(MaterialItem item) onNoteTap;
+  final VoidCallback onBack;
 
-  const _CategorySection({
-    required this.section,
+  const _SubcategoryItemsView({
+    required this.subcategory,
     required this.locale,
     required this.notifier,
     required this.isSelected,
     required this.hasNoteFor,
     required this.onNoteTap,
+    required this.onBack,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isRtl = locale == 'he' || locale == 'ar';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 16),
-        Text(
-          section.category,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 20, 8),
+          child: Row(
+            children: [
+              IconButton(
+                icon: Icon(isRtl ? Icons.arrow_forward : Icons.arrow_back),
+                tooltip: 'design_studio_screen.back_to_categories'.tr(),
+                onPressed: onBack,
               ),
-        ),
-        for (final sub in section.subcategories) ...[
-          const SizedBox(height: 10),
-          Text(
-            sub.subcategory,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: context.palette.inkSoft,
+              Expanded(
+                child: Text(
+                  subcategory.subcategory,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                 ),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
+        ),
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               mainAxisSpacing: 12,
               crossAxisSpacing: 12,
               childAspectRatio: 0.92,
             ),
-            itemCount: sub.items.length,
+            itemCount: subcategory.items.length,
             itemBuilder: (context, i) {
-              final item = sub.items[i];
+              final item = subcategory.items[i];
               final selected = isSelected(item.id);
               final hasNote = selected && hasNoteFor(item.id);
               return _MaterialCard(
@@ -400,7 +529,7 @@ class _CategorySection extends StatelessWidget {
               );
             },
           ),
-        ],
+        ),
       ],
     );
   }
@@ -498,3 +627,4 @@ class _MaterialCard extends StatelessWidget {
     );
   }
 }
+</content>
