@@ -328,10 +328,6 @@ class _RunningView extends ConsumerWidget {
                   ),
             ),
           ),
-          const SizedBox(height: 6),
-          SizedBox(
-            width: double.infinity,
-          ),
           const SizedBox(height: 32),
           // מקום לפרסומת/הודעת מערכת (לא הפס הנייד העליון — זה במפורש לא
           // מוצג במסך העיבוד; זה כרטיס נייח שמתחלף כל כמה שניות).
