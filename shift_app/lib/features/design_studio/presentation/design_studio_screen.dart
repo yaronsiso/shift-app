@@ -627,4 +627,3 @@ class _MaterialCard extends StatelessWidget {
     );
   }
 }
-</content>

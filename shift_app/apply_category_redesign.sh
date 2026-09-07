@@ -1,11 +1,15 @@
 #!/bin/bash
-# SHIFT — סשן 15 (המשך 3): שלב 1 בשינוי הקטגוריות — מיון לפי
-# רלוונטיות לחדר + מסך ביניים של תתי-קטגוריות, בלי להסתיר כלום.
-# גם כולל תיקון צביעת האייקונים (החליף בטעות דילג בפעם הקודמת).
+# SHIFT — סשן 15 (המשך 3), גרסה מתוקנת: שלב 1 בשינוי הקטגוריות —
+# מיון לפי רלוונטיות לחדר + מסך ביניים של תתי-קטגוריות, בלי להסתיר
+# כלום. גם כולל תיקון צביעת האייקונים.
 #
-# שלושת קבצי ה-Dart למטה נכתבים כאן במלואם (לא טלאי חלקי) — כי
-# הפעם יש לי את התוכן המדויק והעדכני שלהם (מתוך shift_app_export.zip
-# שקיבלתי), אז החלפה מלאה בטוחה יותר מניחוש רגקס.
+# תיקון חשוב לעומת הגרסה הקודמת של הסקריפט הזה: לגרסה הקודמת נדבקה
+# בטעות שורת '</content>' בסוף category_group.dart ו-
+# design_studio_screen.dart (שגיאת פורמט שלי, לא שלך) — זו הסיבה
+# ש-flutter analyze הראה שגיאות קומפילציה אמיתיות ("Expected a
+# method... This appears to be incomplete code") ושהשינויים לא
+# תפסו למרות שהקבצים נכתבו. תוקן ואומת מחדש — שני הקבצים נבדקו
+# שאיזון הסוגריים תקין ושאין שאריות זרות בסוף הקובץ.
 #
 # להריץ עם: bash /workspaces/shift-app/shift_app/apply_category_redesign.sh
 
@@ -378,7 +382,6 @@ class CategoryGroups {
     };
   }
 }
-</content>
 SHIFT_EOF_MARKER
 echo "נכתב: lib/features/dictionary/data/category_group.dart"
 
@@ -1013,7 +1016,6 @@ class _MaterialCard extends StatelessWidget {
     );
   }
 }
-</content>
 SHIFT_EOF_MARKER
 echo "נכתב: lib/features/design_studio/presentation/design_studio_screen.dart"
 
@@ -1376,6 +1378,6 @@ python3 /tmp/_shift_patch_translations_subcat.py
 
 echo ""
 echo "=== סיימנו. השלבים הבאים: ==="
-echo "1. git add -A && git commit -m 'session 15: room-relevance sorting + subcategory drill-down'"
-echo "2. flutter analyze"
+echo "1. git add -A && git commit -m 'session 15: fix stray </content> leftover in category redesign files'"
+echo "2. flutter analyze   (חייב לצאת נקי - 0 error, רק info מותר)"
 echo "3. flutter build apk --debug"
