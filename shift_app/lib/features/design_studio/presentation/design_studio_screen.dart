@@ -578,13 +578,47 @@ class _MaterialCard extends StatelessWidget {
                 Expanded(
                   child: Container(
                     width: double.infinity,
+                    clipBehavior: Clip.antiAlias,
                     decoration: BoxDecoration(
                       color: selected ? palette.accentSoft : palette.surface2,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: selected
-                        ? Icon(Icons.check_circle, color: primary, size: 22)
-                        : null,
+                    // סשן 16: תמונת רפרנס אמיתית לפריט אם קיימת
+                    // (`item.imageUrl` — ראו material_item.dart). חלק
+                    // מהפריטים עדיין בלי תמונה (imageUrl ריק) — אז נופלים
+                    // חזרה לריבוע הצבע הישן עם סימן הוי במרכז, בלי שינוי.
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (item.imageUrl.isNotEmpty)
+                          Image.network(
+                            item.imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const SizedBox.shrink(),
+                            loadingBuilder: (context, child, progress) {
+                              if (progress == null) return child;
+                              return const Center(
+                                child: SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2),
+                                ),
+                              );
+                            },
+                          ),
+                        if (selected)
+                          Container(
+                            alignment: Alignment.center,
+                            color: item.imageUrl.isNotEmpty
+                                ? Colors.black.withValues(alpha: 0.15)
+                                : null,
+                            child: Icon(Icons.check_circle,
+                                color: primary, size: 22),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -627,3 +661,4 @@ class _MaterialCard extends StatelessWidget {
     );
   }
 }
+
