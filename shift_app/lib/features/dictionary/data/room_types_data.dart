@@ -1,4 +1,4 @@
-// נוצר אוטומטית מ-build_dict_data.py — אין לערוך ידנית.
+// נוצר אוטומטית — אין לערוך ידנית.
 
 import 'room_type.dart';
 
@@ -63,7 +63,6 @@ const List<RoomType> kRoomTypes = [
     labelEn: 'Yard & garden',
     isExterior: true,
   ),
-  // ---------------- חדרים נוספים (סשן 10, בקשת ירון) ----------------
   RoomType(
     code: 'dining',
     labelHe: 'פינת אוכל / חדר אוכל',

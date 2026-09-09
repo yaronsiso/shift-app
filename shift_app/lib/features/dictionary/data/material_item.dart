@@ -43,6 +43,18 @@ class MaterialItem {
   /// מפרט חופשי להצגה למשתמש (מידות, גוונים זמינים, הערות).
   final String metadata;
 
+  /// קישור לתמונת מוצר אמיתית (רפרנס ויזואלי למשתמש בתוך המילון).
+  /// ריק אם עדיין לא נמצאה/הוזנה תמונה עבור הפריט הזה.
+  ///
+  /// **סשן 16 (בקשת ירון):** "אין שם בלי תמונה — כל שם עם תמונה חייב
+  /// להיות". השדה הוזן ב-2026-09-09; חלק מהפריטים (בעיקר הוותיקים
+  /// והחדשים שטרם עובדו) עדיין עם imageUrl ריק וממתינים להשלמה.
+  final String imageUrl;
+
+  /// מקום שמור לברקוד מוצר (לשימוש עתידי — סריקה/קישור למלאי אמיתי).
+  /// ריק כברירת מחדל; לא מוזן אוטומטית כרגע.
+  final String barcode;
+
   const MaterialItem({
     required this.id,
     required this.category,
@@ -53,6 +65,8 @@ class MaterialItem {
     required this.roomTypes,
     required this.isConstructive,
     this.metadata = '',
+    this.imageUrl = '',
+    this.barcode = '',
   });
 
   /// האם הפריט רלוונטי לסוג החדר הנתון.
