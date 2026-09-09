@@ -68,6 +68,17 @@ class CategoryGroup {
 /// **לוגיקת "צבע":** "צבע" הוא לא קטגוריה עצמאית במילון — הוא תת-קטגוריה
 /// בתוך "חיפויי קירות" (צבע קיר פנימי, 10 פריטים) בלבד כעת (גווני השליכט
 /// החיצוני עברו לקטגוריית "שליכט חיצוני" העצמאית שלהם, ולא כפולים כאן).
+///
+/// **סשן 16 (תיקון קריטי — ירון גילה בבדיקה בפועל):** "מטבח" ו"חדר רחצה"
+/// (וכן מטבח-חוץ-ואירוח / שטיחים / סגנון / אקססוריז דקורטיביים / יודאיקה
+/// / קמין) היו קיימים במילון עם עשרות ואף מאות פריטים (מטבח לבדו — 289
+/// אחרי הרחבת סשן 16) אבל **מעולם לא היה להם צ'יפ-על משלהם** — הפונקציות
+/// `moreCategoriesForRoom`/`moreItemsForRoom` למטה תוכננו לכסות את זה
+/// ("ועוד") אבל אף מסך בפועל לא קרא להן, כך שכל התוכן הזה היה בלתי-נגיש
+/// לגמרי במסכי הבית/סטודיו העיצוב. התיקון: כל קטגוריה מפורטת מקבלת עכשיו
+/// צ'יפ-על משלה, בדיוק כמו כל שאר הקטגוריות למעלה — אין יותר "ועוד".
+/// `moreCategoriesForRoom`/`moreItemsForRoom` נשארות כרשת ביטחון לעתיד
+/// (קטגוריה חדשה שתתווסף למילון בלי שמישהו יזכור להוסיף לה צ'יפ כאן).
 const List<CategoryGroup> kCategoryGroups = [
   CategoryGroup(
     code: 'color',
@@ -215,6 +226,73 @@ const List<CategoryGroup> kCategoryGroups = [
       CategorySelector('הצללה'),
     ],
   ),
+  // ---------------- סשן 16 — צ'יפים חדשים ל"ועוד" הישן ----------------
+  // ראו התיעוד המלא למעלה: הקטגוריות האלה היו קיימות במילון (חלקן
+  // בעשרות/מאות פריטים) אבל בלי צ'יפ-על, ולכן בלתי-נגישות בפועל.
+  CategoryGroup(
+    code: 'kitchen_materials',
+    labelHe: 'מטבח',
+    labelEn: 'Kitchen',
+    selectors: [
+      CategorySelector('מטבח'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'bathroom_materials',
+    labelHe: 'חדר רחצה',
+    labelEn: 'Bathroom',
+    selectors: [
+      CategorySelector('חדר רחצה'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'outdoor_kitchen',
+    labelHe: 'מטבח חוץ ואירוח',
+    labelEn: 'Outdoor kitchen & hosting',
+    selectors: [
+      CategorySelector('מטבח חוץ ואירוח'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'rugs',
+    labelHe: 'שטיחים',
+    labelEn: 'Rugs',
+    selectors: [
+      CategorySelector('שטיחים'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'style',
+    labelHe: 'סגנון',
+    labelEn: 'Style',
+    selectors: [
+      CategorySelector('סגנון'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'decor_accessories',
+    labelHe: 'אקססוריז דקורטיביים',
+    labelEn: 'Decorative accessories',
+    selectors: [
+      CategorySelector('אקססוריז דקורטיביים'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'judaica',
+    labelHe: 'יודאיקה',
+    labelEn: 'Judaica',
+    selectors: [
+      CategorySelector('יודאיקה'),
+    ],
+  ),
+  CategoryGroup(
+    code: 'fireplace',
+    labelHe: 'קמין',
+    labelEn: 'Fireplace',
+    selectors: [
+      CategorySelector('קמין'),
+    ],
+  ),
 ];
 
 /// סיכום תת-קטגוריה אחת בתוך קבוצת-על נתונה, לצורך מסך הביניים של בחירת
@@ -237,9 +315,11 @@ class SubcategorySummary {
 }
 
 /// עוזרי גישה — כל הלוגיקה שמסך הבית וסטודיו העיצוב צריכים כדי לעבוד עם
-/// קבוצות-העל, כולל "ועוד" (הקטגוריות המפורטות שלא שויכו לאף קבוצה קבועה
-/// — למשל מטבח/חדר רחצה/שטיחים/סגנון/יודאיקה/קמין/מטבח-חוץ-ואירוח —
-/// כי הן ספציפיות מדי לחדר או נישתיות מכדי להצדיק צ'יפ-על קבוע משלהן).
+/// קבוצות-העל. **סשן 16:** מאז שכל הקטגוריות המפורטות קיבלו צ'יפ-על משלהן
+/// (כולל מטבח/חדר רחצה/שטיחים/סגנון/יודאיקה/קמין/מטבח-חוץ-ואירוח שהיו
+/// חסרות עד עכשיו), `moreCategoriesForRoom`/`moreItemsForRoom` בפועל
+/// יחזירו רשימה ריקה בשימוש רגיל — הן נשארות כרשת ביטחון בלבד למקרה
+/// שתתווסף בעתיד קטגוריה חדשה למילון בלי שמישהו יזכור להוסיף לה צ'יפ.
 class CategoryGroups {
   CategoryGroups._();
 
