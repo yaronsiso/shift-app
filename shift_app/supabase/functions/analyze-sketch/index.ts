@@ -2,6 +2,80 @@
 //
 // Synchronous Edge Function: user's hand-drawn sketch -> OpenAI Vision ->
 // structured architectural JSON (the contract for a future 3D engine).
+// v10 — three fresh v9 test runs on the exact same sketch (same code, same
+// image) came back meaningfully different from each other: different room
+// dimensions (e.g. room-1 lengthM 3.5 vs 3.75), different opening counts
+// and types, and one run even returned 8 duplicate/overlapping "rooms"
+// with heightM:0. This is not the model reconsidering or reasoning
+// differently - it's ordinary LLM sampling variance, and the root,
+// structural cause (not previously addressed by any rule, because it
+// isn't a prompt problem) is that the OpenAI request never set
+// `temperature` or `seed` - so the API used its default sampling
+// randomness on every call, on top of an already-hard visual task. v10
+// adds `temperature: 0` (greedy/most-likely decoding at every step,
+// instead of random sampling) and a fixed `seed` (best-effort
+// reproducibility hint) to the request body. This is a one-line,
+// non-prompt fix that should reduce run-to-run variance regardless of
+// which sketch is analyzed - it is not tied to this sketch's content at
+// all. If the configured model rejects either parameter, the API will
+// return a clear error immediately, which is the fastest way to find out
+// whether this specific model supports them.
+// v9 — a fresh v8 test run (analysisId 7d4b4160) fixed the omission bug
+// (8 openings now returned instead of 0) but the user's detailed
+// cross-check against the actual sketch (clear, unrotated photo)
+// surfaced a new, distinct failure: openings on the SAME wall (or
+// adjacent walls) get their type/position cross-wired. Concretely: (1)
+// an opening with an explicit "חלון" text label right next to it came
+// back as type="door" - almost certainly because a nearby door marker
+// "stole" that position while the window's own evidence went unused;
+// (2) three openings share one distinctive, sketch-specific graphic
+// marking (a red dashed line used nowhere else) and one of them is
+// additionally labeled "כניסה" (entrance) - confirming that whole
+// marking convention means door/entrance - yet the model classified
+// the other two inconsistently, including inventing an ambiguous type
+// for one of them not clearly grounded in either evidence category;
+// (3) a small opening with no marker at all was invented, violating
+// rule 14 directly. Root cause (grounded in the actual failure, not
+// guessed): the model appears to first collect "what opening types
+// exist somewhere on this wall" and then distribute/guess which
+// position gets which type, instead of resolving each individual
+// opening's type+position strictly from the evidence located AT that
+// opening's own spot. v9 adds rule 16, which makes this explicit and
+// general: (a) each opening's type must be grounded in the marker at
+// its own position, never assigned by elimination against other
+// openings on the wall; (b) openings sharing one identical, unusual
+// graphic marking convention within a sketch must be classified
+// consistently with each other (since that shared convention is
+// itself real evidence, distinct from guessing) unless a specific one
+// carries its own conflicting label; (c) an opening must never be
+// invented at a position with no marker evidence at all - reinforcing
+// rule 14. None of this is tied to this sketch's coordinates; it's a
+// general instruction about resolving multiple markers on one wall.
+// v8 — a fresh v7 test run (analysisId 451e9a7c) on the same grid
+// sketch showed rule 7's grid-counting fix for opening detection
+// worked too well in one direction: the model correctly *noticed*
+// dashed-line opening markers on multiple walls, but because it
+// could not read the exact grid-cell width at those spots, it
+// silently OMITTED every single opening from the JSON (all rooms
+// came back with openings: [] even though its own notes admitted
+// markers were visible) instead of estimating them. Root cause
+// (grounded in the actual rule text, not guessed): rule 15's only
+// escape hatch from grid-cell counting was "no grid visible in that
+// segment" — it never addressed the case where a grid IS visible but
+// a specific opening's exact span isn't cleanly readable there, and
+// rule 14's mandate ("any wall with a marker must get an opening
+// entry") wasn't explicitly reiterated at the point where precise
+// measurement fails. Caught between "must count cells" (15) and "no
+// grid here" not applying, the model chose omission over estimation
+// — the same failure rule 11 already forbids for whole rooms, just
+// recurring one level down at the opening level. v8 amends rule 15
+// with an explicit, general closing clause: any time an opening is
+// known to exist (per rule 14) but its exact position/width can't be
+// measured precisely — for any reason, not just "no grid" — it must
+// still be recorded with a best-effort estimate and flagged as lower
+// confidence, never dropped. This is not tied to this sketch's
+// coordinates; it targets the general measurement-uncertainty vs.
+// existence-certainty conflict, so it should hold on any future sketch.
 // v7 — after v6 fixed wall-position confidence and door/window TYPE
 // classification, a fresh test run on the same grid sketch (v6,
 // analysisId 8ef16e1e) confirmed the wall fix worked, but surfaced a
@@ -220,7 +294,37 @@ const SYSTEM_PROMPT = `
     ואל תנחשו לפי רוחב "טיפוסי" של דלת/חלון. אם אין גריד גלוי בקטע
     הרלוונטי של השרטוט (למשל שרטוט-יד חופשי) - רק אז אפשר להעריך לפי
     מיקום יחסי על הקיר, ויש לציין ב-notes שמדובר בהערכה ולתת
-    roomConfidence מתאים (לא גבוה) לפתח הספציפי הזה.
+    roomConfidence מתאים (לא גבוה) לפתח הספציפי הזה. **חשוב באותה
+    מידה - קושי במדידה המדויקת אינו אף פעם עילה להשמטת הפתח כליל:**
+    ייתכן שהגריד קיים אבל התווית באזור הפתח הספציפי לא קריאה, חלקית,
+    מוסתרת, או שהתמונה מטושטשת שם - במקרים כאלה בדיוק כמו במקרה של
+    "אין גריד", יש לרשום את הפתח עם ההערכה הסבירה ביותר שאפשר לתת
+    (ולא לדלג עליו), ולתעד ב-notes שזו הערכה בגלל קושי קריאה. חוק 14
+    כבר קבע שכל קיר עם סימן פתח (טקסטואלי או גרפי) חייב רשומת opening
+    - קושי במדידה המדויקת של אותו פתח (בניגוד לספק לגבי **קיומו**, שהוא
+    מקרה שונה) אינו מבטל את החובה הזו. השמטת פתח שזוהה כקיים, רק בגלל
+    שהמדידה המדויקת שלו לא ודאית, היא אותה טעות בדיוק שחוק 11 אוסר
+    ברמת החדר - השמטה מוחלטת במקום תיעוד עם ביטחון נמוך.
+
+16. זיהוי כל פתח **בנפרד**, לפי הראיה הממוקמת בדיוק באותו מיקום שלו -
+    לא לפי חלוקה כללית של "מה יש בערך על הקיר הזה": כשיש על קיר אחד (או
+    על קירות סמוכים) יותר מסימן פתח אחד, אסור לקבוע קודם "אילו סוגים
+    בסך הכול קיימים כאן" ואז לנחש/להתאים איזה סוג שייך לאיזה מיקום. יש
+    לקבוע type ו-distanceFromStart לכל פתח בנפרד, אך ורק לפי הראיה
+    (תווית טקסט או סימון גרפי) שנמצאת ממש באותו מיקום שלו. אם יש תווית
+    "חלון" צמודה לפתח מסוים - הפתח **באותו מיקום עצמו** הוא type="window",
+    גם אם יש פתח אחר קרוב שמסומן כדלת/כניסה - אסור "להחליף" ביניהם או
+    לשייך את התווית לפתח הלא-נכון. באותו אופן: אם כמה פתחים בשרטוט
+    מסומנים **באותו סימון גרפי חריג וייחודי** שלא מופיע במקום אחר
+    בשרטוט (למשל אותו סגנון קו מקווקו בצבע מסוים, השונה מסימוני הפתחים
+    האחרים) - וידוע ה-type של אחד מהם בוודאות גבוהה (למשל יש לו תווית
+    "כניסה" צמודה) - יש להחיל את אותו type **גם** על שאר הפתחים המסומנים
+    באותה שיטה גרפית זהה בדיוק, כי העובדה ששניהם משתמשים באותו סימון
+    חריג היא ראיה אמיתית לזהות משותפת, לא ניחוש. סתירה מפורשת (תווית
+    שונה הצמודה לאחד מהם ספציפית) גוברת על כלל העקביות הזה. אסור לקבוע
+    type באופן שרירותי/מעורפל לפתח שאין לו לא תווית ולא סימון גרפי
+    ברור באותו מיקום - זהו בדיוק המקרה של חוק 14: אם אין שום ראיה
+    (טקסטואלית או גרפית) באותו מיקום עצמו, אין פתח שם כלל.
 
 החזר/י תשובה שעומדת בדיוק בסכמת ה-JSON שניתנה, ללא טקסט נוסף מעבר לה.
 `.trim();
@@ -318,6 +422,8 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: OPENAI_MODEL,
+        temperature: 0,
+        seed: 20260910,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           {
