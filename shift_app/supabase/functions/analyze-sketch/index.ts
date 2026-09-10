@@ -2,6 +2,18 @@
 //
 // Synchronous Edge Function: user's hand-drawn sketch -> OpenAI Vision ->
 // structured architectural JSON (the contract for a future 3D engine).
+// v5 — v4 was accepted as functionally correct (room count, labels,
+// grid-dimension reading), but 3 repeated runs on the exact same image
+// surfaced real LLM run-to-run variance: two runs left a small honest
+// gap between totalAreaSqm and the sum of room areas (a *good* sign —
+// an ambiguous corridor area not confidently assigned to either
+// neighboring room), but one run silently DROPPED an entire room from
+// the JSON instead of marking it "unknown". This is data loss, not
+// legitimate uncertainty. v5 adds exactly one targeted rule (11) that
+// forbids omitting a room entirely — it must still get a JSON entry,
+// even a low-confidence "unknown" one. v5 deliberately does NOT touch
+// the totalAreaSqm-vs-sum-of-rooms gap behavior — that stays as-is,
+// it's desired honesty, not a bug.
 // v4 — v3 fully validated room-topology on hand sketches with written
 // numeric dimensions (session 17: real crumpled sketch, confirmed
 // correct by the user). This round tested a different input format: a
@@ -99,6 +111,22 @@ const SYSTEM_PROMPT = `
     כנות לגבי אי-ודאות. אם לא בטוח/ה אם משהו הוא חדר נפרד, או אם לא
     הצלחת לספור משבצות במדויק - סמן/י roomConfidence="low" ותסביר/י
     ב-notes, אל תמציא/י ביטחון.
+
+11. איסור מוחלט על השמטת חדר מה-JSON: אחרי שסרקת את כל הקירות הפנימיים
+    (חוק 5) ומצאת N שטחים סגורים נפרדים - מערך ה-rooms שאת/ה מחזיר/ה
+    **חייב** להכיל בדיוק N רשומות, בלי יוצא מן הכלל. אם מצאת שטח סגור
+    שאינך בטוח/ה בתפקודו - זה בדיוק המקרה של roomType="unknown" מחוק 2,
+    **לא** מקרה שמצדיק להשמיט אותו לגמרי מהתשובה. לפני שאת/ה מחזיר/ה
+    את התשובה הסופית - עברו/י שוב על כל הקירות הפנימיים שמצאת/י (חוק 5)
+    וספרו/י שהאזורים הסגורים שהם יוצרים מקבילים אחד-לאחד לרשומות
+    שבפועל נמצאות במערך rooms. השמטה מוחלטת של חדר שקיים בשרטוט (במקום
+    לתעד אותו כ-unknown/low-confidence) היא הכשל החמור ביותר האפשרי -
+    חמור בהרבה מסימון חדר כ-unknown. שימו לב: זה **לא** נוגע לפער
+    האפשרי בין totalAreaSqm לסכום שטחי החדרים - פער כזה (למשל שטח מעבר/
+    מסדרון לא-ודאי, שהוא רוחב ממשי בין שני חדרים שכנים ולא שייך במובהק
+    לאף אחד מהם) הוא כנות רצויה ותקינה לפי חוק 10, ואין לנסות "לתקן"
+    או לסגור אותו - הכלל הזה עוסק רק במניעת היעדרות מוחלטת של חדר שלם
+    מרשימת ה-rooms.
 
 החזר/י תשובה שעומדת בדיוק בסכמת ה-JSON שניתנה, ללא טקסט נוסף מעבר לה.
 `.trim();
