@@ -2,6 +2,20 @@
 //
 // Synchronous Edge Function: user's hand-drawn sketch -> OpenAI Vision ->
 // structured architectural JSON (the contract for a future 3D engine).
+// v11 — v10's `temperature: 0` was rejected outright by the configured
+// model at call time, confirmed by 3 fresh test runs that all failed with
+// the exact same OpenAI error: "Unsupported value: 'temperature' does not
+// support 0 with this model. Only the default (1) value is supported."
+// This is a reasoning-style model (usage always reports reasoning_tokens)
+// and, like other reasoning models, it locks sampling temperature to its
+// default and refuses any other value - this is a hard API-level
+// restriction, not something a prompt or schema change can work around.
+// v11 removes `temperature` entirely (the model will use its only
+// supported value, the default). `seed` is kept for now, unverified -
+// the request never got far enough to test it, since OpenAI validates
+// parameters and rejected on `temperature` first. If `seed` is also
+// unsupported, the next test run will fail with an equally clear error
+// naming it, the same way this one did for temperature.
 // v10 — three fresh v9 test runs on the exact same sketch (same code, same
 // image) came back meaningfully different from each other: different room
 // dimensions (e.g. room-1 lengthM 3.5 vs 3.75), different opening counts
@@ -422,7 +436,6 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: OPENAI_MODEL,
-        temperature: 0,
         seed: 20260910,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
