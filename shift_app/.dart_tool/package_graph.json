@@ -13,6 +13,7 @@
         "flutter_riverpod",
         "go_router",
         "google_fonts",
+        "image",
         "image_picker",
         "share_plus",
         "shared_preferences",
@@ -84,6 +85,13 @@
         "url_launcher_windows",
         "web",
         "win32"
+      ]
+    },
+    {
+      "name": "image",
+      "version": "4.9.2",
+      "dependencies": [
+        "archive"
       ]
     },
     {
@@ -1136,6 +1144,23 @@
         "collection",
         "meta",
         "pub_semver"
+      ]
+    },
+    {
+      "name": "archive",
+      "version": "4.2.0",
+      "dependencies": [
+        "path",
+        "posix"
+      ]
+    },
+    {
+      "name": "posix",
+      "version": "6.5.2",
+      "dependencies": [
+        "ffi",
+        "meta",
+        "path"
       ]
     }
   ],

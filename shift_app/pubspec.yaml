@@ -23,6 +23,7 @@ dependencies:
   # Typography per design spec (Heebo/Assistant via Google Fonts)
   google_fonts: ^6.2.1
   image_picker: ^1.1.2
+  image: ^4.9.2
   share_plus: ^13.3.0
 
   # סשן 10: שמירת התקדמות הזרימה (render_flow) לדיסק, כדי שהיא תשרוד

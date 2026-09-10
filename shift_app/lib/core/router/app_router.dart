@@ -9,6 +9,7 @@ import '../../features/processing/presentation/processing_screen.dart';
 import '../../features/result/presentation/result_screen.dart';
 import '../../features/upload_photo/presentation/upload_photo_screen.dart';
 import 'route_names.dart';
+import '../../features/sketch_analysis_v2_debug/presentation/sketch_scope_debug_screen.dart';
 
 /// App-wide navigation graph.
 ///
@@ -33,8 +34,12 @@ class AppRouter {
   AppRouter._();
 
   static final GoRouter router = GoRouter(
-    initialLocation: AppRoutes.home,
-    routes: [
+      initialLocation: '/debug-scope-stage0',
+    routes: [      GoRoute(
+        path: '/debug-scope-stage0',
+        name: 'debug-scope-stage0',
+        builder: (context, state) => const SketchScopeDebugScreen(),
+      ),
       GoRoute(
         path: AppRoutes.home,
         name: 'home',

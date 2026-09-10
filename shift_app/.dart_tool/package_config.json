@@ -26,6 +26,12 @@
       "languageVersion": "3.2"
     },
     {
+      "name": "archive",
+      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/archive-4.2.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
       "name": "args",
       "rootUri": "file:///root/.pub-cache/hosted/pub.dev/args-2.7.0",
       "packageUri": "lib/",
@@ -165,7 +171,7 @@
     },
     {
       "name": "flutter",
-      "rootUri": "file:///workspaces/flutter/packages/flutter",
+      "rootUri": "file:///sdks/flutter/packages/flutter",
       "packageUri": "lib/",
       "languageVersion": "3.11"
     },
@@ -177,7 +183,7 @@
     },
     {
       "name": "flutter_localizations",
-      "rootUri": "file:///workspaces/flutter/packages/flutter_localizations",
+      "rootUri": "file:///sdks/flutter/packages/flutter_localizations",
       "packageUri": "lib/",
       "languageVersion": "3.11"
     },
@@ -195,13 +201,13 @@
     },
     {
       "name": "flutter_test",
-      "rootUri": "file:///workspaces/flutter/packages/flutter_test",
+      "rootUri": "file:///sdks/flutter/packages/flutter_test",
       "packageUri": "lib/",
       "languageVersion": "3.11"
     },
     {
       "name": "flutter_web_plugins",
-      "rootUri": "file:///workspaces/flutter/packages/flutter_web_plugins",
+      "rootUri": "file:///sdks/flutter/packages/flutter_web_plugins",
       "packageUri": "lib/",
       "languageVersion": "3.11"
     },
@@ -252,6 +258,12 @@
       "rootUri": "file:///root/.pub-cache/hosted/pub.dev/http_parser-4.1.2",
       "packageUri": "lib/",
       "languageVersion": "3.4"
+    },
+    {
+      "name": "image",
+      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/image-4.9.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
     },
     {
       "name": "image_picker",
@@ -470,6 +482,12 @@
       "languageVersion": "3.2"
     },
     {
+      "name": "posix",
+      "rootUri": "file:///root/.pub-cache/hosted/pub.dev/posix-6.5.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
       "name": "postgrest",
       "rootUri": "file:///root/.pub-cache/hosted/pub.dev/postgrest-2.8.0",
       "packageUri": "lib/",
@@ -567,7 +585,7 @@
     },
     {
       "name": "sky_engine",
-      "rootUri": "file:///workspaces/flutter/bin/cache/pkg/sky_engine",
+      "rootUri": "file:///sdks/flutter/bin/cache/pkg/sky_engine",
       "packageUri": "lib/",
       "languageVersion": "3.11"
     },
@@ -754,7 +772,7 @@
   ],
   "generator": "pub",
   "generatorVersion": "3.13.2",
-  "flutterRoot": "file:///workspaces/flutter",
+  "flutterRoot": "file:///sdks/flutter",
   "flutterVersion": "3.47.2",
   "pubCache": "file:///root/.pub-cache"
 }

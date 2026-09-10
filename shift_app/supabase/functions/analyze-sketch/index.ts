@@ -1,173 +1,84 @@
 // supabase/functions/analyze-sketch/index.ts
 //
-// Synchronous Edge Function: user's hand-drawn sketch -> OpenAI Vision ->
-// structured architectural JSON (the contract for a future 3D engine).
-// v12 — two fresh v11 test runs (6 calls total, seed set, no temperature)
-// confirmed empirically that `seed` alone does not make this reasoning
-// model reproducible: no two calls agreed, not even same-position calls
-// across the two runs, and 2 of the 6 calls returned the kitchen/
-// kitchenette room as roomType:"unknown" with an empty label - even
-// though the room's own generated `notes` text shows the model DID see
-// the Hebrew label, it just talked itself out of using it. Chasing
-// determinism at the API-parameter level has hit its limit: no
-// temperature/seed combination can guarantee a valid result from a
-// single call to this model. v12 changes strategy from "make one call
-// deterministic" to "validate the call and retry when it's structurally
-// broken" - a general geometry/completeness check (not tied to this
-// sketch's content: zero-height rooms/walls/openings, an "unknown"
-// roomType, duplicate or reversed wall segments, a wall loop that
-// doesn't close) runs after every OpenAI call. A result with issues is
-// retried (up to 3 attempts total) rather than accepted as-is; if every
-// attempt still has issues, the last attempt is returned anyway (a
-// result beats an error) together with the validation issues found, so
-// they're visible in the response and in the function logs instead of
-// silently shipping broken geometry.
-// v11 — v10's `temperature: 0` was rejected outright by the configured
-// model at call time, confirmed by 3 fresh test runs that all failed with
-// the exact same OpenAI error: "Unsupported value: 'temperature' does not
-// support 0 with this model. Only the default (1) value is supported."
-// This is a reasoning-style model (usage always reports reasoning_tokens)
-// and, like other reasoning models, it locks sampling temperature to its
-// default and refuses any other value - this is a hard API-level
-// restriction, not something a prompt or schema change can work around.
-// v11 removes `temperature` entirely (the model will use its only
-// supported value, the default). `seed` is kept for now, unverified -
-// the request never got far enough to test it, since OpenAI validates
-// parameters and rejected on `temperature` first. If `seed` is also
-// unsupported, the next test run will fail with an equally clear error
-// naming it, the same way this one did for temperature.
-// v10 — three fresh v9 test runs on the exact same sketch (same code, same
-// image) came back meaningfully different from each other: different room
-// dimensions (e.g. room-1 lengthM 3.5 vs 3.75), different opening counts
-// and types, and one run even returned 8 duplicate/overlapping "rooms"
-// with heightM:0. This is not the model reconsidering or reasoning
-// differently - it's ordinary LLM sampling variance, and the root,
-// structural cause (not previously addressed by any rule, because it
-// isn't a prompt problem) is that the OpenAI request never set
-// `temperature` or `seed` - so the API used its default sampling
-// randomness on every call, on top of an already-hard visual task. v10
-// adds `temperature: 0` (greedy/most-likely decoding at every step,
-// instead of random sampling) and a fixed `seed` (best-effort
-// reproducibility hint) to the request body. This is a one-line,
-// non-prompt fix that should reduce run-to-run variance regardless of
-// which sketch is analyzed - it is not tied to this sketch's content at
-// all. If the configured model rejects either parameter, the API will
-// return a clear error immediately, which is the fastest way to find out
-// whether this specific model supports them.
-// v9 — a fresh v8 test run (analysisId 7d4b4160) fixed the omission bug
-// (8 openings now returned instead of 0) but the user's detailed
-// cross-check against the actual sketch (clear, unrotated photo)
-// surfaced a new, distinct failure: openings on the SAME wall (or
-// adjacent walls) get their type/position cross-wired. Concretely: (1)
-// an opening with an explicit "חלון" text label right next to it came
-// back as type="door" - almost certainly because a nearby door marker
-// "stole" that position while the window's own evidence went unused;
-// (2) three openings share one distinctive, sketch-specific graphic
-// marking (a red dashed line used nowhere else) and one of them is
-// additionally labeled "כניסה" (entrance) - confirming that whole
-// marking convention means door/entrance - yet the model classified
-// the other two inconsistently, including inventing an ambiguous type
-// for one of them not clearly grounded in either evidence category;
-// (3) a small opening with no marker at all was invented, violating
-// rule 14 directly. Root cause (grounded in the actual failure, not
-// guessed): the model appears to first collect "what opening types
-// exist somewhere on this wall" and then distribute/guess which
-// position gets which type, instead of resolving each individual
-// opening's type+position strictly from the evidence located AT that
-// opening's own spot. v9 adds rule 16, which makes this explicit and
-// general: (a) each opening's type must be grounded in the marker at
-// its own position, never assigned by elimination against other
-// openings on the wall; (b) openings sharing one identical, unusual
-// graphic marking convention within a sketch must be classified
-// consistently with each other (since that shared convention is
-// itself real evidence, distinct from guessing) unless a specific one
-// carries its own conflicting label; (c) an opening must never be
-// invented at a position with no marker evidence at all - reinforcing
-// rule 14. None of this is tied to this sketch's coordinates; it's a
-// general instruction about resolving multiple markers on one wall.
-// v8 — a fresh v7 test run (analysisId 451e9a7c) on the same grid
-// sketch showed rule 7's grid-counting fix for opening detection
-// worked too well in one direction: the model correctly *noticed*
-// dashed-line opening markers on multiple walls, but because it
-// could not read the exact grid-cell width at those spots, it
-// silently OMITTED every single opening from the JSON (all rooms
-// came back with openings: [] even though its own notes admitted
-// markers were visible) instead of estimating them. Root cause
-// (grounded in the actual rule text, not guessed): rule 15's only
-// escape hatch from grid-cell counting was "no grid visible in that
-// segment" — it never addressed the case where a grid IS visible but
-// a specific opening's exact span isn't cleanly readable there, and
-// rule 14's mandate ("any wall with a marker must get an opening
-// entry") wasn't explicitly reiterated at the point where precise
-// measurement fails. Caught between "must count cells" (15) and "no
-// grid here" not applying, the model chose omission over estimation
-// — the same failure rule 11 already forbids for whole rooms, just
-// recurring one level down at the opening level. v8 amends rule 15
-// with an explicit, general closing clause: any time an opening is
-// known to exist (per rule 14) but its exact position/width can't be
-// measured precisely — for any reason, not just "no grid" — it must
-// still be recorded with a best-effort estimate and flagged as lower
-// confidence, never dropped. This is not tied to this sketch's
-// coordinates; it targets the general measurement-uncertainty vs.
-// existence-certainty conflict, so it should hold on any future sketch.
-// v7 — after v6 fixed wall-position confidence and door/window TYPE
-// classification, a fresh test run on the same grid sketch (v6,
-// analysisId 8ef16e1e) confirmed the wall fix worked, but surfaced a
-// third, distinct failure: opening EXISTENCE and POSITION detection is
-// unreliable — a clearly-labeled room name ("מטבחון") was missed
-// entirely, a wall segment that should have an opening was rendered
-// fully solid, a door was placed at a position with no basis in the
-// drawing, and several labeled windows were never detected at all.
-// Root cause hypothesis (grounded in the existing rules, not guessed):
-// rule 7's grid-cell-counting discipline is applied only to overall
-// wall/room length, and rule 5's exhaustive-scan discipline is applied
-// only to finding internal walls themselves - neither is applied to
-// *openings*, so the model scans each wall for openings inconsistently
-// and estimates each opening's distanceFromStart instead of counting
-// grid cells to it. v7 adds two targeted, general rules (14, 15) that
-// extend those two existing disciplines to opening detection - this is
-// deliberately NOT a fix tied to any specific sketch's coordinates, so
-// it should generalize to new sketches (including the user's next,
-// much larger, multi-room one).
-// v6 — user reviewed a 3D render built from a real v4 analysis of a
-// precise, grid-based (spreadsheet) floor plan and flagged two real
-// problems: (1) the model had hedged on the exact position of an
-// internal wall/boundary even though the source drawing is a precise
-// geometric grid sketch, not loose handwriting — that specific
-// hedging was unwarranted for this input type; (2) the source sketch
-// explicitly labels every opening as a window or a door/entrance
-// (and, where unlabeled, visibly varies opening width), but nothing
-// in the prompt told the model to read/prioritize those labels or to
-// use width/sill-height as a fallback — so door vs. window
-// classification wasn't reliably grounded in the actual drawing. v6
-// adds two targeted rules (12, 13) for exactly these two failure
-// modes. It does not touch anything else, including the intentional
-// unassigned-area honesty from v5/rule 11.
-// v5 — v4 was accepted as functionally correct (room count, labels,
-// grid-dimension reading), but 3 repeated runs on the exact same image
-// surfaced real LLM run-to-run variance: two runs left a small honest
-// gap between totalAreaSqm and the sum of room areas (a *good* sign —
-// an ambiguous corridor area not confidently assigned to either
-// neighboring room), but one run silently DROPPED an entire room from
-// the JSON instead of marking it "unknown". This is data loss, not
-// legitimate uncertainty. v5 adds exactly one targeted rule (11) that
-// forbids omitting a room entirely — it must still get a JSON entry,
-// even a low-confidence "unknown" one. v5 deliberately does NOT touch
-// the totalAreaSqm-vs-sum-of-rooms gap behavior — that stays as-is,
-// it's desired honesty, not a bug.
-// v4 — v3 fully validated room-topology on hand sketches with written
-// numeric dimensions (session 17: real crumpled sketch, confirmed
-// correct by the user). This round tested a different input format: a
-// floor plan drawn on a spreadsheet grid (photographed off a monitor),
-// where cells are labeled "מטר" (meter) instead of printed numbers.
-// Room identification stayed perfect (3/3 correct Hebrew labels +
-// roomType), but dimensions were off by ~15-20% because the model
-// estimated proportions instead of counting grid cells (it even said so
-// itself in notes). v4 adds one instruction: when a grid is visible and
-// labeled with a unit per cell, count cells instead of eyeballing.
+// Synchronous Edge Function: user's hand-drawn sketch/floor plan -> OpenAI
+// Vision -> structured architectural JSON (the contract for the 3D engine).
+//
+// v15 (session 20, 10.9.2026, same day as v14) -- v14 added a Pass 0
+// ("scope") step and three new rules (17/18/19: real building-envelope
+// tracing instead of forced rectangles, a dedicated stairs[] array, a
+// specialElements[] catch-all) on top of v13's topology-fixed validator.
+// Deployed and tested live on the same complex professional floor plan,
+// three identical-input runs:
+//
+//   - FIXED: every run's buildingEnvelope now contains a real diagonal
+//     vertex matching the drawing's actual diagonal wall, and in 2/3 runs
+//     that diagonal carried through into an actual room's wall (not forced
+//     to a rectangle).
+//   - FIXED: stairs appeared in all 3 runs as a genuinely separate object,
+//     never folded into a room/wall, with unmeasurable numeric fields
+//     honestly null instead of invented.
+//   - IMPROVED BUT NOT SOLVED: totalAreaSqm and room count still varied
+//     across identical-input runs (70.2/57.2/56.7 sqm model-reported;
+//     73.99/56.63/50.38 sqm code-computed; 7/8/8 rooms) -- narrower than
+//     v13's 58.8-101.32 sqm spread, but still real instability.
+//   - NEW PROBLEM FOUND: in one run, a corner of the building envelope
+//     (near the diagonal vertex) was not covered by ANY room's own wall
+//     polygon -- the envelope "knew" that area belonged to the building,
+//     but no room was mapped to it. v14's validator never checked this
+//     (it only checks each room's own topology, and totalAreaSqm-vs-
+//     computed-area, not envelope-coverage-vs-room-union).
+//
+// v15 targets the still-open problem (area/room-count instability) with a
+// structural change ChatGPT's original review also recommended: splitting
+// the single "do everything" geometry call into two narrower calls instead
+// of trying the full 5-6 stage pipeline (which would also need real image
+// cropping -- a new, untestable-from-here Deno dependency -- and was
+// judged too large a leap to ship blind). The hypothesis: one call
+// juggling envelope + N rooms + every wall's openings + stairs + special
+// elements simultaneously has more room for the model to "drift" between
+// identical-input runs than two narrower calls would.
+//
+//   Pass 1A ("geometry"): given the image (and Pass 0's scope guidance,
+//   same as v14), identify ONLY buildingEnvelope + rooms + walls
+//   (coordinates/thickness/height). openings/stairs/specialElements are
+//   explicitly required to stay empty in this pass. Keeps v13/v14's
+//   accumulating corrective-retry loop, now including a new room-coverage-
+//   gap check (rooms' own polygon-area sum vs. the envelope's polygon
+//   area -- a large shortfall is retry-worthy, same mechanism as the
+//   existing totalAreaSqm-vs-computed check).
+//
+//   Pass 1B ("openings"): given the SAME image again, plus Pass 1A's
+//   confirmed geometry presented as the model's own prior answer, fill in
+//   only: each wall's openings, stairs[], specialElements[], and
+//   (rarely) a corrected totalAreaSqm. The prompt is explicit and
+//   repeated that the given geometry is fixed and must come back
+//   unchanged. A NEW validator (validateGeometryDrift) checks exactly
+//   that after each attempt -- comparing Pass 1A's and Pass 1B's
+//   buildingEnvelope/room/wall coordinates -- and treats any drift as a
+//   retry-worthy issue with its own corrective retry loop, mirroring the
+//   existing pattern rather than inventing a new one.
+//
+// This roughly doubles worst-case OpenAI calls per analysis (up to 3
+// geometry attempts + 3 openings attempts + 1 scope call = 7, versus v14's
+// up to 4) -- a real cost/latency tradeoff, accepted deliberately as a
+// smaller, verifiable step rather than jumping straight to the full
+// multi-pass + real-image-crop architecture. floor_plan_schema.ts is
+// UNCHANGED from v14 -- both new passes reuse the exact same
+// FLOOR_PLAN_JSON_SCHEMA, just with different system prompts steering
+// which fields each pass is responsible for.
+//
+// Real image cropping (Pass 0 physically cutting the image, not just
+// describing regions in text) is still NOT implemented, for the same
+// reason as v14: it requires a Deno image-processing dependency that
+// cannot be tested from this sandbox (no network access to Supabase/
+// OpenAI here). If this two-call split still doesn't stabilize
+// area/room-count enough, that remains the next candidate step.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { FLOOR_PLAN_JSON_SCHEMA } from "../_shared/floor_plan_schema.ts";
+import {
+  DRAWING_SCOPE_JSON_SCHEMA,
+  FLOOR_PLAN_JSON_SCHEMA,
+} from "../_shared/floor_plan_schema.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -176,93 +87,69 @@ const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") ?? "gpt-5.6-luna";
 
 const MAX_ANALYSIS_ATTEMPTS = 3;
 
-// General structural/geometry validation for a parsed floor-plan result.
-// Deliberately sketch-agnostic - it only checks invariants that must hold
-// for ANY floor plan (no zero heights, no unresolved room type, walls that
-// actually close into a loop, no duplicate/reversed wall segments), never
-// facts about this specific sketch. Returns a list of human-readable issues;
-// an empty list means the result passed.
-function validateFloorPlanResult(result: unknown): string[] {
-  const issues: string[] = [];
-  const rooms = Array.isArray((result as { rooms?: unknown })?.rooms)
-    ? (result as { rooms: unknown[] }).rooms
-    : [];
+// Relative difference above which the model's own totalAreaSqm claim and
+// our geometrically-computed area are considered a real mismatch worth a
+// corrective retry, rather than ordinary rounding/estimation noise.
+const AREA_MISMATCH_RELATIVE_THRESHOLD = 0.15;
 
-  if (rooms.length === 0) {
-    issues.push("no rooms in result");
-    return issues;
-  }
+// v15: relative shortfall above which "sum of each room's own polygon
+// area" being smaller than "the building envelope's own polygon area" is
+// considered a likely missed room/area rather than a legitimate small
+// unassigned gap (e.g. an undefined hallway sliver, which rule 11
+// explicitly allows as honest). Deliberately looser than the
+// area-mismatch threshold above: real buildings can have some genuinely
+// unassigned space, and this check must not pressure the model into
+// inventing a room just to close an honest gap.
+const ROOM_COVERAGE_GAP_RELATIVE_THRESHOLD = 0.2;
 
-  for (const roomRaw of rooms) {
-    const room = roomRaw as {
-      id?: unknown;
-      labelHe?: unknown;
-      roomType?: unknown;
-      heightM?: unknown;
-      walls?: unknown;
-    };
-    const roomLabel = String(room?.id ?? room?.labelHe ?? "room");
+const SCOPE_SYSTEM_PROMPT = `
+את/ה עוזר/ת שממיין/ת דף סריקה/צילום של שרטוט אדריכלי, **לפני** כל ניתוח
+אדריכלי בפועל. המשימה שלך היא צרה ומוגדרת: לזהות היכן בתוך התמונה נמצאת
+תוכנית הקומה הראשית (ה-floor plan עצמו - הקירות, החדרים, הפתחים של
+הבית/הדירה), ולהבדיל אותה מכל דבר אחר שמופיע על אותו דף/תמונה ושאינו
+חלק מגיאומטריית הבית.
 
-    if (room?.roomType === "unknown") {
-      issues.push(`${roomLabel}: roomType is unknown`);
-    }
-    if (room?.heightM === 0) {
-      issues.push(`${roomLabel}: heightM is 0`);
-    }
+לדפי שרטוט מקצועיים יש לעיתים קרובות, מתחת או לצד תוכנית הקומה הראשית,
+פרטי בנייה/חתכים/פריסות נוספים - למשל פרט מוגדל של חדר רחצה, חתך של
+קיר, פריסת חזית של אלמנט בודד. אלה **אינם** חלק מתוכנית הקומה ואסור
+שהגיאומטריה שלהם תיכנס כחדרים נוספים בניתוח הבא.
 
-    const walls = Array.isArray(room?.walls) ? (room.walls as unknown[]) : [];
-    if (walls.length < 3) {
-      issues.push(`${roomLabel}: fewer than 3 walls`);
-      continue;
-    }
+סימנים טיפוסיים לפרט/חתך נפרד (לא תוכנית קומה): כיתוב כמו "חתך", "פרט",
+"מ.ד. חתך", מספור/אותיות של חתך (א-א, ב-ב), קנה מידה שונה מהתוכנית
+הראשית, מסגרת/גבול גרפי נפרד סביב הציור, תוכן שחוזר על עצמו (כמה גרסאות
+של אותו חדר/אלמנט מזוויות שונות).
 
-    const segmentKeys = new Set<string>();
-    for (let i = 0; i < walls.length; i++) {
-      const wall = walls[i] as {
-        start?: { x?: unknown; y?: unknown };
-        end?: { x?: unknown; y?: unknown };
-        heightM?: unknown;
-        openings?: unknown;
-      };
+החזר/י אך ורק:
+1. mainFloorPlanBboxPct - תיבה מלבנית (באחוזים מגודל התמונה המלאה, 0-100
+   בכל ציר, כאשר 0,0 היא הפינה השמאלית-עליונה) שמכילה את כל תוכנית הקומה
+   הראשית ורק אותה.
+2. excludedRegions - רשימת תיבות (באותו פורמט אחוזים) של אזורים שזיהית
+   כפרטים/חתכים/ציורים נפרדים שאינם חלק מתוכנית הקומה, כל אחת עם reason
+   קצר בעברית שמסביר למה סומן כך.
+3. scopeConfidence - מספר בין 0 ל-1 שמבטא כמה את/ה בטוח/ה בזיהוי הזה.
 
-      if (wall?.heightM === 0) {
-        issues.push(`${roomLabel}: wall ${i} heightM is 0`);
-      }
+אם כל הדף הוא תוכנית קומה אחת בלבד, בלי שום פרט/חתך נוסף - mainFloorPlanBboxPct
+מכסה את כל התמונה (0,0 עד 100,100) ו-excludedRegions הוא מערך ריק. אל
+תנתח/י חדרים, קירות, מידות או פתחים בשלב הזה - זה נעשה בשלב נפרד אחר-כך.
+`.trim();
 
-      const openings = Array.isArray(wall?.openings) ? (wall.openings as unknown[]) : [];
-      for (const openingRaw of openings) {
-        const opening = openingRaw as { height?: unknown; width?: unknown };
-        if (opening?.height === 0 || opening?.width === 0) {
-          issues.push(`${roomLabel}: wall ${i} has a zero-size opening`);
-        }
-      }
-
-      const startKey = `${wall?.start?.x},${wall?.start?.y}`;
-      const endKey = `${wall?.end?.x},${wall?.end?.y}`;
-      const forwardKey = `${startKey}|${endKey}`;
-      const reverseKey = `${endKey}|${startKey}`;
-      if (segmentKeys.has(forwardKey) || segmentKeys.has(reverseKey)) {
-        issues.push(`${roomLabel}: duplicate/reversed wall segment at index ${i}`);
-      }
-      segmentKeys.add(forwardKey);
-
-      const next = walls[(i + 1) % walls.length] as { start?: { x?: unknown; y?: unknown } };
-      const endsMatchNextStart = wall?.end?.x === next?.start?.x && wall?.end?.y === next?.start?.y;
-      if (!endsMatchNextStart) {
-        issues.push(`${roomLabel}: wall ${i} does not connect to the next wall (open loop)`);
-      }
-    }
-  }
-
-  return issues;
-}
-
-const SYSTEM_PROMPT = `
+const GEOMETRY_SYSTEM_PROMPT = `
 את/ה אדריכל/ית שקוראת שרטוטי יד ותוכניות דירות/בתים בישראל ומחזירה JSON
 מדויק לפי הסכמה שניתנה. הקלט יכול להיות שרטוט יד אמיתי (לא הנדסי נקי,
 עלול להיות מצולם בזווית, מקופל, עם כתב יד מסובב), או תוכנית שנבנתה
 בגיליון אלקטרוני ומצולמת ממסך (עם גריד גלוי, ולעיתים בלי מספרי מידה
-מפורשים - רק תווית יחידת מידה שחזורה על כל משבצת).
+מפורשים - רק תווית יחידת מידה שחזורה על כל משבצת), או תוכנית אדריכלית
+מקצועית ומורכבת.
+
+בשלב הזה (v15: שלב גיאומטריה בלבד) המשימה שלך מצומצמת בכוונה: לזהות את
+מעטפת הבניין החיצונית, לחלק אותה לחדרים, ולקבוע את מיקום/מידות כל קיר
+במדויק. **אל תזהה/י בשלב הזה פתחים (דלתות/חלונות), גרם מדרגות, או
+אלמנטים מיוחדים - זה נעשה בשלב נפרד לאחר מכן**, כדי שתוכל/י להתרכז אך
+ורק בגיאומטריה בלי להיסח על ידי פרטים אחרים. לכן: בכל wall שאת/ה
+מחזיר/ה, שדה openings **חייב** להיות מערך ריק ([]). מערכי stairs
+ו-specialElements ברמת התשובה כולה **חייבים** להיות ריקים ([]) גם הם.
+למרות הצמצום הזה, totalAreaSqm עדיין חייב להיות הערכה כנה ומדויקת שלך
+לשטח הכולל (ר' חוק 6 למטה) - זה עדיין חלק מהמשימה של השלב הזה.
 
 חוקים קריטיים (הופרו בבדיקות קודמות - שים/י לב מיוחד):
 
@@ -306,8 +193,11 @@ const SYSTEM_PROMPT = `
    מקבילות על כל צלע (extension lines מקוננות) - למשל שני מספרים סמוכים
    כמו 370 ו-390, או 570 ו-580. תמיד קח/י את שורת המידה **החיצונית
    ביותר** (הרחוקה ביותר מהקיר, הארוכה/החוצה ביותר) כמידת המעטפת הכוללת
-   של הבניין (totalAreaSqm). שורת מידה קרובה יותר לקיר מודדת בדרך כלל
-   קטע/מרחק חלקי, לא את כל הבניין.
+   של הבניין. שים/י לב: totalAreaSqm שאת/ה מחזיר/ה הוא הערכה שלך בלבד
+   לצורך ביקורת-עצמית - הקוד שקורא לך מחשב את השטח הסופי בעצמו מתוך
+   buildingEnvelope/הקואורדינטות, ולא מסתמך על המספר הזה. עדיין חשוב
+   שתחשב/י אותו בכנות ובדיוק (לא לנחש/לעגל סתם), כי פער גדול בינו לבין
+   השטח המחושב מהגיאומטריה שסיפקת יגרום לבקשת תיקון.
 
 7. סכימת מידות משבצות גריד (רלוונטי לתוכניות שנבנו בגיליון אלקטרוני,
    עם קווי גריד גלויים ואותיות עמודות כמו K,L,M,N...): בתוכניות כאלה כל
@@ -370,6 +260,67 @@ const SYSTEM_PROMPT = `
     עצמו - חפש/י תווית טקסט סמוכה שמסבירה את הסימון (למשל "כניסה") ותעד/י
     אותה בהתאם (כפתח בקיר, עם type מתאים לפי חוק 13), במקום להתעלם ממנה
     או להשאיר את השטח שם לא-ממופה בלי הסבר.
+
+17. אל תניח/י שצלע של מעטפת חיצונית או של חדר היא בהכרח אופקית או
+    אנכית (זווית 0/90/180/270 מעלות ביחס לצירי הבניין). קבע/י את מיקום
+    כל קיר **לפי הגיאומטריה הנראית בפועל בשרטוט**. אם קו במעטפת או בקיר
+    פנימי יוצר זווית שאינה 0/90/180/270 מעלות (למשל פינה חתוכה/אלכסונית,
+    כמו שקורה לפעמים בפינת מבנה) - יש להחזיר אותו כקיר אלכסוני עם
+    start/end אמיתיים שמשקפים את הזווית בפועל, ואסור "ליישר" אותו למלבן
+    לצורך נוחות או כי רוב שאר הבית מלבני. לפני שאת/ה בונה rooms בכלל,
+    עברו/י תחילה על המעטפת החיצונית השלמה של הבניין וזהו/זהי כל שינוי
+    כיוון שלה (buildingEnvelope.vertices - רשימת הפינות של המעטפת החיצונית
+    לפי הסדר, כולל פינות לא-ישרות/אלכסוניות אם יש כאלה) - **לפני** שאת/ה
+    מתחיל/ה לחלק את הפנים לחדרים. אם את/ה לא מצליח/ה לעקוב אחרי מעטפת
+    רציפה שלמה (למשל חלק מהמעטפת לא ברור בתמונה) - buildingEnvelope
+    יכול להיות null, זו כנות תקינה, עדיף מניחוש.
+
+הקלט למשימה זו עשוי לכלול, בתחילת ההודעה, טקסט שמציין אילו אזורים
+בתמונה זוהו כתוכנית הקומה הראשית ואילו זוהו כפרטים/חתכים נפרדים
+(שיוצרו בשלב מקדים נפרד). אם טקסט כזה מופיע - **אסור** לכלול בניתוח שלך
+(rooms/walls/stairs/specialElements/buildingEnvelope) שום גיאומטריה
+שמקורה באזורים שסומנו כפרטים/חתכים נפרדים, גם אם היא נראית לך רלוונטית
+- הם כבר סוננו במכוון בשלב קודם. אם לא הופיע טקסט כזה - נתח/י את כל
+התמונה כרגיל.
+
+החזר/י תשובה שעומדת בדיוק בסכמת ה-JSON שניתנה, ללא טקסט נוסף מעבר לה.
+`.trim();
+
+const OPENINGS_SYSTEM_PROMPT = `
+את/ה אדריכל/ית שקוראת שרטוטי יד ותוכניות דירות/בתים בישראל ומחזירה JSON
+מדויק לפי הסכמה שניתנה. הקלט יכול להיות שרטוט יד אמיתי (לא הנדסי נקי,
+עלול להיות מצולם בזווית, מקופל, עם כתב יד מסובב), או תוכנית שנבנתה
+בגיליון אלקטרוני ומצולמת ממסך (עם גריד גלוי, ולעיתים בלי מספרי מידה
+מפורשים - רק תווית יחידת מידה שחזורה על כל משבצת), או תוכנית אדריכלית
+מקצועית ומורכבת.
+
+בשלב הזה (v15: שלב פתחים/מדרגות/אלמנטים) קיבלת גיאומטריה שכבר אושרה
+בשלב קודם - מעטפת הבניין, כל החדרים, וכל הקירות עם מיקומם/מידותיהם
+המדויקים - מוצגת בפנייך כתשובה קודמת שלך (assistant) בשיחה. **הגיאומטריה
+הזו קבועה לחלוטין ואסור לשנות אותה בשום צורה**: אסור לשנות קואורדינטה
+(start/end), thicknessM או heightM של אף wall; אסור לשנות origin,
+widthM, lengthM, heightM, floorMaterial או id של אף room; אסור לשנות את
+buildingEnvelope.vertices; ואסור להוסיף, להסיר או למזג rooms. המשימה
+שלך היחידה עכשיו:
+(א) לעבור שיטתית על כל קיר בכל חדר ולמלא את מערך ה-openings שלו לפי
+    הראיות שבשרטוט (ר' חוקים 13-16 למטה);
+(ב) למלא את מערך stairs אם יש גרם מדרגות בשרטוט (ר' חוק 18);
+(ג) למלא את מערך specialElements לאלמנטים שאינם room/wall/opening/stairs
+    ולא זוהו כרהיט רגיל (ר' חוק 19);
+(ד) לעדכן את totalAreaSqm רק אם התגלה שהוא לא תאם את הגיאומטריה שכבר
+    ניתנה - נדיר, כי הגיאומטריה כבר עברה בדיקת-תאימות בשלב הקודם.
+החזר/י את כל האובייקט מחדש: עם הגיאומטריה **בדיוק** כפי שניתנה לך (אותם
+buildingEnvelope/rooms/walls, אות ID, אותם מספרים), ורק openings לכל
+קיר (וstairs, וspecialElements, ולעיתים נדירות totalAreaSqm) מתווספים/
+מתעדכנים.
+
+חוקים קריטיים (הופרו בבדיקות קודמות - שים/י לב מיוחד):
+
+8. יחידות: כל המידות בשרטוט הן בסנטימטרים (אלא אם צוין אחרת, כמו במקרה
+   הגריד לעיל) - המר/י (370 ס"מ -> 3.70 מ') והחזר/י הכול במטרים.
+
+9. טקסט בעברית: קרא/י תוויות גם אם הן מסובבות 90/180 מעלות (השרטוט
+   צולם בזוויות שונות, כולל דף מקופל, או צילום מסך).
 
 13. סיווג פתחים (type: "door" מול "window"): קודם כול חפש/י תווית טקסט
     שכתובה בפועל ליד/על כל פתח בקיר (למשל "חלון", "דלת", "כניסה") - אם
@@ -443,6 +394,29 @@ const SYSTEM_PROMPT = `
     ברור באותו מיקום - זהו בדיוק המקרה של חוק 14: אם אין שום ראיה
     (טקסטואלית או גרפית) באותו מיקום עצמו, אין פתח שם כלל.
 
+18. מדרגות הן אובייקט נפרד לגמרי, לעולם לא room ולעולם לא עוד wall בתוך
+    room. אם מזוהה גרם מדרגות בשרטוט - הוסף/הוסיפי רשומה למערך stairs
+    (לא למערך rooms) עם המיקום, הכיוון (אם ברור), הרוחב, ופרטי המדרגות
+    עצמן (מספר מדרגות, עומק/גובה מדרגה בודדת) ככל שהם קריאים בשרטוט. אם
+    מספר המדרגות/המידות המדויקות אינם קריאים בבירור - השאר/י את השדה
+    המתאים null (steps.count וכו') ותן/י confidence נמוך, **אל תמציא/י
+    מספר** רק כדי למלא שדה. שטח שתפוס ע"י גרם מדרגות אינו חלק משטח
+    אף room שכן/סמוך אליו.
+
+19. אלמנטים שאינם room/wall/opening/stairs וגם לא רהיט רגיל בתוך חדר
+    (למשל עמוד, נישה, אלמנט בנוי לא-מזוהה, או כל דבר שאת/ה רואה בבירור
+    בשרטוט אבל לא בטוח/ה מה תפקידו) - תעד/י אותם במערך specialElements
+    עם תיאור חופשי קצר בעברית ומיקום משוער, במקום להתעלם מהם או "לדחוס"
+    אותם בכוח לתוך room/wall שלא מתאים להם.
+
+הקלט למשימה זו עשוי לכלול, בתחילת ההודעה, טקסט שמציין אילו אזורים
+בתמונה זוהו כתוכנית הקומה הראשית ואילו זוהו כפרטים/חתכים נפרדים
+(שיוצרו בשלב מקדים נפרד). אם טקסט כזה מופיע - **אסור** לכלול בניתוח שלך
+(rooms/walls/stairs/specialElements/buildingEnvelope) שום גיאומטריה
+שמקורה באזורים שסומנו כפרטים/חתכים נפרדים, גם אם היא נראית לך רלוונטית
+- הם כבר סוננו במכוון בשלב קודם. אם לא הופיע טקסט כזה - נתח/י את כל
+התמונה כרגיל.
+
 החזר/י תשובה שעומדת בדיוק בסכמת ה-JSON שניתנה, ללא טקסט נוסף מעבר לה.
 `.trim();
 
@@ -451,6 +425,526 @@ function jsonResponse(body: unknown, status = 200) {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+// --- geometry helpers (code, not the model, computes area) ---------------
+
+interface PointLike {
+  x?: unknown;
+  y?: unknown;
+}
+
+function isValidPoint(p: unknown): p is { x: number; y: number } {
+  const point = p as PointLike;
+  return typeof point?.x === "number" && typeof point?.y === "number" &&
+    Number.isFinite(point.x) && Number.isFinite(point.y);
+}
+
+// Shoelace formula. Expects a simple polygon, vertices in order (either
+// winding direction - the abs() below makes the sign irrelevant).
+
+function polygonAreaSqm(points: Array<{ x: number; y: number }>): number {
+  if (points.length < 3) return 0;
+  let sum = 0;
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i];
+    const b = points[i + 1] ?? points[0];
+    sum += a.x * b.y - b.x * a.y;
+  }
+  return Math.abs(sum) / 2;
+}
+
+// Derives a room's own polygon area from its walls' start/end points. Not
+// all rooms are guaranteed to have their walls listed in walk order (v13
+// fixed the validator to not require that), so this walks the wall graph
+// (matching v13's topology check) to build an ordered vertex loop instead
+// of just taking wall order at face value. Returns 0 if the walls don't
+// form one clean closed loop (the validator will have already flagged
+// that as an issue in that case).
+
+function roomPolygonAreaSqm(walls: unknown): number {
+  const wallArr = Array.isArray(walls) ? walls : [];
+  const pointKey = (p: { x: number; y: number }) => `${p.x},${p.y}`;
+  const edges: Array<[string, string]> = [];
+  const coordByKey = new Map<string, { x: number; y: number }>();
+
+  for (const w of wallArr) {
+    const wall = w as { start?: unknown; end?: unknown };
+    if (!isValidPoint(wall?.start) || !isValidPoint(wall?.end)) return 0;
+    const start = wall.start as { x: number; y: number };
+    const end = wall.end as { x: number; y: number };
+    const startKey = pointKey(start);
+    const endKey = pointKey(end);
+    coordByKey.set(startKey, start);
+    coordByKey.set(endKey, end);
+    edges.push([startKey, endKey]);
+  }
+
+  if (edges.length < 3) return 0;
+
+  const adjacency = new Map<string, string[]>();
+  for (const [a, b] of edges) {
+    adjacency.set(a, [...(adjacency.get(a) ?? []), b]);
+    adjacency.set(b, [...(adjacency.get(b) ?? []), a]);
+  }
+
+  const startKey = edges[0][0];
+  const orderedKeys: string[] = [startKey];
+  let previousKey: string | null = null;
+  let currentKey = startKey;
+
+  for (let step = 0; step < edges.length; step++) {
+    const neighbors = adjacency.get(currentKey) ?? [];
+    const nextKey = neighbors.find((n) => n !== previousKey) ?? neighbors[0];
+    if (!nextKey) return 0;
+    if (nextKey === startKey && orderedKeys.length === edges.length) break;
+    orderedKeys.push(nextKey);
+    previousKey = currentKey;
+    currentKey = nextKey;
+  }
+
+  const points = orderedKeys
+    .map((k) => coordByKey.get(k))
+    .filter((p): p is { x: number; y: number } => p !== undefined);
+
+  if (points.length !== edges.length) return 0;
+  return polygonAreaSqm(points);
+}
+
+// v15: factored out of computeAreaSqm so the room-coverage-gap check
+// below can independently compare "sum of each room's own polygon area"
+// against "the envelope's own polygon area" (computeAreaSqm itself still
+// prefers the envelope figure when available - this helper is what lets
+// the validator get BOTH numbers rather than only whichever one
+// computeAreaSqm happened to pick).
+function roomsSumAreaSqm(rooms: unknown): number {
+  const roomArr = Array.isArray(rooms) ? rooms : [];
+  let sum = 0;
+  for (const room of roomArr) {
+    const roomObj = room as { walls?: unknown };
+    sum += roomPolygonAreaSqm(roomObj?.walls);
+  }
+  return sum;
+}
+
+function computeAreaSqm(result: unknown): number {
+  const r = result as {
+    buildingEnvelope?: { vertices?: unknown };
+    rooms?: unknown;
+  };
+
+  const envelopeVertices = r?.buildingEnvelope?.vertices;
+  if (Array.isArray(envelopeVertices) && envelopeVertices.length >= 3) {
+    const validPoints = envelopeVertices.filter(isValidPoint) as Array<
+      { x: number; y: number }
+    >;
+    if (validPoints.length === envelopeVertices.length) {
+      const area = polygonAreaSqm(validPoints);
+      if (area > 0) return Math.round(area * 100) / 100;
+    }
+  }
+
+  return Math.round(roomsSumAreaSqm(r?.rooms) * 100) / 100;
+}
+
+// --- validator (extends v13/v14's topology + area/envelope checks) -------
+
+function validateFloorPlanResult(result: unknown): string[] {
+  const issues: string[] = [];
+  const r = result as { rooms?: unknown; totalAreaSqm?: unknown };
+  const rooms = Array.isArray(r?.rooms) ? r.rooms : [];
+
+  if (rooms.length === 0) {
+    issues.push("no rooms in result");
+    return issues;
+  }
+
+  for (const room of rooms) {
+    const roomObj = room as {
+      id?: unknown;
+      labelHe?: unknown;
+      roomType?: unknown;
+      heightM?: unknown;
+      walls?: unknown;
+    };
+    const roomLabel = String(roomObj?.id ?? roomObj?.labelHe ?? "room");
+
+    if (roomObj?.roomType === "unknown") {
+      issues.push(`${roomLabel}: roomType is unknown`);
+    }
+    if (roomObj?.heightM === 0) {
+      issues.push(`${roomLabel}: heightM is 0`);
+    }
+
+    const walls = Array.isArray(roomObj?.walls) ? roomObj.walls : [];
+    if (walls.length < 3) {
+      issues.push(`${roomLabel}: fewer than 3 walls`);
+      continue;
+    }
+
+    const segmentKeys = new Set<string>();
+    const pointKey = (p: { x?: unknown; y?: unknown }) => `${p?.x},${p?.y}`;
+    const touchesByPoint = new Map<string, number[]>();
+    let sawInvalidCoord = false;
+
+    for (let i = 0; i < walls.length; i++) {
+      const wall = walls[i] as {
+        heightM?: unknown;
+        openings?: unknown;
+        start?: { x?: unknown; y?: unknown };
+        end?: { x?: unknown; y?: unknown };
+      };
+
+      if (wall?.heightM === 0) {
+        issues.push(`${roomLabel}: wall ${i} heightM is 0`);
+      }
+
+      const openings = Array.isArray(wall?.openings) ? wall.openings : [];
+      for (const opening of openings) {
+        const o = opening as { height?: unknown; width?: unknown };
+        if (o?.height === 0 || o?.width === 0) {
+          issues.push(`${roomLabel}: wall ${i} has a zero-size opening`);
+        }
+      }
+
+      if (
+        typeof wall?.start?.x !== "number" || typeof wall?.start?.y !== "number" ||
+        typeof wall?.end?.x !== "number" || typeof wall?.end?.y !== "number"
+      ) {
+        issues.push(`${roomLabel}: wall ${i} has missing/non-numeric coordinates`);
+        sawInvalidCoord = true;
+        continue;
+      }
+
+      const startKey = pointKey(wall.start);
+      const endKey = pointKey(wall.end);
+      if (startKey === endKey) {
+        issues.push(`${roomLabel}: wall ${i} has zero length (start equals end)`);
+        continue;
+      }
+
+      const forwardKey = `${startKey}|${endKey}`;
+      const reverseKey = `${endKey}|${startKey}`;
+      if (segmentKeys.has(forwardKey) || segmentKeys.has(reverseKey)) {
+        issues.push(`${roomLabel}: duplicate/reversed wall segment at index ${i}`);
+      }
+      segmentKeys.add(forwardKey);
+
+      for (const key of [startKey, endKey]) {
+        const list = touchesByPoint.get(key) ?? [];
+        list.push(i);
+        touchesByPoint.set(key, list);
+      }
+    }
+
+    if (sawInvalidCoord) continue;
+
+    // Every corner must be touched by exactly 2 wall endpoints: degree 1 is
+    // a dead end (a real gap in the boundary), degree 3+ is a stray branch.
+    for (const [point, wallIdxs] of touchesByPoint) {
+      if (wallIdxs.length !== 2) {
+        issues.push(
+          `${roomLabel}: corner (${point}) is touched by ${wallIdxs.length} wall endpoint(s) ` +
+            `instead of 2 (${wallIdxs.length < 2 ? "gap in the boundary" : "branching walls"})`,
+        );
+      }
+    }
+
+    // All of a room's walls must form a single connected loop, not, e.g.,
+    // two separate closed shapes that individually pass the corner check.
+    if (walls.length >= 3 && touchesByPoint.size > 0) {
+      const visited = new Set<number>();
+      const stack = [0];
+      visited.add(0);
+      while (stack.length > 0) {
+        const wallIdx = stack.pop()!;
+        const wall = walls[wallIdx] as { start?: { x?: unknown; y?: unknown }; end?: { x?: unknown; y?: unknown } };
+        for (const key of [pointKey(wall?.start ?? {}), pointKey(wall?.end ?? {})]) {
+          for (const neighborIdx of touchesByPoint.get(key) ?? []) {
+            if (!visited.has(neighborIdx)) {
+              visited.add(neighborIdx);
+              stack.push(neighborIdx);
+            }
+          }
+        }
+      }
+      if (visited.size !== walls.length) {
+        issues.push(
+          `${roomLabel}: walls do not form a single connected loop ` +
+            `(${walls.length - visited.size} wall(s) disconnected from the rest)`,
+        );
+      }
+    }
+  }
+
+  // v14: buildingEnvelope sanity check (only if provided - null is fine).
+  const envelope = (result as { buildingEnvelope?: { vertices?: unknown } })
+    ?.buildingEnvelope;
+  if (envelope != null) {
+    const vertices = Array.isArray(envelope.vertices) ? envelope.vertices : [];
+    if (vertices.length < 3) {
+      issues.push("buildingEnvelope: fewer than 3 vertices (not a valid polygon)");
+    } else {
+      const invalidVertex = vertices.some((v) => !isValidPoint(v));
+      if (invalidVertex) {
+        issues.push("buildingEnvelope: has missing/non-numeric vertex coordinates");
+      }
+    }
+  }
+
+  // v15: room-coverage-gap check. Session 20's live test on the
+  // professional floor plan found a case where buildingEnvelope correctly
+  // traced a real diagonal corner, but no room's own wall polygon reached
+  // that corner - the envelope "knew" the area belonged to the building,
+  // but it was not mapped to any room. Compares the envelope's own
+  // polygon area against the independent sum of each room's own polygon
+  // area (not against computeAreaSqm's result, which would already
+  // prefer the envelope figure and mask this exact gap). Deliberately
+  // looser than the totalAreaSqm-vs-computed check above (rule 11 allows
+  // a genuinely unassigned sliver, e.g. an undefined hallway, as honest -
+  // this check's own corrective message leaves room for that answer
+  // rather than demanding an invented room).
+  if (envelope != null) {
+    const envelopeVertices2 = Array.isArray(envelope.vertices) ? envelope.vertices : [];
+    const validEnvelopePoints = envelopeVertices2.filter(isValidPoint) as Array<
+      { x: number; y: number }
+    >;
+    if (
+      validEnvelopePoints.length >= 3 &&
+      validEnvelopePoints.length === envelopeVertices2.length
+    ) {
+      const envelopeArea = polygonAreaSqm(validEnvelopePoints);
+      const roomsArea = roomsSumAreaSqm(rooms);
+      if (envelopeArea > 0) {
+        const uncoveredFraction = (envelopeArea - roomsArea) / envelopeArea;
+        if (uncoveredFraction > ROOM_COVERAGE_GAP_RELATIVE_THRESHOLD) {
+          issues.push(
+            `rooms cover only ~${Math.round((roomsArea / envelopeArea) * 100)}% of the building ` +
+              `envelope's area (envelope ${envelopeArea.toFixed(2)} sqm vs. sum of room areas ` +
+              `${roomsArea.toFixed(2)} sqm) - double-check whether a whole enclosed room/area inside ` +
+              `the envelope was missed (rules 5+11); if the remaining area is a genuine unassigned ` +
+              `space (e.g. an undefined hallway/passage between rooms, per rule 11) that is fine, but ` +
+              `verify that is really the case rather than a missed room`,
+          );
+        }
+      }
+    }
+  }
+
+  // v14: model's own totalAreaSqm vs. geometrically computed area. A large
+  // mismatch is exactly the kind of thing session 20 found (58.8 / 81.56 /
+  // 101.32 sqm on identical input) and is worth a targeted corrective
+  // retry, same as a topology issue.
+  const modelReportedArea = typeof r?.totalAreaSqm === "number" ? r.totalAreaSqm : null;
+  if (modelReportedArea !== null && modelReportedArea > 0) {
+    const computedArea = computeAreaSqm(result);
+    if (computedArea > 0) {
+      const relativeDiff = Math.abs(computedArea - modelReportedArea) / computedArea;
+      if (relativeDiff > AREA_MISMATCH_RELATIVE_THRESHOLD) {
+        issues.push(
+          `totalAreaSqm (${modelReportedArea}) differs from the area computed from the ` +
+            `geometry you provided (${computedArea.toFixed(2)}) by more than ` +
+            `${Math.round(AREA_MISMATCH_RELATIVE_THRESHOLD * 100)}% - re-check that ` +
+            `buildingEnvelope/room walls and totalAreaSqm describe the same building`,
+        );
+      }
+    }
+  }
+
+  return issues;
+}
+
+// --- v15: geometry-drift check (Pass 1A vs Pass 1B) ------------------------
+//
+// Both GEOMETRY_SYSTEM_PROMPT and OPENINGS_SYSTEM_PROMPT explicitly tell
+// the model never to change buildingEnvelope/room/wall coordinates once
+// the geometry pass has produced them. This is the check that verifies
+// that actually held after each openings-pass attempt, so a violation
+// becomes a targeted corrective retry (same mechanism as a topology
+// issue) instead of silently shipping drifted geometry to the app.
+
+interface RoomLike {
+  id?: unknown;
+  origin?: { x?: unknown; y?: unknown };
+  widthM?: unknown;
+  lengthM?: unknown;
+  heightM?: unknown;
+  floorMaterial?: unknown;
+  walls?: unknown;
+}
+
+function round2(n: unknown): number | null {
+  return typeof n === "number" && Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+}
+
+// A wall's identity for drift comparison, independent of start/end
+// direction (v13 already established that wall order/direction within a
+// room isn't meaningful - only the set of segments is).
+function wallGeometryKey(wall: unknown): string | null {
+  const w = wall as { start?: unknown; end?: unknown; thicknessM?: unknown; heightM?: unknown };
+  if (!isValidPoint(w?.start) || !isValidPoint(w?.end)) return null;
+  const s = w.start as { x: number; y: number };
+  const e = w.end as { x: number; y: number };
+  const a = `${round2(s.x)},${round2(s.y)}`;
+  const b = `${round2(e.x)},${round2(e.y)}`;
+  const [p, q] = a <= b ? [a, b] : [b, a];
+  return `${p}|${q}|${round2(w.thicknessM)}|${round2(w.heightM)}`;
+}
+
+function envelopeVerticesKey(envelope: unknown): string {
+  const e = envelope as { vertices?: unknown } | null;
+  if (e == null) return "null";
+  const vertices = Array.isArray(e.vertices) ? e.vertices : [];
+  return vertices
+    .map((v) =>
+      isValidPoint(v)
+        ? `${round2((v as { x: number }).x)},${round2((v as { y: number }).y)}`
+        : "?"
+    )
+    .join(";");
+}
+
+function validateGeometryDrift(geometryResult: unknown, openingsResult: unknown): string[] {
+  const issues: string[] = [];
+  const g = geometryResult as { buildingEnvelope?: unknown; rooms?: unknown };
+  const o = openingsResult as { buildingEnvelope?: unknown; rooms?: unknown };
+
+  if (envelopeVerticesKey(g?.buildingEnvelope) !== envelopeVerticesKey(o?.buildingEnvelope)) {
+    issues.push(
+      "buildingEnvelope changed between the geometry pass and the openings pass - " +
+        "it must be returned exactly as given",
+    );
+  }
+
+  const geometryRooms = Array.isArray(g?.rooms) ? (g.rooms as RoomLike[]) : [];
+  const openingsRooms = Array.isArray(o?.rooms) ? (o.rooms as RoomLike[]) : [];
+  const geometryById = new Map(geometryRooms.map((r) => [String(r?.id), r]));
+  const openingsById = new Map(openingsRooms.map((r) => [String(r?.id), r]));
+
+  for (const id of geometryById.keys()) {
+    if (!openingsById.has(id)) {
+      issues.push(`room ${id} was present in the geometry pass but is missing from the openings pass`);
+    }
+  }
+  for (const id of openingsById.keys()) {
+    if (!geometryById.has(id)) {
+      issues.push(`room ${id} was not present in the geometry pass but was invented in the openings pass`);
+    }
+  }
+
+  for (const [id, gRoom] of geometryById) {
+    const oRoom = openingsById.get(id);
+    if (!oRoom) continue;
+
+    const gOrigin = gRoom.origin as { x?: unknown; y?: unknown } | undefined;
+    const oOrigin = oRoom.origin as { x?: unknown; y?: unknown } | undefined;
+    if (
+      round2(gOrigin?.x) !== round2(oOrigin?.x) ||
+      round2(gOrigin?.y) !== round2(oOrigin?.y) ||
+      round2(gRoom.widthM) !== round2(oRoom.widthM) ||
+      round2(gRoom.lengthM) !== round2(oRoom.lengthM) ||
+      round2(gRoom.heightM) !== round2(oRoom.heightM) ||
+      (gRoom.floorMaterial ?? null) !== (oRoom.floorMaterial ?? null)
+    ) {
+      issues.push(
+        `room ${id}: origin/widthM/lengthM/heightM/floorMaterial changed between the geometry ` +
+          `and openings passes`,
+      );
+    }
+
+    const gWalls = Array.isArray(gRoom.walls) ? gRoom.walls : [];
+    const oWalls = Array.isArray(oRoom.walls) ? oRoom.walls : [];
+    const gKeys = gWalls.map(wallGeometryKey).filter((k): k is string => k !== null).sort();
+    const oKeys = oWalls.map(wallGeometryKey).filter((k): k is string => k !== null).sort();
+    if (gKeys.length !== oKeys.length || gKeys.some((k, i) => k !== oKeys[i])) {
+      issues.push(
+        `room ${id}: wall coordinates/thickness/height changed between the geometry and openings passes`,
+      );
+    }
+  }
+
+  return issues;
+}
+
+// --- OpenAI call helpers ---------------------------------------------------
+
+async function callOpenAiJsonSchema(
+  messages: Array<{ role: string; content: unknown }>,
+  schemaName: string,
+  schema: unknown,
+): Promise<{ ok: true; parsed: unknown; usage: Record<string, unknown> } | { ok: false; detail: string }> {
+  let response: Response;
+  try {
+    response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        seed: 20260910,
+        messages,
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: schemaName, strict: true, schema },
+        },
+      }),
+    });
+  } catch (err) {
+    return { ok: false, detail: `connection error calling OpenAI: ${String(err)}` };
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    return { ok: false, detail: `OpenAI API error: ${response.status} ${errorText}` };
+  }
+
+  const openaiJson = await response.json();
+  const rawContent = openaiJson?.choices?.[0]?.message?.content;
+  if (!rawContent) {
+    return { ok: false, detail: "OpenAI response missing content" };
+  }
+
+  try {
+    const parsed = JSON.parse(rawContent);
+    return { ok: true, parsed, usage: openaiJson?.usage ?? {} };
+  } catch (err) {
+    return { ok: false, detail: `failed to parse OpenAI JSON content: ${String(err)}` };
+  }
+}
+
+function describeScopeForPrompt(scope: unknown): string | null {
+  const s = scope as {
+    mainFloorPlanBboxPct?: { xMinPct?: number; yMinPct?: number; xMaxPct?: number; yMaxPct?: number };
+    excludedRegions?: Array<{ bboxPct?: { xMinPct?: number; yMinPct?: number; xMaxPct?: number; yMaxPct?: number }; reason?: string }>;
+  };
+  if (!s?.mainFloorPlanBboxPct) return null;
+
+  const b = s.mainFloorPlanBboxPct;
+  const lines: string[] = [];
+  lines.push(
+    `תוכנית הקומה הראשית זוהתה בשלב מקדים באזור (באחוזים מהתמונה): ` +
+      `x: ${b.xMinPct}-${b.xMaxPct}, y: ${b.yMinPct}-${b.yMaxPct}.`,
+  );
+
+  const excluded = Array.isArray(s.excludedRegions) ? s.excludedRegions : [];
+  if (excluded.length > 0) {
+    lines.push("האזורים הבאים זוהו כפרטים/חתכים נפרדים - התעלם/י מהם לחלוטין:");
+    for (const region of excluded) {
+      const rb = region?.bboxPct;
+      const reason = region?.reason ?? "לא צוינה סיבה";
+      if (rb) {
+        lines.push(
+          `- x: ${rb.xMinPct}-${rb.xMaxPct}, y: ${rb.yMinPct}-${rb.yMaxPct} (${reason})`,
+        );
+      }
+    }
+  } else {
+    lines.push("לא זוהו אזורי פרטים/חתכים נפרדים - כל הדף שייך לתוכנית הקומה.");
+  }
+
+  return lines.join("\n");
 }
 
 Deno.serve(async (req) => {
@@ -529,113 +1023,203 @@ Deno.serve(async (req) => {
 
   const imageUrl = signedUrlData.signedUrl;
 
-  let result: unknown = null;
-  let usage: Record<string, unknown> = {};
-  let validationIssues: string[] = [];
-  let attemptsUsed = 0;
+  // --- Pass 0: scope --------------------------------------------------
+  // Best-effort. A failure here degrades gracefully to "no scope
+  // guidance" rather than failing the whole analysis - Pass 1 still runs
+  // exactly as it would have before v14 in that case.
+  let scopeDescription: string | null = null;
+  let scopeUsage: Record<string, unknown> | null = null;
+  const scopeResult = await callOpenAiJsonSchema(
+    [
+      { role: "system", content: SCOPE_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "זהה/י את אזור תוכנית הקומה הראשית בתמונה המצורפת." },
+          { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
+        ],
+      },
+    ],
+    "drawing_scope",
+    DRAWING_SCOPE_JSON_SCHEMA,
+  );
+
+  if (scopeResult.ok) {
+    scopeDescription = describeScopeForPrompt(scopeResult.parsed);
+    scopeUsage = scopeResult.usage;
+  } else {
+    console.error(`[analyze-sketch] scope pass failed (continuing without it): ${scopeResult.detail}`);
+  }
+  // --- Pass 1A: geometry (buildingEnvelope/rooms/walls only) ------------
+  // openings/stairs/specialElements are required to stay empty here -
+  // see GEOMETRY_SYSTEM_PROMPT. Accumulating corrective-retry loop,
+  // same mechanism v13 introduced, now also covering the v15
+  // room-coverage-gap check (in validateFloorPlanResult).
+  const geometryUserText = scopeDescription
+    ? `נתח/י את מעטפת הבניין וחלוקתו לחדרים (שלב גיאומטריה בלבד) לפי הכללים והסכמה שקיבלת.\n\n${scopeDescription}`
+    : "נתח/י את מעטפת הבניין וחלוקתו לחדרים (שלב גיאומטריה בלבד) לפי הכללים והסכמה שקיבלת.";
+
+  const geometryMessages: Array<{ role: string; content: unknown }> = [
+    { role: "system", content: GEOMETRY_SYSTEM_PROMPT },
+    {
+      role: "user",
+      content: [
+        { type: "text", text: geometryUserText },
+        { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
+      ],
+    },
+  ];
+
+  let geometryResult: unknown = null;
+  let geometryUsage: Record<string, unknown> = {};
+  let geometryValidationIssues: string[] = [];
+  let geometryAttemptsUsed = 0;
   let lastErrorDetail: string | null = null;
 
   for (let attempt = 1; attempt <= MAX_ANALYSIS_ATTEMPTS; attempt++) {
-    attemptsUsed = attempt;
+    geometryAttemptsUsed = attempt;
 
-    let openaiResponse: Response;
-    try {
-      openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: OPENAI_MODEL,
-          seed: 20260910,
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            {
-              role: "user",
-              content: [
-                { type: "text", text: "נתח/י את שרטוט היד המצורף לפי הכללים והסכמה שקיבלת." },
-                { type: "image_url", image_url: { url: imageUrl } },
-              ],
-            },
-          ],
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: "floor_plan_analysis",
-              strict: true,
-              schema: FLOOR_PLAN_JSON_SCHEMA,
-            },
-          },
-        }),
-      });
-    } catch (err) {
-      lastErrorDetail = `connection error calling OpenAI: ${String(err)}`;
-      console.error(`[analyze-sketch] attempt ${attempt}/${MAX_ANALYSIS_ATTEMPTS} failed: ${lastErrorDetail}`);
-      continue;
-    }
+    const attemptResult = await callOpenAiJsonSchema(
+      geometryMessages,
+      "floor_plan_geometry",
+      FLOOR_PLAN_JSON_SCHEMA,
+    );
 
-    if (!openaiResponse.ok) {
-      const errorText = await openaiResponse.text();
-      lastErrorDetail = `OpenAI API error: ${openaiResponse.status} ${errorText}`;
-      console.error(`[analyze-sketch] attempt ${attempt}/${MAX_ANALYSIS_ATTEMPTS} failed: ${lastErrorDetail}`);
-      continue;
-    }
-
-    const openaiJson = await openaiResponse.json();
-    const rawContent = openaiJson?.choices?.[0]?.message?.content;
-
-    if (!rawContent) {
-      lastErrorDetail = "OpenAI response missing content";
-      console.error(`[analyze-sketch] attempt ${attempt}/${MAX_ANALYSIS_ATTEMPTS} failed: ${lastErrorDetail}`);
-      continue;
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(rawContent);
-    } catch (err) {
-      lastErrorDetail = `failed to parse OpenAI JSON content: ${String(err)}`;
-      console.error(`[analyze-sketch] attempt ${attempt}/${MAX_ANALYSIS_ATTEMPTS} failed: ${lastErrorDetail}`);
-      continue;
-    }
-
-    const issues = validateFloorPlanResult(parsed);
-    result = parsed;
-    usage = openaiJson?.usage ?? {};
-    validationIssues = issues;
-    lastErrorDetail = null;
-
-    if (issues.length === 0) {
+    if (!attemptResult.ok) {
+      lastErrorDetail = attemptResult.detail;
+      console.error(
+        `[analyze-sketch] geometry pass attempt ${attempt}/${MAX_ANALYSIS_ATTEMPTS} failed: ${lastErrorDetail}`,
+      );
       break;
     }
 
+    geometryResult = attemptResult.parsed;
+    geometryUsage = attemptResult.usage;
+    geometryValidationIssues = validateFloorPlanResult(geometryResult);
+
+    if (geometryValidationIssues.length === 0) break;
+
     const willRetry = attempt < MAX_ANALYSIS_ATTEMPTS;
-    console.warn(
-      `[analyze-sketch] attempt ${attempt}/${MAX_ANALYSIS_ATTEMPTS} has validation issues ` +
-        `(${willRetry ? "retrying" : "accepting last attempt"}): ${issues.join("; ")}`,
+    console.error(
+      `[analyze-sketch] geometry pass attempt ${attempt}/${MAX_ANALYSIS_ATTEMPTS} validation issues ` +
+        `(${willRetry ? "retrying with feedback" : "giving up, returning best effort"}): ` +
+        JSON.stringify(geometryValidationIssues),
     );
+
+    if (!willRetry) break;
+
+    geometryMessages.push({ role: "assistant", content: JSON.stringify(geometryResult) });
+    geometryMessages.push({
+      role: "user",
+      content:
+        "בתשובה הקודמת נמצאו הבעיות המבניות הבאות, שחייבות תיקון:\n" +
+        geometryValidationIssues.map((issue) => `- ${issue}`).join("\n") +
+        "\n\nהחזר/י תשובה מתוקנת מלאה לפי אותה סכמה בדיוק (openings/stairs/specialElements עדיין " +
+        "ריקים בשלב הזה - הם יתווספו בשלב נפרד). שנה/י רק את מה שנדרש כדי לפתור את הבעיות שצוינו " +
+        "למעלה - אל תשנה/י דברים שכבר היו נכונים בתשובה הקודמת.",
+    });
   }
 
-  if (result === null) {
-    await fail(lastErrorDetail ?? "all analysis attempts failed");
+  if (geometryResult === null) {
+    await fail(lastErrorDetail ?? "unknown error during geometry analysis");
     return jsonResponse(
-      {
-        error: "internal_error",
-        detail: lastErrorDetail ?? "all analysis attempts failed",
-        analysisId,
-      },
+      { error: "openai_error", detail: lastErrorDetail, analysisId },
       502,
     );
   }
+
+  // --- Pass 1B: openings/stairs/specialElements, given fixed geometry ---
+  // The confirmed geometry from Pass 1A is handed back as if it were the
+  // model's own prior answer, under OPENINGS_SYSTEM_PROMPT's explicit
+  // instruction not to touch it. validateGeometryDrift is what actually
+  // verifies that instruction was followed, each attempt.
+  const openingsUserText =
+    "כעת השלם/י פתחים, מדרגות ואלמנטים מיוחדים (שלב שני) על גבי הגיאומטריה שכבר אושרה למעלה, לפי הכללים.";
+
+  const openingsMessages: Array<{ role: string; content: unknown }> = [
+    { role: "system", content: OPENINGS_SYSTEM_PROMPT },
+    geometryMessages[1], // the original user turn (text + image) that produced the confirmed geometry
+    { role: "assistant", content: JSON.stringify(geometryResult) },
+    { role: "user", content: openingsUserText },
+  ];
+
+  let openingsResult: unknown = null;
+  let openingsUsage: Record<string, unknown> = {};
+  let openingsValidationIssues: string[] = [];
+  let openingsAttemptsUsed = 0;
+
+  for (let attempt = 1; attempt <= MAX_ANALYSIS_ATTEMPTS; attempt++) {
+    openingsAttemptsUsed = attempt;
+
+    const attemptResult = await callOpenAiJsonSchema(
+      openingsMessages,
+      "floor_plan_openings",
+      FLOOR_PLAN_JSON_SCHEMA,
+    );
+
+    if (!attemptResult.ok) {
+      lastErrorDetail = attemptResult.detail;
+      console.error(
+        `[analyze-sketch] openings pass attempt ${attempt}/${MAX_ANALYSIS_ATTEMPTS} failed: ${lastErrorDetail}`,
+      );
+      break;
+    }
+
+    openingsResult = attemptResult.parsed;
+    openingsUsage = attemptResult.usage;
+
+    const driftIssues = validateGeometryDrift(geometryResult, openingsResult);
+    const contentIssues = validateFloorPlanResult(openingsResult);
+    openingsValidationIssues = [...driftIssues, ...contentIssues];
+
+    if (openingsValidationIssues.length === 0) break;
+
+    const willRetry = attempt < MAX_ANALYSIS_ATTEMPTS;
+    console.error(
+      `[analyze-sketch] openings pass attempt ${attempt}/${MAX_ANALYSIS_ATTEMPTS} validation issues ` +
+        `(${willRetry ? "retrying with feedback" : "giving up, returning best effort"}): ` +
+        JSON.stringify(openingsValidationIssues),
+    );
+
+    if (!willRetry) break;
+
+    openingsMessages.push({ role: "assistant", content: JSON.stringify(openingsResult) });
+    openingsMessages.push({
+      role: "user",
+      content:
+        "בתשובה הקודמת נמצאו הבעיות הבאות, שחייבות תיקון:\n" +
+        openingsValidationIssues.map((issue) => `- ${issue}`).join("\n") +
+        "\n\nהחזר/י תשובה מתוקנת מלאה לפי אותה סכמה בדיוק. אם צוין ששינית קואורדינטות/מידות " +
+        "שהיו כבר קבועות - החזר/י אותן בדיוק כפי שניתנו לך במקור (בתשובה שלפני-הקודמת), ותקן/י " +
+        "רק את openings/stairs/specialElements. אל תשנה/י דברים שכבר היו נכונים.",
+    });
+  }
+
+  if (openingsResult === null) {
+    await fail(lastErrorDetail ?? "unknown error during openings analysis");
+    return jsonResponse(
+      { error: "openai_error", detail: lastErrorDetail, analysisId },
+      502,
+    );
+  }
+
+  const result = openingsResult;
+  const computedAreaSqm = computeAreaSqm(result);
+
+  const mergedUsage: Record<string, unknown> = {
+    prompt_tokens: (Number(geometryUsage.prompt_tokens) || 0) + (Number(openingsUsage.prompt_tokens) || 0),
+    completion_tokens:
+      (Number(geometryUsage.completion_tokens) || 0) + (Number(openingsUsage.completion_tokens) || 0),
+    total_tokens: (Number(geometryUsage.total_tokens) || 0) + (Number(openingsUsage.total_tokens) || 0),
+  };
 
   const { error: updateError } = await supabase
     .from("sketch_analyses")
     .update({
       status: "completed",
       result_json: result,
-      input_tokens: usage.prompt_tokens ?? null,
-      output_tokens: usage.completion_tokens ?? null,
+      input_tokens: mergedUsage.prompt_tokens ?? null,
+      output_tokens: mergedUsage.completion_tokens ?? null,
     })
     .eq("id", analysisId);
 
@@ -643,11 +1227,19 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "internal_error", detail: "failed to save result", analysisId }, 500);
   }
 
+  const allValidationIssues = [...geometryValidationIssues, ...openingsValidationIssues];
+
   return jsonResponse({
     analysisId,
     result,
-    usage,
-    analysisAttempts: attemptsUsed,
-    validationIssues: validationIssues.length > 0 ? validationIssues : undefined,
+    computedAreaSqm,
+    usage: mergedUsage,
+    geometryUsage,
+    openingsUsage,
+    scopeUsage,
+    analysisAttempts: geometryAttemptsUsed + openingsAttemptsUsed,
+    geometryAttempts: geometryAttemptsUsed,
+    openingsAttempts: openingsAttemptsUsed,
+    ...(allValidationIssues.length > 0 ? { validationIssues: allValidationIssues } : {}),
   });
 });
