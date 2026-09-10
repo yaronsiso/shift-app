@@ -1,6 +1,12 @@
 // supabase/functions/_shared/floor_plan_schema.ts
 //
 // Contract between the sketch-analysis AI step and our future 3D engine.
+// v4 — adds a description to WallOpening.distanceFromStart (and width)
+// reinforcing exhaustive per-wall opening scanning + grid-cell-counted
+// positioning (paired with SYSTEM_PROMPT rules 14-15 in analyze-sketch
+// v7: scan every wall's full length for openings, don't stop after the
+// first one, and count grid cells to each opening's position instead
+// of estimating it).
 // v3 — adds a description to WallOpening.type reinforcing door-vs-window
 // classification guidance (paired with SYSTEM_PROMPT rule 13 in
 // analyze-sketch v6: read explicit text labels first, fall back to
@@ -72,8 +78,16 @@ const OPENING_SCHEMA = {
       description:
         "Prefer an explicit Hebrew text label at/near this opening ('חלון'->window, 'דלת'/'כניסה'->door) when one exists in the sketch - use it for every labeled opening, not just some. When no label exists, infer from: relative width vs. other openings on the same wall (wider ~0.7-1.0m usually door, narrower usually window), sillHeight (0 = starts at floor = usually door, >0 = raised sill = usually window), and whether the wall is interior-between-two-rooms (almost always door) or exterior (could be either).",
     },
-    distanceFromStart: { type: "number" },
-    width: { type: "number" },
+    distanceFromStart: {
+      type: "number",
+      description:
+        "Distance in meters from this wall's `start` point to this opening. Scan the ENTIRE length of every wall for opening markers (a nearby Hebrew label like 'חלון'/'דלת'/'כניסה', or a graphically distinct line style such as dashed/dotted breaking the solid wall line) — do not stop after finding the first one or two on a wall. Once an opening is found, compute this value by counting grid cells from the wall's start to the opening (summing their explicit labeled sizes, same method as the overall wall length) rather than estimating its position visually. Only fall back to visual estimation when no grid is visible for that part of the sketch, and note the reduced confidence.",
+    },
+    width: {
+      type: "number",
+      description:
+        "Opening width in meters. Count grid cells the opening spans (summing their explicit labeled sizes) rather than assuming a 'typical' door/window width.",
+    },
     height: { type: "number" },
     sillHeight: { type: "number" },
   },

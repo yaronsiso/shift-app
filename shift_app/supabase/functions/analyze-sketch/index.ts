@@ -2,6 +2,25 @@
 //
 // Synchronous Edge Function: user's hand-drawn sketch -> OpenAI Vision ->
 // structured architectural JSON (the contract for a future 3D engine).
+// v7 — after v6 fixed wall-position confidence and door/window TYPE
+// classification, a fresh test run on the same grid sketch (v6,
+// analysisId 8ef16e1e) confirmed the wall fix worked, but surfaced a
+// third, distinct failure: opening EXISTENCE and POSITION detection is
+// unreliable — a clearly-labeled room name ("מטבחון") was missed
+// entirely, a wall segment that should have an opening was rendered
+// fully solid, a door was placed at a position with no basis in the
+// drawing, and several labeled windows were never detected at all.
+// Root cause hypothesis (grounded in the existing rules, not guessed):
+// rule 7's grid-cell-counting discipline is applied only to overall
+// wall/room length, and rule 5's exhaustive-scan discipline is applied
+// only to finding internal walls themselves - neither is applied to
+// *openings*, so the model scans each wall for openings inconsistently
+// and estimates each opening's distanceFromStart instead of counting
+// grid cells to it. v7 adds two targeted, general rules (14, 15) that
+// extend those two existing disciplines to opening detection - this is
+// deliberately NOT a fix tied to any specific sketch's coordinates, so
+// it should generalize to new sketches (including the user's next,
+// much larger, multi-room one).
 // v6 — user reviewed a 3D render built from a real v4 analysis of a
 // precise, grid-based (spreadsheet) floor plan and flagged two real
 // problems: (1) the model had hedged on the exact position of an
@@ -177,6 +196,31 @@ const SYSTEM_PROMPT = `
     לפי ההקשר. אם גם אחרי כל זה אין די ביטחון בסיווג - בחר/י את הסוג
     הסביר יותר לפי השילוב של הסימנים לעיל ותציין/י זאת ב-notes, אבל אין
     להשמיט את שדה type ואין להמציא ערך שרירותי בלי שום סימן תומך.
+
+14. סריקה שיטתית לכל אורך כל קיר לאיתור פתחים - לא רק קירות פנימיים
+    (חוק 5), אלא **כל** קיר, כולל קירות חיצוניים: עברו/י על כל האורך של
+    כל קיר בעקביות, מקצה לקצה, וחפש/י שני סוגי סימנים לפתח: (א) תווית
+    טקסט סמוכה לקיר (חלון/דלת/כניסה/פתח), או (ב) סימון גרפי שמפר את
+    רציפות קו הקיר הרגיל (קו מקווקו/מנוקד, תיבה קטנה מצוירת על הקיר,
+    הפסקה בקו הקיר הרציף) - ראו גם חוק 12 לגבי סימונים גרפיים חריגים.
+    אל תעצר/י אחרי שמצאת פתח אחד או שניים על קיר - המשיכ/י לסרוק עד
+    סוף הקיר, בדיוק כמו שחוק 5 דורש למצוא **את כל** הקירות הפנימיים ולא
+    רק את הבולט ביותר. קיר שיש עליו סימן פתח כלשהו (טקסט או גרפי) חייב
+    לקבל רשומת opening תואמת ב-JSON; סגירת הקיר כמלא/רציף למרות סימן
+    כזה היא טעות. קיר בלי אף סימן פתח - openings: [] (מערך ריק), זה
+    תקין ואין להמציא פתח שאין לו שום עדות בשרטוט.
+
+15. מיקום מדויק של פתח על קיר (distanceFromStart): ברגע שזיהית שיש פתח
+    (חוק 14), קבע/י את מיקומו המדויק לאורך הקיר **באותה שיטת ספירת-
+    משבצות-גריד שמתוארת בחוק 7** - כלומר ספרו/י את המשבצות מתחילת הקיר
+    (הנקודה start) עד למיקום הפתח, וסכמו/י את הגדלים המפורשים הכתובים
+    על כל משבצת בדרך (מטר/חצי מטר/25 ס"מ וכו', בדיוק כמו בחישוב אורך
+    קיר כולל) - **אל תעריכ/י מרחק לפי מיקום חזותי משוער על הקיר.** אותו
+    עיקרון חל גם על width של הפתח עצמו - ספרו/י כמה משבצות הפתח תופס
+    ואל תנחשו לפי רוחב "טיפוסי" של דלת/חלון. אם אין גריד גלוי בקטע
+    הרלוונטי של השרטוט (למשל שרטוט-יד חופשי) - רק אז אפשר להעריך לפי
+    מיקום יחסי על הקיר, ויש לציין ב-notes שמדובר בהערכה ולתת
+    roomConfidence מתאים (לא גבוה) לפתח הספציפי הזה.
 
 החזר/י תשובה שעומדת בדיוק בסכמת ה-JSON שניתנה, ללא טקסט נוסף מעבר לה.
 `.trim();
