@@ -2,6 +2,20 @@
 //
 // Synchronous Edge Function: user's hand-drawn sketch -> OpenAI Vision ->
 // structured architectural JSON (the contract for a future 3D engine).
+// v6 — user reviewed a 3D render built from a real v4 analysis of a
+// precise, grid-based (spreadsheet) floor plan and flagged two real
+// problems: (1) the model had hedged on the exact position of an
+// internal wall/boundary even though the source drawing is a precise
+// geometric grid sketch, not loose handwriting — that specific
+// hedging was unwarranted for this input type; (2) the source sketch
+// explicitly labels every opening as a window or a door/entrance
+// (and, where unlabeled, visibly varies opening width), but nothing
+// in the prompt told the model to read/prioritize those labels or to
+// use width/sill-height as a fallback — so door vs. window
+// classification wasn't reliably grounded in the actual drawing. v6
+// adds two targeted rules (12, 13) for exactly these two failure
+// modes. It does not touch anything else, including the intentional
+// unassigned-area honesty from v5/rule 11.
 // v5 — v4 was accepted as functionally correct (room count, labels,
 // grid-dimension reading), but 3 repeated runs on the exact same image
 // surfaced real LLM run-to-run variance: two runs left a small honest
@@ -127,6 +141,42 @@ const SYSTEM_PROMPT = `
     לאף אחד מהם) הוא כנות רצויה ותקינה לפי חוק 10, ואין לנסות "לתקן"
     או לסגור אותו - הכלל הזה עוסק רק במניעת היעדרות מוחלטת של חדר שלם
     מרשימת ה-rooms.
+
+12. דיוק קווי קיר בשרטוטים גיאומטריים/מבוססי-גריד: כשמקור השרטוט הוא
+    ציור גיאומטרי מדויק - קווים ישרים המיושרים לפי קווי גריד, זוויות
+    ישרות מובהקות, לא כתב-יד חופשי מתפתל - יש להתייחס למיקום המדויק של
+    **כל** קו קיר (כולל קירות פנימיים חלקיים, לא רק המעטפת החיצונית)
+    כאמין ומדויק, באותה רמת אמון כמו קריאת משבצות הגריד עצמן (חוק 7).
+    אל תוסיפ/י אי-ודאות מלאכותית (roomConfidence/confidence נמוכים,
+    ניסוח כמו "אי-ודאות במיקום קו החלוקה" ב-notes) לגבי מיקום קיר
+    שמצויר בבירור ובדיוק גיאומטרי, רק בגלל שהחדר שנוצר ממנו יוצא צר או
+    לא-שגרתי בגודלו - חדר צר הוא תוצאה לגיטימית של השרטוט, לא סיבה
+    להטיל ספק במיקומו. אי-ודאות אמיתית (roomConfidence/confidence
+    נמוך) שמורה למקרים שבהם השרטוט עצמו באמת מעורפל (קו לא ברור, זווית
+    צילום בעייתית, כתב יד לא קריא) - לא כברירת מחדל סתמית לכל קיר פנימי.
+    אם יש בשרטוט סימון גרפי שאינו קו-קיר רגיל (למשל קו מקווקו/מנוקד
+    באזור מסוים, בסגנון שונה מקווי הקיר הרציפים והמלאים) - זה כנראה
+    מסמן משהו ספציפי (פתח/כניסה/אזור מיוחד) ולא חוסר-ודאות של השרטוט
+    עצמו - חפש/י תווית טקסט סמוכה שמסבירה את הסימון (למשל "כניסה") ותעד/י
+    אותה בהתאם (כפתח בקיר, עם type מתאים לפי חוק 13), במקום להתעלם ממנה
+    או להשאיר את השטח שם לא-ממופה בלי הסבר.
+
+13. סיווג פתחים (type: "door" מול "window"): קודם כול חפש/י תווית טקסט
+    שכתובה בפועל ליד/על כל פתח בקיר (למשל "חלון", "דלת", "כניסה") - אם
+    יש תווית כזו היא קובעת את ה-type באופן חד-משמעי ("חלון"->"window",
+    "דלת"/"כניסה"->"door"), גם אם הרוחב הפיזי של הפתח לא אופייני לסוג
+    הזה. **אם בשרטוט מסוים יש תווית מפורשת לכל פתח - יש להשתמש בתוויות
+    האלה לכל פתח בלי יוצא מן הכלל, לא רק לחלקם.** כשאין תווית טקסט ליד
+    פתח מסוים, הסק/י לפי סימנים גיאומטריים: (א) השוו/י את רוחב הפתח
+    לפתחים אחרים באותו קיר/חדר - פתח רחב משמעותית (בדרך כלל בסביבות
+    0.7-1.0 מ') הוא לרוב דלת, פתח צר יותר הוא לרוב חלון; (ב) דלת כמעט
+    תמיד מתחילה מגובה הרצפה (sillHeight=0), בעוד שלחלון יש בדרך כלל אדן
+    מוגבה (sillHeight>0) - זהו רמז נוסף, בנפרד מהרוחב; (ג) פתח בקיר
+    פנימי שמפריד בין שני חדרים כמעט תמיד דלת (חלון לא מפריד בין שני
+    חדרים פנימיים), בעוד שפתח בקיר חיצוני יכול להיות חלון או דלת/כניסה
+    לפי ההקשר. אם גם אחרי כל זה אין די ביטחון בסיווג - בחר/י את הסוג
+    הסביר יותר לפי השילוב של הסימנים לעיל ותציין/י זאת ב-notes, אבל אין
+    להשמיט את שדה type ואין להמציא ערך שרירותי בלי שום סימן תומך.
 
 החזר/י תשובה שעומדת בדיוק בסכמת ה-JSON שניתנה, ללא טקסט נוסף מעבר לה.
 `.trim();

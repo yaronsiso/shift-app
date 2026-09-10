@@ -1,6 +1,10 @@
 // supabase/functions/_shared/floor_plan_schema.ts
 //
 // Contract between the sketch-analysis AI step and our future 3D engine.
+// v3 — adds a description to WallOpening.type reinforcing door-vs-window
+// classification guidance (paired with SYSTEM_PROMPT rule 13 in
+// analyze-sketch v6: read explicit text labels first, fall back to
+// width/sill-height/interior-vs-exterior-wall heuristics).
 // v2 — adds per-room confidence and tightens the "don't invent rooms" rule
 // after real-sketch testing (session 17, follow-up).
 
@@ -62,7 +66,12 @@ const OPENING_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
-    type: { type: "string", enum: ["door", "window"] },
+    type: {
+      type: "string",
+      enum: ["door", "window"],
+      description:
+        "Prefer an explicit Hebrew text label at/near this opening ('חלון'->window, 'דלת'/'כניסה'->door) when one exists in the sketch - use it for every labeled opening, not just some. When no label exists, infer from: relative width vs. other openings on the same wall (wider ~0.7-1.0m usually door, narrower usually window), sillHeight (0 = starts at floor = usually door, >0 = raised sill = usually window), and whether the wall is interior-between-two-rooms (almost always door) or exterior (could be either).",
+    },
     distanceFromStart: { type: "number" },
     width: { type: "number" },
     height: { type: "number" },
