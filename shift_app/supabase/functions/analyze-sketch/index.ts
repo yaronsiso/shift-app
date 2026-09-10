@@ -2,6 +2,26 @@
 //
 // Synchronous Edge Function: user's hand-drawn sketch -> OpenAI Vision ->
 // structured architectural JSON (the contract for a future 3D engine).
+// v12 — two fresh v11 test runs (6 calls total, seed set, no temperature)
+// confirmed empirically that `seed` alone does not make this reasoning
+// model reproducible: no two calls agreed, not even same-position calls
+// across the two runs, and 2 of the 6 calls returned the kitchen/
+// kitchenette room as roomType:"unknown" with an empty label - even
+// though the room's own generated `notes` text shows the model DID see
+// the Hebrew label, it just talked itself out of using it. Chasing
+// determinism at the API-parameter level has hit its limit: no
+// temperature/seed combination can guarantee a valid result from a
+// single call to this model. v12 changes strategy from "make one call
+// deterministic" to "validate the call and retry when it's structurally
+// broken" - a general geometry/completeness check (not tied to this
+// sketch's content: zero-height rooms/walls/openings, an "unknown"
+// roomType, duplicate or reversed wall segments, a wall loop that
+// doesn't close) runs after every OpenAI call. A result with issues is
+// retried (up to 3 attempts total) rather than accepted as-is; if every
+// attempt still has issues, the last attempt is returned anyway (a
+// result beats an error) together with the validation issues found, so
+// they're visible in the response and in the function logs instead of
+// silently shipping broken geometry.
 // v11 — v10's `temperature: 0` was rejected outright by the configured
 // model at call time, confirmed by 3 fresh test runs that all failed with
 // the exact same OpenAI error: "Unsupported value: 'temperature' does not
@@ -153,6 +173,89 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") ?? "gpt-5.6-luna";
+
+const MAX_ANALYSIS_ATTEMPTS = 3;
+
+// General structural/geometry validation for a parsed floor-plan result.
+// Deliberately sketch-agnostic - it only checks invariants that must hold
+// for ANY floor plan (no zero heights, no unresolved room type, walls that
+// actually close into a loop, no duplicate/reversed wall segments), never
+// facts about this specific sketch. Returns a list of human-readable issues;
+// an empty list means the result passed.
+function validateFloorPlanResult(result: unknown): string[] {
+  const issues: string[] = [];
+  const rooms = Array.isArray((result as { rooms?: unknown })?.rooms)
+    ? (result as { rooms: unknown[] }).rooms
+    : [];
+
+  if (rooms.length === 0) {
+    issues.push("no rooms in result");
+    return issues;
+  }
+
+  for (const roomRaw of rooms) {
+    const room = roomRaw as {
+      id?: unknown;
+      labelHe?: unknown;
+      roomType?: unknown;
+      heightM?: unknown;
+      walls?: unknown;
+    };
+    const roomLabel = String(room?.id ?? room?.labelHe ?? "room");
+
+    if (room?.roomType === "unknown") {
+      issues.push(`${roomLabel}: roomType is unknown`);
+    }
+    if (room?.heightM === 0) {
+      issues.push(`${roomLabel}: heightM is 0`);
+    }
+
+    const walls = Array.isArray(room?.walls) ? (room.walls as unknown[]) : [];
+    if (walls.length < 3) {
+      issues.push(`${roomLabel}: fewer than 3 walls`);
+      continue;
+    }
+
+    const segmentKeys = new Set<string>();
+    for (let i = 0; i < walls.length; i++) {
+      const wall = walls[i] as {
+        start?: { x?: unknown; y?: unknown };
+        end?: { x?: unknown; y?: unknown };
+        heightM?: unknown;
+        openings?: unknown;
+      };
+
+      if (wall?.heightM === 0) {
+        issues.push(`${roomLabel}: wall ${i} heightM is 0`);
+      }
+
+      const openings = Array.isArray(wall?.openings) ? (wall.openings as unknown[]) : [];
+      for (const openingRaw of openings) {
+        const opening = openingRaw as { height?: unknown; width?: unknown };
+        if (opening?.height === 0 || opening?.width === 0) {
+          issues.push(`${roomLabel}: wall ${i} has a zero-size opening`);
+        }
+      }
+
+      const startKey = `${wall?.start?.x},${wall?.start?.y}`;
+      const endKey = `${wall?.end?.x},${wall?.end?.y}`;
+      const forwardKey = `${startKey}|${endKey}`;
+      const reverseKey = `${endKey}|${startKey}`;
+      if (segmentKeys.has(forwardKey) || segmentKeys.has(reverseKey)) {
+        issues.push(`${roomLabel}: duplicate/reversed wall segment at index ${i}`);
+      }
+      segmentKeys.add(forwardKey);
+
+      const next = walls[(i + 1) % walls.length] as { start?: { x?: unknown; y?: unknown } };
+      const endsMatchNextStart = wall?.end?.x === next?.start?.x && wall?.end?.y === next?.start?.y;
+      if (!endsMatchNextStart) {
+        issues.push(`${roomLabel}: wall ${i} does not connect to the next wall (open loop)`);
+      }
+    }
+  }
+
+  return issues;
+}
 
 const SYSTEM_PROMPT = `
 את/ה אדריכל/ית שקוראת שרטוטי יד ותוכניות דירות/בתים בישראל ומחזירה JSON
@@ -426,74 +529,105 @@ Deno.serve(async (req) => {
 
   const imageUrl = signedUrlData.signedUrl;
 
-  let openaiResponse: Response;
-  try {
-    openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        seed: 20260910,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: "נתח/י את שרטוט היד המצורף לפי הכללים והסכמה שקיבלת." },
-              { type: "image_url", image_url: { url: imageUrl } },
-            ],
-          },
-        ],
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "floor_plan_analysis",
-            strict: true,
-            schema: FLOOR_PLAN_JSON_SCHEMA,
-          },
+  let result: unknown = null;
+  let usage: Record<string, unknown> = {};
+  let validationIssues: string[] = [];
+  let attemptsUsed = 0;
+  let lastErrorDetail: string | null = null;
+
+  for (let attempt = 1; attempt <= MAX_ANALYSIS_ATTEMPTS; attempt++) {
+    attemptsUsed = attempt;
+
+    let openaiResponse: Response;
+    try {
+      openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
         },
-      }),
-    });
-  } catch (err) {
-    await fail(`connection error calling OpenAI: ${String(err)}`);
-    return jsonResponse(
-      { error: "internal_error", detail: `connection error: ${String(err)}`, analysisId },
-      502,
+        body: JSON.stringify({
+          model: OPENAI_MODEL,
+          seed: 20260910,
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            {
+              role: "user",
+              content: [
+                { type: "text", text: "נתח/י את שרטוט היד המצורף לפי הכללים והסכמה שקיבלת." },
+                { type: "image_url", image_url: { url: imageUrl } },
+              ],
+            },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "floor_plan_analysis",
+              strict: true,
+              schema: FLOOR_PLAN_JSON_SCHEMA,
+            },
+          },
+        }),
+      });
+    } catch (err) {
+      lastErrorDetail = `connection error calling OpenAI: ${String(err)}`;
+      console.error(`[analyze-sketch] attempt ${attempt}/${MAX_ANALYSIS_ATTEMPTS} failed: ${lastErrorDetail}`);
+      continue;
+    }
+
+    if (!openaiResponse.ok) {
+      const errorText = await openaiResponse.text();
+      lastErrorDetail = `OpenAI API error: ${openaiResponse.status} ${errorText}`;
+      console.error(`[analyze-sketch] attempt ${attempt}/${MAX_ANALYSIS_ATTEMPTS} failed: ${lastErrorDetail}`);
+      continue;
+    }
+
+    const openaiJson = await openaiResponse.json();
+    const rawContent = openaiJson?.choices?.[0]?.message?.content;
+
+    if (!rawContent) {
+      lastErrorDetail = "OpenAI response missing content";
+      console.error(`[analyze-sketch] attempt ${attempt}/${MAX_ANALYSIS_ATTEMPTS} failed: ${lastErrorDetail}`);
+      continue;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(rawContent);
+    } catch (err) {
+      lastErrorDetail = `failed to parse OpenAI JSON content: ${String(err)}`;
+      console.error(`[analyze-sketch] attempt ${attempt}/${MAX_ANALYSIS_ATTEMPTS} failed: ${lastErrorDetail}`);
+      continue;
+    }
+
+    const issues = validateFloorPlanResult(parsed);
+    result = parsed;
+    usage = openaiJson?.usage ?? {};
+    validationIssues = issues;
+    lastErrorDetail = null;
+
+    if (issues.length === 0) {
+      break;
+    }
+
+    const willRetry = attempt < MAX_ANALYSIS_ATTEMPTS;
+    console.warn(
+      `[analyze-sketch] attempt ${attempt}/${MAX_ANALYSIS_ATTEMPTS} has validation issues ` +
+        `(${willRetry ? "retrying" : "accepting last attempt"}): ${issues.join("; ")}`,
     );
   }
 
-  if (!openaiResponse.ok) {
-    const errorText = await openaiResponse.text();
-    await fail(`OpenAI API error: ${openaiResponse.status} ${errorText}`);
-    return jsonResponse({ error: "openai_error", detail: errorText, analysisId }, 502);
-  }
-
-  const openaiJson = await openaiResponse.json();
-  const rawContent = openaiJson?.choices?.[0]?.message?.content;
-
-  if (!rawContent) {
-    await fail("OpenAI response missing content");
+  if (result === null) {
+    await fail(lastErrorDetail ?? "all analysis attempts failed");
     return jsonResponse(
-      { error: "internal_error", detail: "OpenAI response missing content", analysisId },
+      {
+        error: "internal_error",
+        detail: lastErrorDetail ?? "all analysis attempts failed",
+        analysisId,
+      },
       502,
     );
   }
-
-  let result: unknown;
-  try {
-    result = JSON.parse(rawContent);
-  } catch (err) {
-    await fail(`failed to parse OpenAI JSON content: ${String(err)}`);
-    return jsonResponse(
-      { error: "internal_error", detail: "failed to parse model output", analysisId },
-      502,
-    );
-  }
-
-  const usage = openaiJson?.usage ?? {};
 
   const { error: updateError } = await supabase
     .from("sketch_analyses")
@@ -509,5 +643,11 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "internal_error", detail: "failed to save result", analysisId }, 500);
   }
 
-  return jsonResponse({ analysisId, result, usage });
+  return jsonResponse({
+    analysisId,
+    result,
+    usage,
+    analysisAttempts: attemptsUsed,
+    validationIssues: validationIssues.length > 0 ? validationIssues : undefined,
+  });
 });
