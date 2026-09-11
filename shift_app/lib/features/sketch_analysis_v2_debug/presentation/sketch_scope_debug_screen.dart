@@ -1,30 +1,21 @@
 // lib/features/sketch_analysis_v2_debug/presentation/sketch_scope_debug_screen.dart
 //
-// Debug-only screen for Stage 0 ("scope") of the new staged sketch-
-// analysis pipeline (session 20). NOT linked from app_router.dart or any
-// real user-facing navigation, and not exported/used by any existing
-// screen — reach it only by temporarily wiring a route to it yourself
-// while testing (e.g. a throwaway GoRoute, or pushing it directly with
-// Navigator from a debug button), then remove that link when done. Purpose
-// is exactly what Yaron asked for: pick a real floor-plan photo, run
-// Stage 0, and see everything needed to judge the result — original
-// image, the bbox drawn as numbers, excluded regions, the actual crop,
-// confidence, run duration, and attempt count — before any later stage
-// (envelope/rooms/etc.) gets built.
+// Debug-only screen for the new staged sketch-analysis pipeline (session
+// 20-21). NOT linked from app_router.dart or any real user-facing
+// navigation, and not exported/used by any existing screen — reach it
+// only by temporarily wiring a route to it yourself while testing (e.g. a
+// throwaway GoRoute, or pushing it directly with Navigator from a debug
+// button), then remove that link when done.
 //
-// Session 20 (continued, round 3 of the "Original image" display bug):
-// two earlier fix attempts (Image.memory + errorBuilder; then re-encoding
-// the bytes for display with the `image` package) both reportedly showed
-// "the exact same thing" — but neither attempt's code ever made it into
-// git, so we cannot know for certain what was actually running on the
-// device at the time. This version is a fresh, from-scratch rewrite of
-// the original-image preview, built to be maximally diagnostic rather
-// than just "try a different approach again": it separates the three
-// places this could actually be failing (our own decode of the raw
-// bytes; our own re-encode; Flutter's Image.memory actually rendering
-// clean re-encoded bytes) and prints details of each to the debug
-// console via debugPrint, so whichever one fails, the log makes it
-// obvious which.
+// Now covers two stages of the pipeline:
+//   Stage 0 ("scope + crop"): pick a real floor-plan photo, find where the
+//   main floor plan is on the page (bbox + excluded regions), crop to it
+//   client-side. Session 20/21 — see claude/51/52.
+//   Stage 1 ("envelope"): given Stage 0's crop, identify only the
+//   building's outer envelope polygon. Session 21 — see claude/52. Every
+//   later stage (rooms/walls/openings/stairs) is still unbuilt by design —
+//   Yaron's explicit "one small step at a time, verify before continuing"
+//   requirement (see claude/00_HANDOFF "מי אני ומה התפקיד שלי כאן").
 
 import 'dart:async';
 import 'dart:io';
@@ -37,7 +28,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/client_side_crop.dart';
+import '../data/sketch_envelope_service.dart';
 import '../data/sketch_scope_service.dart';
+import 'envelope_overlay_painter.dart';
 
 class SketchScopeDebugScreen extends StatefulWidget {
   const SketchScopeDebugScreen({super.key});
@@ -50,6 +43,8 @@ class SketchScopeDebugScreen extends StatefulWidget {
 class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
   late final SketchScopeService _service =
       SketchScopeService(Supabase.instance.client);
+  late final SketchEnvelopeService _envelopeService =
+      SketchEnvelopeService(Supabase.instance.client);
 
   File? _originalFile;
   File? _croppedFile;
@@ -63,6 +58,16 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
   Uint8List? _originalDisplayBytes;
   String? _originalDisplayError;
 
+  // Stage 1 (envelope) state — independent of Stage 0's _busy/_error so a
+  // Stage 1 run never disables the Stage 0 controls.
+  EnvelopeResult? _envelopeResult;
+  String? _envelopeError;
+  bool _envelopeBusy = false;
+  // Decoded once per envelope run (not in build()/FutureBuilder) so the
+  // overlay doesn't re-decode the same cropped file on every unrelated
+  // rebuild of this screen.
+  Size? _croppedImageSize;
+
   Future<void> _pickAndRun() async {
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (picked == null) return;
@@ -75,6 +80,8 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
       _originalFile = File(picked.path);
       _originalDisplayBytes = null;
       _originalDisplayError = null;
+      _envelopeResult = null;
+      _envelopeError = null;
     });
 
     // Fire-and-forget: the display preview must never block or fail the
@@ -90,6 +97,8 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
     setState(() {
       _busy = true;
       _error = null;
+      _envelopeResult = null;
+      _envelopeError = null;
     });
     await _runAndCrop(() => _service.retryScope(jobId));
   }
@@ -115,19 +124,42 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
     }
   }
 
+  Future<void> _runEnvelope() async {
+    final jobId = _result?.jobId;
+    if (jobId == null) return;
+    setState(() {
+      _envelopeBusy = true;
+      _envelopeError = null;
+      _croppedImageSize = null;
+    });
+    try {
+      final result = await _envelopeService.runEnvelope(jobId);
+      Size? croppedSize;
+      if (result.buildingEnvelope != null) {
+        croppedSize = await _decodeCroppedImageSize();
+      }
+      if (!mounted) return;
+      setState(() {
+        _envelopeResult = result;
+        _croppedImageSize = croppedSize;
+        _envelopeBusy = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _envelopeError = e.toString();
+        _envelopeBusy = false;
+      });
+    }
+  }
+
   // Re-decodes and re-encodes the picked file's bytes purely for on-screen
   // display, using the exact same pure-Dart `image` package pipeline that
   // client_side_crop.dart already uses successfully for the crop (proven
-  // working on-device, twice, on two different source files). The file
+  // working on-device — session 21 confirmed this fixed the earlier
+  // "Could not decompress image" display bug, see claude/52). The file
   // sent to Stage 0 (_originalFile) is never touched by this — only what
   // gets shown in the "Original image" preview below.
-  //
-  // Split into three separately-logged steps on purpose, so whichever one
-  // is the real culprit is unambiguous in `flutter run`'s console output:
-  //   1) img.decodeImage on the raw bytes exactly as picked
-  //   2) img.encodeJpg to produce a clean, standard JPEG
-  //   3) Image.memory actually rendering those clean bytes (its own
-  //      errorBuilder below covers this one)
   Future<void> _prepareOriginalDisplayBytes() async {
     try {
       final raw = await _originalFile!.readAsBytes();
@@ -144,8 +176,7 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
       if (decoded == null) {
         debugPrint(
           '[sketch-debug] img.decodeImage returned null — the `image` '
-          'package could not decode this file either. This is not a '
-          'display-only bug, the file itself is not a format it recognizes.',
+          'package could not decode this file either.',
         );
         if (!mounted) return;
         setState(() {
@@ -155,18 +186,9 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
         });
         return;
       }
-      debugPrint(
-        '[sketch-debug] img.decodeImage OK: ${decoded.width}x'
-        '${decoded.height}, hasAlpha=${decoded.hasAlpha}',
-      );
 
       final reencoded =
           Uint8List.fromList(img.encodeJpg(decoded, quality: 92));
-      debugPrint(
-        '[sketch-debug] img.encodeJpg OK: ${reencoded.length} bytes, '
-        'handing to Image.memory now',
-      );
-
       if (!mounted) return;
       setState(() {
         _originalDisplayBytes = reencoded;
@@ -180,11 +202,24 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
     }
   }
 
+  // Decodes the cropped file's pixel dimensions, purely so the envelope
+  // overlay (below) can be sized in an AspectRatio box that exactly
+  // matches the cropped image's own proportions.
+  Future<Size?> _decodeCroppedImageSize() async {
+    final file = _croppedFile;
+    if (file == null) return null;
+    final bytes = await file.readAsBytes();
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return null;
+    return Size(decoded.width.toDouble(), decoded.height.toDouble());
+  }
+
   @override
   Widget build(BuildContext context) {
     final result = _result;
+    final envelopeResult = _envelopeResult;
     return Scaffold(
-      appBar: AppBar(title: const Text('Stage 0 debug — Scope + Crop')),
+      appBar: AppBar(title: const Text('Stage 0/1 debug — Scope+Crop / Envelope')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -259,6 +294,77 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
               const SizedBox(height: 16),
               const Text('Cropped result (client-side crop from the bbox above):'),
               Image.file(_croppedFile!),
+            ],
+
+            // --- Stage 1 (envelope) -------------------------------------
+            if (_croppedFile != null) ...[
+              const Divider(height: 32),
+              const Text(
+                'Stage 1 — Envelope',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: _envelopeBusy ? null : _runEnvelope,
+                child: Text(
+                  _envelopeBusy ? 'Running...' : 'Run Stage 1 (Envelope)',
+                ),
+              ),
+              if (_envelopeError != null) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'Error: $_envelopeError',
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ],
+              if (envelopeResult != null) ...[
+                const SizedBox(height: 16),
+                Text('envelope attempt: ${envelopeResult.attempt}'),
+                Text('envelope durationMs: ${envelopeResult.durationMs}'),
+                Text('envelope confidence: ${envelopeResult.confidence}'),
+                if (envelopeResult.notes.isNotEmpty)
+                  Text('notes: ${envelopeResult.notes}'),
+                const SizedBox(height: 12),
+                if (envelopeResult.buildingEnvelope == null)
+                  const Text(
+                    'buildingEnvelope: null — המודל דיווח שלא הצליח לעקוב '
+                    'אחרי מעטפת רציפה שלמה בתמונה הזו (תשובה כנה, לא שגיאה).',
+                    style: TextStyle(color: Colors.orange),
+                  )
+                else ...[
+                  const Text(
+                    'הקו האדום המקווקו הוא התאמת-פרופורציות בלבד: המודל '
+                    'מחזיר קואורדינטות אדריכליות (מטרים), לא פיקסלים '
+                    'בתמונה, אז הקו נמתח כדי להתאים לגבולות התמונה תוך '
+                    'שמירה על הצורה/היחסים בין הקודקודים — זה בודק אם '
+                    'הצורה הכללית נכונה, לא מיקום מדויק פיקסל-לפיקסל. גם '
+                    'הכיוון/הסיבוב לא מובטחים להתאים לתמונה.',
+                    style: TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                  const SizedBox(height: 8),
+                  if (_croppedImageSize == null)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else
+                    AspectRatio(
+                      aspectRatio:
+                          _croppedImageSize!.width / _croppedImageSize!.height,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.file(_croppedFile!, fit: BoxFit.fill),
+                          CustomPaint(
+                            painter: EnvelopeOverlayPainter(
+                              envelopeResult.buildingEnvelope!,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ],
             ],
           ],
         ),
