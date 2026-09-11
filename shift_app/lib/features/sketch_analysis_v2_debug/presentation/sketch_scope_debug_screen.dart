@@ -342,6 +342,25 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
                     style: TextStyle(fontSize: 12, color: Colors.black54),
                   ),
                   const SizedBox(height: 8),
+                  const Text(
+                    'vertices (raw, meters, as returned by the model — this '
+                    'is the number list, not the drawing above):',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    envelopeResult.buildingEnvelope!
+                        .asMap()
+                        .entries
+                        .map((e) =>
+                            '#${e.key}: (${e.value.x.toStringAsFixed(2)}, '
+                            '${e.value.y.toStringAsFixed(2)})')
+                        .join('\n'),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   if (_croppedImageSize == null)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 24),
