@@ -51,7 +51,15 @@ import type { DimensionEvidence } from "./dimension_evidence_schema_v3.ts";
 
 export const STRIP_TOLERANCE_PCT = 4;
 export const OVERALL_COVERAGE_THRESHOLD_PCT = 80;
-export const EDGE_TOLERANCE_PCT = 12;
+// session 23 real-drawing test (Yaron's actual complex plan): the true
+// overall horizontal chain (1669) reached 84% coverage but its span
+// started at 14.0% — 2 points past the original EDGE_TOLERANCE_PCT of 12,
+// because real crops carry a small margin/legend strip, not a perfectly
+// tight bounding box around the building. Widened to 16 (with margin
+// above the observed 14.0) rather than the bare minimum, so a few points
+// of run-to-run jitter in the model's own line-endpoint reading doesn't
+// re-break this on the next run.
+export const EDGE_TOLERANCE_PCT = 16;
 
 export type ChainAxis = "horizontal" | "vertical";
 

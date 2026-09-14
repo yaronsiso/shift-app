@@ -223,5 +223,65 @@ const realDrawingFixture = [
   assertClose(vRes.valueM, 10.99, "cross-axis isolation: vertical unaffected by horizontal measurement");
 }
 
+// 9. THE EXACT REAL-DRAWING NEAR-MISS (session 23, first real device test):
+// the actual "1669" chain had span [14.0, 98.0] — 84% coverage, but its
+// start (14.0) sat just past the original EDGE_TOLERANCE_PCT of 12, so it
+// was wrongly rejected as an overall candidate. Confirms the widened
+// tolerance (16) now accepts it.
+{
+  const nearMissOnly = [
+    m("m56", 1669, {
+      axis: "horizontal", unit: "cm", referenceTypeHint: "building",
+      lineStartPct: point(98, 95), lineEndPct: point(14, 95),
+    }),
+  ];
+  const res = resolveAuthoritativeExtentV3(nearMissOnly, CONVENTION_UNKNOWN, "horizontal");
+  assertEqual(res.status, "resolved", "real near-miss: span [14,98] now resolves with the widened edge tolerance");
+  assertClose(res.valueM, 16.69, "real near-miss: resolves to 16.69m");
+}
+
+// 10. Same real drawing, but WITH the competing 13-segment wall chain also
+// present (span [15,97], summing to 16.215m — a real ~2.85% disagreement
+// with 1669). Documents the actual, intentional side effect of widening
+// the tolerance: the resolver now also considers this second chain and
+// correctly reports a conflict rather than picking one silently. This is
+// NOT a bug — it is the same never-average principle surfacing a real
+// discrepancy between an explicit total and a segment breakdown, exactly
+// as it should. Whether 16.69 or 16.215 is the "true" number is something
+// Yaron checks against the real drawing, not something the code guesses.
+{
+  const explicitTotal = m("m56", 1669, {
+    axis: "horizontal", unit: "cm", referenceTypeHint: "building",
+    lineStartPct: point(98, 95), lineEndPct: point(14, 95),
+  });
+  const segmentValuesCm = [147, 120.5, 170.5, 60, 159.5, 115, 132, 50, 75, 110, 43, 107, 170, 162];
+  // Evenly spaced, contiguous, spanning exactly [15,97] (the real chain's
+  // observed span) — segment WIDTH on the page doesn't need to be
+  // proportional to its cm value for this test; only the chain's overall
+  // span (min start to max end) matters for coverage/candidacy.
+  const stepPct = (97 - 15) / segmentValuesCm.length;
+  const segments = segmentValuesCm.map((v, i) => m(`seg${i}`, v, {
+    axis: "horizontal", unit: "cm", referenceTypeHint: "wall",
+    lineStartPct: point(15 + i * stepPct, 85), lineEndPct: point(15 + (i + 1) * stepPct, 85),
+  }));
+  const res = resolveAuthoritativeExtentV3([explicitTotal, ...segments], CONVENTION_UNKNOWN, "horizontal");
+  assertEqual(res.status, "conflict", "real near-miss + competing segment chain: correctly reports conflict, does not silently pick 1669");
+  assertEqual(res.valueM, null, "real near-miss + competing segment chain: valueM null on conflict, never averaged/guessed");
+}
+
+// 11. 274 must never be picked as overall on either axis, even with the
+// widened tolerance — its own coverage (~15% in the real data) is nowhere
+// close to the threshold regardless of the edge-tolerance value.
+{
+  const withLocalSegment274 = [
+    m("m14", 274, {
+      axis: "horizontal", unit: "cm", referenceTypeHint: "opening",
+      lineStartPct: point(35, 2), lineEndPct: point(24, 2),
+    }),
+  ];
+  const res = resolveAuthoritativeExtentV3(withLocalSegment274, CONVENTION_UNKNOWN, "horizontal");
+  assertEqual(res.status, "missing", "274 alone: coverage far too low to ever qualify as overall, tolerance notwithstanding");
+}
+
 console.log(failures === 0 ? "\nALL TESTS PASSED" : `\n${failures} TEST(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);
