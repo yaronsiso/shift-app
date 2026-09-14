@@ -1,154 +1,61 @@
 // supabase/functions/_shared/dimension_chain_builder_v3.ts
 //
-// Session 23. Pure, deterministic, code-side replacement for what the
-// model used to do (badly — 44 measurements but only 2 chains on the real
-// test drawing in session 22): grouping individual DimensionEvidence
-// records into dimension chains, and deciding which chain is a candidate
-// for "the building's overall extent" on its axis.
+// [Sessions 23 follow-ups #1-#4 header comments unchanged -- carried in
+// full in the real delivered file. Summary: geometry (never the model)
+// decides chain grouping and overall-candidate status; measurements with
+// no drawn line geometry never join an additive chain and are evaluated
+// standalone instead.]
 //
-// The core idea, straight from Yaron's instruction: the AI never decides
-// "this is the overall measurement". Geometry decides.
+// SESSION 23 FOLLOW-UP #5: same baseline is not sufficient to sum two
+// measurements. A measurement whose own span already envelops >= 2 other
+// measurements on the same baseline is pulled out as its own
+// "single_overall" candidate (CONTAINMENT). What's left is only grouped
+// into one additive chain if it forms a genuine end-to-end partition, no
+// large gaps (CONTIGUITY, via ADJACENCY_GAP_TOLERANCE_PCT /
+// ADJACENCY_OVERLAP_TOLERANCE_PCT).
 //
-// SESSION 23 FOLLOW-UP #2 (Yaron's second real-drawing test): the first
-// version of this file decided "overall candidate" by checking whether a
-// chain's span reached close to the literal 0/100 edges of the cropped
-// PAGE — reasoning that Stage 0 already cropped the image down to just the
-// main floor plan, so the crop's own 0-100 extent "is" the building's bbox.
-// That assumption turned out to be too tight in practice: a real crop can
-// carry a margin, a legend strip, or unrelated site-plan annotations (e.g.
-// a "קו בניין"/setback line) that sit inside the crop but outside the
-// actual dimensioned building, so the true overall dimension line does not
-// reach all the way to the crop's own edges. Widening the page-edge
-// tolerance (12->16) only patched the specific case observed once; it does
-// not generalize to a drawing with a different margin.
+// SESSION 23 FOLLOW-UP #7 (Yaron's follow-up to the extent-equivalence
+// grouping in dimension_chain_resolver_v3.ts / dimension_extent_grouping_v3.ts):
+// passing the per-pair adjacency check in rule 2 above is NOT the same as
+// being a genuinely complete reading of the physical extent it claims to
+// span. ADJACENCY_GAP_TOLERANCE_PCT (3) is deliberately lenient per PAIR
+// (to tolerate a wall-thickness tick or a slightly-imprecise endpoint
+// reading) -- but a chain with many members can accumulate several such
+// "just barely OK" gaps in a row, each individually small enough to pass,
+// while the TOTAL unaccounted space adds up to a real, meaningful
+// shortfall. Yaron's real-drawing example: an explicit "1669" overall
+// dimension line was independently corroborated by a *different*,
+// completely gapless 15-segment chain that sums to exactly 1669 -- while a
+// *separate* 13-segment chain on another baseline, which LOOKS full-span
+// (same projected [start,end] as the 1669 readings), only sums to 1476.5.
+// Both chains passed the old per-pair adjacency check; only one of them
+// is actually a complete, trustworthy reading of the full extent it
+// claims to cover.
 //
-// THE FIX: instead of comparing a chain's span to the fixed page extent
-// [0,100], compare it to the SPAN OF ALL DIMENSION EVIDENCE COMBINED on
-// that axis — i.e. the union of every chain's own span. This is "how far
-// out does ANY measurement on this axis reach, in total" — a much better
-// proxy for "the building's actual dimensioned extent" than the raw page
-// boundary, because it adapts to whatever margin a given drawing/crop
-// happens to have. A chain still needs BOTH:
-//   1. absolute coverage >= OVERALL_COVERAGE_THRESHOLD_PCT of the full page
-//      (unchanged, still checked against the literal 100-point page width/
-//      height) — this is what stops the fix from being circular: a single
-//      isolated local segment (e.g. "274") is, by definition, the only
-//      chain on its axis in a case with no other evidence, so the
-//      union-of-all-chains span trivially equals its own span — but its
-//      absolute page coverage is tiny, so it still correctly fails here.
-//   2. both of its own edges within EDGE_TOLERANCE_PCT of the union span's
-//      edges (replaces the old "within EDGE_TOLERANCE_PCT of the literal
-//      page 0/100" check).
+// THE FIX: every chain now reports:
+//   - geometricFillRatio: what fraction of its own raw span is actually
+//     covered by its members' own drawn widths (sum of each member's own
+//     |end-start|, divided by the chain's raw span width) -- 100% for a
+//     single-member chain (nothing else to account for); less than 100%
+//     when the members' own segments don't add up to fully cover the
+//     space between the chain's first start and last end.
+//   - gapCount: how many of the (already adjacency-tolerant) consecutive
+//     member pairs have ANY positive gap above a small rounding epsilon
+//     (COMPLETENESS_GAP_EPSILON_PCT) -- so even gaps that were small
+//     enough to pass the per-pair contiguity check in rule 2 still get
+//     counted and reported here.
+//   - totalGapPct: the sum of all those gaps.
+//   - isCompletePartition: true only when gapCount === 0 AND
+//     geometricFillRatio >= COMPLETENESS_FILL_THRESHOLD_PCT (97). Always
+//     true for a single-member chain (single_overall or local_dimension)
+//     -- there's no internal partition to be incomplete about.
 //
-// Known, documented limitation (unchanged in spirit from before): this
-// still does not distinguish "real building dimension evidence" from
-// unrelated annotations that happen to carry a referenceTypeHint the model
-// got wrong (e.g. a site-plan "קו בניין" setback line mis-tagged as
-// "building") — such a stray measurement would still enter the
-// union-of-all-chains span and could skew it. Not solved here; would need
-// actual room/wall geometry reconstruction (explicitly out of scope, see
-// Yaron's "אל תבנה Rooms" instruction) to fix properly.
-//
-// SESSION 23 FOLLOW-UP #3 (real-drawing regression with dimension strips
-// live): once strip-sourced measurements started flowing in (see
-// dimension_measurement_merge_v3.ts), Yaron's actual test run showed chains
-// with coveragePct of 111%, 120%, even 124% — nonsensical for a percentage.
-// Root cause: a strip's remapped lineStartPct/lineEndPct is INTENTIONALLY
-// allowed to fall outside [0,100] (that's the whole point of a strip's
-// padding — it can see a bit past the main crop's own edge), and this
-// file's span/coverage math used those raw along-axis positions directly.
-// A chain built mostly from strip evidence could therefore have a raw span
-// like [-12.7, 98.0] — width 110.7, "coverage" 111%.
-//
-// THE FIX: spanStartPct/spanEndPct/coveragePct below are now the
-// INTERSECTION of the chain's raw span with the canonical main-crop
-// coordinate space [0,100] — i.e. clamped independently at each end, so
-// coveragePct can never exceed 100 and is 0 for a chain whose raw span
-// doesn't overlap [0,100] at all. The raw (unclamped, possibly negative or
-// >100) span is preserved separately as rawSpanStartPct/rawSpanEndPct for
-// diagnostics — per Yaron's explicit instruction, an out-of-bounds mapped
-// coordinate may be kept for visibility but must never inflate an
-// overall-envelope candidacy decision. The union-of-all-chains reference
-// span (used by the edge-tolerance check above) is likewise computed from
-// the CLAMPED per-chain spans, so one wild raw coordinate can no longer
-// drag the whole reference span outward either.
-//
-// SESSION 23 FOLLOW-UP #4 (Yaron's real-drawing review of the follow-up #3
-// run): a measurement with no lineStartPct/lineEndPct (the model could not
-// locate its drawn dimension line) is no longer eligible to join ANY
-// additive chain, ever -- not even via a bbox-position proximity fallback.
-// Reasoning: bboxPct locates the printed TEXT, not the drawn dimension
-// line; two numbers can print close together on the page while belonging
-// to two unrelated, non-adjacent dimension lines. Such a measurement is
-// pulled into its own single-member STANDALONE chain instead -- never
-// merged with anything else -- and still evaluated as a possible overall
-// candidate on its own (using its bboxPct-derived span), but against a
-// reference span computed ONLY from geometry-known (additive) chains, so
-// an unreliable bbox-derived span can never seed or distort the yardstick.
-// If an axis has zero geometry-known chains at all, the reference span
-// collapses to [0,0] and no standalone candidate can qualify either --
-// a deliberately conservative dead end (lose the chain, never guess).
-//
-// SESSION 23 FOLLOW-UP #5 (Yaron's review of the follow-up #4 run): same
-// baseline/lane is necessary but NOT sufficient for two measurements to be
-// additively summed. The real-drawing run showed a chain wrongly summing
-// 96.5+254+920+62+495+1669 = 34.965m -- but 1669 is ITSELF the building's
-// overall horizontal dimension line (also correctly detected, completely
-// independently, as its own single-member chain = 16.69m). The other five
-// numbers are shorter measurements that sit *inside* the span 1669 already
-// covers -- they are not "the next segment after 1669", they're a
-// different, more granular reading of (part of) the same physical
-// distance. Summing them together double-counts that distance.
-//
-// THE FIX (Yaron's explicit instruction, still purely geometric, no
-// heuristic "pick the more plausible number"): being on the same baseline
-// is only the first filter. Two more conditions must hold before members
-// are allowed to sum together into one additive chain:
-//
-//   1. CONTAINMENT: if one measurement's own span already covers (within
-//      CONTAINMENT_TOLERANCE_PCT) the combined extent of at least
-//      MIN_CONTAINED_SIBLINGS other measurements on the same baseline, it
-//      is pulled OUT of that baseline's pool entirely and evaluated as its
-//      own single-member "single_overall" candidate -- never summed with
-//      the measurements nested inside it. This is exactly the 1669 case.
-//
-//   2. CONTIGUITY (partition, not overlap): among what's left after
-//      containment extraction, only measurements that form a genuine
-//      end-to-end partition -- each one's end sits within
-//      ADJACENCY_GAP_TOLERANCE_PCT / ADJACENCY_OVERLAP_TOLERANCE_PCT of
-//      the next one's start -- are grouped into one additive chain. A
-//      baseline that turns out to hold two unrelated clusters of numbers
-//      (a gap too large to be "the next segment") is split into separate
-//      chains rather than silently spanned/summed across the gap.
-//
-// Every resulting chain (whether built this way or a standalone
-// missing-geometry one from follow-up #4) now carries:
-//   - candidateType: "single_overall" | "segmented_chain" | "local_dimension"
-//     ("single_overall" = a container extracted by rule 1, or a
-//     missing-geometry standalone that qualifies on its own;
-//     "segmented_chain" = >=2 members that passed the contiguity check;
-//     "local_dimension" = a single measurement that is neither a
-//     container nor part of a valid partition -- e.g. a room/wall/opening
-//     reading with no siblings on its baseline.)
-//   - continuity: "contiguous" for segmented_chain, "n/a" otherwise.
-//   - excludedContainerIds: ids of sibling measurements on the SAME
-//     baseline that were pulled out as containers (rule 1) before this
-//     chain was built -- so the debug screen can show, right next to
-//     "96.5+254+920+62+495", exactly which measurement (1669) was excluded
-//     from that sum and why.
-//   - chainNotes: human-readable diagnostics, populated only for
-//     single_overall chains produced by containment extraction (explains
-//     what it was found to contain).
-//
-// Every chain (additive or standalone) also still carries, from follow-up
-// #4:
-//   - chainMembership: "additive" | "standalone"
-//   - excludedFromAdditiveChain: "missing_line_geometry" | null
-//
-// No proximity-based fallback clustering exists for the geometry-missing
-// population (Yaron: explicitly rejected in follow-up #4 -- would
-// reintroduce the same failure mode). Still never averages, still never
-// guesses a unit, still never lets the model decide any of this.
+// This file only COMPUTES and reports these fields. Whether an incomplete
+// segmented_chain is allowed to compete against (create a conflict with)
+// an explicit overall reading is decided in dimension_chain_resolver_v3.ts
+// / dimension_extent_grouping_v3.ts, not here -- this file stays a pure,
+// geometry-only measurement of completeness, same discipline as every
+// other field here (candidateType, coveragePct, etc.).
 
 import type { DimensionEvidence } from "./dimension_evidence_schema_v3.ts";
 
@@ -156,11 +63,14 @@ export const STRIP_TOLERANCE_PCT = 4;
 export const OVERALL_COVERAGE_THRESHOLD_PCT = 80;
 export const EDGE_TOLERANCE_PCT = 16;
 
-// Session 23 follow-up #5:
 export const CONTAINMENT_TOLERANCE_PCT = 3;
 export const MIN_CONTAINED_SIBLINGS = 2;
 export const ADJACENCY_GAP_TOLERANCE_PCT = 3;
 export const ADJACENCY_OVERLAP_TOLERANCE_PCT = 2;
+
+// Session 23 follow-up #7:
+export const COMPLETENESS_GAP_EPSILON_PCT = 0.5;
+export const COMPLETENESS_FILL_THRESHOLD_PCT = 97;
 
 export type ChainAxis = "horizontal" | "vertical";
 export type ChainMembership = "additive" | "standalone";
@@ -194,6 +104,11 @@ export interface BuiltDimensionChain {
   continuity: ChainContinuity;
   excludedContainerIds: string[];
   chainNotes: string[];
+  // NEW (session 23 follow-up #7):
+  geometricFillRatio: number;
+  gapCount: number;
+  totalGapPct: number;
+  isCompletePartition: boolean;
 }
 
 interface MeasurementSpan {
@@ -208,11 +123,6 @@ function hasLineGeometry(m: DimensionEvidence): boolean {
   return m.lineStartPct != null && m.lineEndPct != null;
 }
 
-/**
- * Reads one measurement's position along `axis` from its own drawn
- * dimension-line endpoints. Only ever called on measurements that already
- * passed hasLineGeometry() -- see file header, follow-up #4.
- */
 function measurementSpanFromLine(m: DimensionEvidence, axis: ChainAxis): MeasurementSpan {
   const a = axis === "horizontal" ? m.lineStartPct!.xPct : m.lineStartPct!.yPct;
   const b = axis === "horizontal" ? m.lineEndPct!.xPct : m.lineEndPct!.yPct;
@@ -227,8 +137,6 @@ function measurementSpanFromLine(m: DimensionEvidence, axis: ChainAxis): Measure
   };
 }
 
-/** bbox-derived span for a geometry-missing measurement's OWN standalone
- * candidacy check only -- never used to cluster it with anything else. */
 function standaloneSpanFromBbox(m: DimensionEvidence, axis: ChainAxis): MeasurementSpan {
   const alongStart = axis === "horizontal" ? m.bboxPct.xMinPct : m.bboxPct.yMinPct;
   const alongEnd = axis === "horizontal" ? m.bboxPct.xMaxPct : m.bboxPct.yMaxPct;
@@ -252,14 +160,6 @@ function clusterByCross(spans: MeasurementSpan[]): MeasurementSpan[][] {
   return clusters;
 }
 
-/**
- * Rule 1 (session 23 follow-up #5): pulls out, one at a time, any
- * measurement on this baseline whose own span already covers (within
- * CONTAINMENT_TOLERANCE_PCT) at least MIN_CONTAINED_SIBLINGS *other*
- * measurements' spans. Repeats until no more containers are found --
- * covers the (rare but possible) case of more than one nested "overall"
- * reading on the same baseline.
- */
 function extractContainers(
   spans: MeasurementSpan[],
 ): { containers: MeasurementSpan[]; remaining: MeasurementSpan[]; notesByContainerId: Map<string, string> } {
@@ -315,13 +215,6 @@ function extractContainers(
   return { containers, remaining, notesByContainerId };
 }
 
-/**
- * Rule 2 (session 23 follow-up #5): groups the (already container-free)
- * remainder of a baseline into maximal runs where each measurement's end
- * sits within tolerance of the next one's start -- a genuine end-to-end
- * partition. A gap too large to be "the next segment" starts a new group
- * instead of silently spanning across it.
- */
 function partitionContiguous(spans: MeasurementSpan[]): MeasurementSpan[][] {
   if (spans.length === 0) return [];
   const sorted = [...spans].sort((a, b) => a.alongStart - b.alongStart);
@@ -356,6 +249,35 @@ function dominantReferenceTypeHint(spans: MeasurementSpan[]): string {
     }
   }
   return best;
+}
+
+/**
+ * Session 23 follow-up #7: measures how completely a chain's own members
+ * account for the space between its first start and last end -- see file
+ * header. Trivially complete for a single-member chain.
+ */
+function computeCompleteness(
+  ordered: MeasurementSpan[],
+  rawSpanStartPct: number,
+  rawSpanEndPct: number,
+): { geometricFillRatio: number; gapCount: number; totalGapPct: number; isCompletePartition: boolean } {
+  if (ordered.length <= 1) {
+    return { geometricFillRatio: 100, gapCount: 0, totalGapPct: 0, isCompletePartition: true };
+  }
+  let gapCount = 0;
+  let totalGapPct = 0;
+  for (let i = 1; i < ordered.length; i++) {
+    const gap = ordered[i].alongStart - ordered[i - 1].alongEnd;
+    if (gap > COMPLETENESS_GAP_EPSILON_PCT) {
+      gapCount++;
+      totalGapPct += gap;
+    }
+  }
+  const memberWidthSum = ordered.reduce((sum, s) => sum + Math.max(0, s.alongEnd - s.alongStart), 0);
+  const totalSpan = rawSpanEndPct - rawSpanStartPct;
+  const geometricFillRatio = totalSpan > 0 ? Math.min(100, (memberWidthSum / totalSpan) * 100) : 100;
+  const isCompletePartition = gapCount === 0 && geometricFillRatio >= COMPLETENESS_FILL_THRESHOLD_PCT;
+  return { geometricFillRatio, gapCount, totalGapPct, isCompletePartition };
 }
 
 interface RawGroup {
@@ -414,6 +336,7 @@ function buildChainsForAxis(measurements: DimensionEvidence[], axis: ChainAxis):
     const spanEndPct = clampToCanonical(rawSpanEndPct);
     const coveragePct = Math.max(0, spanEndPct - spanStartPct);
     const crossStripPct = ordered.reduce((sum, s) => sum + s.cross, 0) / ordered.length;
+    const completeness = computeCompleteness(ordered, rawSpanStartPct, rawSpanEndPct);
     return {
       idx,
       ordered,
@@ -426,57 +349,44 @@ function buildChainsForAxis(measurements: DimensionEvidence[], axis: ChainAxis):
       candidateType: g.candidateType,
       excludedContainerIds: g.excludedContainerIds,
       chainNotes: g.chainNotes,
+      ...completeness,
     };
   });
 
-  // Reference span: union of ALL additive chains' (single_overall +
-  // segmented_chain + local_dimension) clamped spans -- unchanged in
-  // spirit from follow-up #4: standalone (missing-geometry) chains still
-  // never seed this.
   const referenceStartPct = partial.length ? Math.min(...partial.map((p) => p.spanStartPct)) : 0;
   const referenceEndPct = partial.length ? Math.max(...partial.map((p) => p.spanEndPct)) : 0;
 
-  const additiveChains: BuiltDimensionChain[] = partial.map(
-    ({
-      idx,
-      ordered,
-      spanStartPct,
-      spanEndPct,
-      rawSpanStartPct,
-      rawSpanEndPct,
-      coveragePct,
-      crossStripPct,
-      candidateType,
-      excludedContainerIds,
-      chainNotes,
-    }) => {
-      const isOverallCandidate =
-        coveragePct >= OVERALL_COVERAGE_THRESHOLD_PCT &&
-        spanStartPct <= referenceStartPct + EDGE_TOLERANCE_PCT &&
-        spanEndPct >= referenceEndPct - EDGE_TOLERANCE_PCT;
+  const additiveChains: BuiltDimensionChain[] = partial.map((p) => {
+    const isOverallCandidate =
+      p.coveragePct >= OVERALL_COVERAGE_THRESHOLD_PCT &&
+      p.spanStartPct <= referenceStartPct + EDGE_TOLERANCE_PCT &&
+      p.spanEndPct >= referenceEndPct - EDGE_TOLERANCE_PCT;
 
-      return {
-        id: `chain_${String(idx + 1).padStart(2, "0")}_${axis[0]}`,
-        axis,
-        measurementIds: ordered.map((s) => s.measurement.id),
-        spanStartPct,
-        spanEndPct,
-        rawSpanStartPct,
-        rawSpanEndPct,
-        coveragePct,
-        crossStripPct,
-        isOverallCandidate,
-        dominantReferenceTypeHint: dominantReferenceTypeHint(ordered),
-        usedLineEndpointsCount: ordered.filter((s) => s.usedLineEndpoints).length,
-        chainMembership: "additive",
-        excludedFromAdditiveChain: null,
-        candidateType,
-        continuity: candidateType === "segmented_chain" ? "contiguous" : "n/a",
-        excludedContainerIds,
-        chainNotes,
-      };
-    },
-  );
+    return {
+      id: `chain_${String(p.idx + 1).padStart(2, "0")}_${axis[0]}`,
+      axis,
+      measurementIds: p.ordered.map((s) => s.measurement.id),
+      spanStartPct: p.spanStartPct,
+      spanEndPct: p.spanEndPct,
+      rawSpanStartPct: p.rawSpanStartPct,
+      rawSpanEndPct: p.rawSpanEndPct,
+      coveragePct: p.coveragePct,
+      crossStripPct: p.crossStripPct,
+      isOverallCandidate,
+      dominantReferenceTypeHint: dominantReferenceTypeHint(p.ordered),
+      usedLineEndpointsCount: p.ordered.filter((s) => s.usedLineEndpoints).length,
+      chainMembership: "additive",
+      excludedFromAdditiveChain: null,
+      candidateType: p.candidateType,
+      continuity: p.candidateType === "segmented_chain" ? "contiguous" : "n/a",
+      excludedContainerIds: p.excludedContainerIds,
+      chainNotes: p.chainNotes,
+      geometricFillRatio: p.geometricFillRatio,
+      gapCount: p.gapCount,
+      totalGapPct: p.totalGapPct,
+      isCompletePartition: p.isCompletePartition,
+    };
+  });
 
   const standaloneChains: BuiltDimensionChain[] = geometryMissing.map((m) => {
     const span = standaloneSpanFromBbox(m, axis);
@@ -511,6 +421,10 @@ function buildChainsForAxis(measurements: DimensionEvidence[], axis: ChainAxis):
       continuity: "n/a",
       excludedContainerIds: [],
       chainNotes: [],
+      geometricFillRatio: 100,
+      gapCount: 0,
+      totalGapPct: 0,
+      isCompletePartition: true,
     };
   });
 
