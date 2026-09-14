@@ -1,37 +1,3 @@
-// supabase/functions/_shared/dimension_chain_resolver_v3.ts
-//
-// Session 23. Code-side unit conversion + never-average axis resolution,
-// built on top of dimension_chain_builder_v3.ts's geometry-based chains.
-// Replaces measurement_resolver.ts (deleted — nothing else depended on
-// it). Pure functions, no I/O — see validate_dimension_chain_resolver_v3.mjs
-// for the standalone tests, including the three conditions Yaron required
-// before touching Stage 1: horizontal overall 1669->16.69m resolves,
-// vertical overall 1099->10.99m resolves, 274 never gets selected as
-// either axis's overall value, and disagreeing chains are never averaged.
-//
-// toMetersV3 — unit conversion, and where it deliberately refuses to
-// convert:
-//   - A measurement's own `unit` is used when the model marked it as
-//     anything other than "unknown". Only when the model genuinely
-//     couldn't tell does code fall back to the page-wide
-//     DocumentMeasurementConvention.detectedUnit (itself just evidence the
-//     model reported, not a decision — see dimension_evidence_schema_v3.ts).
-//   - Only "length" referenceTypeHints (building/room/wall/opening) are
-//     ever converted here. "area" (e.g. "13.20" meaning m², a totally
-//     different unit family) and "elevation" (e.g. "+304.50", a level
-//     marker, not a wall length) are excluded on purpose — converting them
-//     as if they were lengths is exactly the kind of silent
-//     misclassification-to-fabrication this file exists to prevent.
-//
-// resolveAuthoritativeExtentV3 — only considers chains the chain-builder
-// already flagged isOverallCandidate (a geometric fact: does this chain's
-// span cover ~the whole combined dimensioned extent on its axis, reaching
-// both its far edges — see dimension_chain_builder_v3.ts's file header for
-// the session-23-follow-up-#2 fix that made this adaptive to a drawing's
-// own margin instead of the literal page 0-100). Among those, if more than
-// one is usable and they disagree beyond tolerance, the result is
-// `status: "conflict"` with valueM: null — NEVER an average.
-
 import type {
   Confidence,
   DimensionEvidence,
@@ -60,11 +26,6 @@ export interface ResolvedExtentV3 {
 
 const CROSS_CHAIN_TOLERANCE_PCT = 2.0;
 
-// Exported (session 23, follow-up #3) so document_unit_convention_resolver.ts
-// can filter to the exact same population this file's toMetersV3 will ever
-// actually convert -- "area" and "elevation" measurements must never
-// influence unit-convention inference any more than they're allowed to
-// influence a resolved extent.
 export function isLengthType(hint: ReferenceTypeHint): boolean {
   return hint === "building" || hint === "room" || hint === "wall" || hint === "opening";
 }
@@ -104,7 +65,6 @@ function chainConfidence(
   chain: BuiltDimensionChain,
   byId: Map<string, DimensionEvidence>,
 ): Confidence {
-  // A chain is only as trustworthy as its weakest member.
   let worst: Confidence = "high";
   let worstRank = 3;
   for (const id of chain.measurementIds) {
@@ -124,11 +84,6 @@ function pctDiff(a: number, b: number): number {
   return (Math.abs(a - b) / base) * 100;
 }
 
-/**
- * Resolves ONE building-wide extent for an axis from geometry-flagged
- * overall-candidate chains only. Critical rule, unchanged from Patch 01:
- * NEVER average contradictory chains.
- */
 export function resolveAuthoritativeExtentV3(
   measurements: DimensionEvidence[],
   convention: DocumentMeasurementConvention,
@@ -152,7 +107,9 @@ export function resolveAuthoritativeExtentV3(
         ...allChains.map((c) =>
           `${c.id}: coverage=${c.coveragePct.toFixed(1)}% span=[${c.spanStartPct.toFixed(1)},${
             c.spanEndPct.toFixed(1)
-          }] members=${c.measurementIds.join(",")}`
+          }] members=${c.measurementIds.join(",")}${
+            c.excludedFromAdditiveChain ? ` (excluded_from_additive_chain: ${c.excludedFromAdditiveChain})` : ""
+          }`
         ),
       ],
     };
@@ -208,15 +165,24 @@ export function resolveAuthoritativeExtentV3(
     };
   }
 
+  const diagnostics = [
+    `Resolved ${axis} extent from ${best.chain.id}: ${best.valueM!.toFixed(4)}m.`,
+    `No averaging used. ${usable.length} compatible overall-candidate chain(s).`,
+  ];
+  if (best.chain.chainMembership === "standalone") {
+    diagnostics.push(
+      `Note: ${best.chain.id} is a standalone candidate (no drawn dimension-line endpoints -- ` +
+      `based on its text position only). Treat with extra scrutiny.`,
+    );
+  }
+
   return {
     axis,
     valueM: best.valueM!,
     confidence: best.confidence,
     sourceChainIds: usable.map((s) => s.chain.id),
     status: "resolved",
-    diagnostics: [
-      `Resolved ${axis} extent from ${best.chain.id}: ${best.valueM!.toFixed(4)}m.`,
-      `No averaging used. ${usable.length} compatible overall-candidate chain(s).`,
-    ],
+    diagnostics,
   };
 }
+

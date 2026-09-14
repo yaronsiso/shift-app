@@ -73,15 +73,65 @@
 // the CLAMPED per-chain spans, so one wild raw coordinate can no longer
 // drag the whole reference span outward either.
 //
-// Algorithm (unchanged from the first version):
+// SESSION 23 FOLLOW-UP #4 (Yaron's real-drawing review of the follow-up #3
+// run): two chains were built that wrongly summed measurements that don't
+// actually belong together:
+//   - chain_11_h = 147 + 1669 -- these sit on two different drawn dimension
+//     lines (different baselines), not one continuous chain.
+//   - chain_01_v = 712 + 1089 -- 712 has no drawn-line endpoints at all
+//     (the model could not locate its dimension line), so it was clustered
+//     into 1089's chain purely by falling back to its text bbox position,
+//     which happened to land close enough to pass the old proximity check.
+//
+// THE FIX (Yaron's explicit decision, conservative by design): a
+// measurement with no lineStartPct/lineEndPct is no longer eligible to
+// join ANY additive chain, ever -- not even via the bbox-fallback
+// proximity clustering that measurementSpan() used to allow. Reasoning:
+// bboxPct locates the printed TEXT, not the drawn dimension line: two
+// numbers can print close together on the page while belonging to two
+// unrelated, non-adjacent dimension lines (that's exactly what happened
+// with 712/1089). Using bboxPct to *seed a cluster* silently reintroduces
+// the "hallucinated geometry from proximity" failure mode Stage 1's hard
+// gate exists to prevent -- so it's removed from the additive path
+// entirely.
+//
+// Concretely: every axis's measurements are split into two populations
+// before any clustering happens:
+//   - geometryKnown: has both lineStartPct and lineEndPct. These, and
+//     ONLY these, participate in clusterByCross() and additive chain
+//     building -- unchanged from before otherwise.
+//   - geometryMissing: no drawn line found. Each such measurement becomes
+//     its own single-member STANDALONE chain -- never merged with
+//     anything else, additive or standalone. It is still evaluated as a
+//     possible overall-envelope candidate (Yaron: "1089 can still be
+//     judged standalone if its own geometry/metadata are strong enough"),
+//     using its bboxPct-derived span against the reference span -- but
+//     that reference span is computed ONLY from geometryKnown (additive)
+//     chains, specifically so an unreliable bbox-based span can never
+//     inflate or distort the yardstick every candidate is measured
+//     against. If an axis has zero geometryKnown chains at all, the
+//     reference span collapses to [0,0] and no standalone candidate can
+//     qualify either -- a deliberately conservative dead end (lose the
+//     chain, never guess) rather than a fallback to unreliable geometry.
+//
+// Every chain (additive or standalone) now carries:
+//   - chainMembership: "additive" | "standalone"
+//   - excludedFromAdditiveChain: "missing_line_geometry" | null -- set
+//     only on standalone chains, for exact debug-screen visibility into
+//     *why* a measurement never got to combine with anything.
+//
+// No proximity-based fallback clustering is added for the geometryMissing
+// population (Yaron: explicitly rejected -- would reintroduce the same
+// failure mode). If a future need for one arises, it must be a separate,
+// low-confidence, clearly-labelled path -- never part of this
+// authoritative one.
+//
+// Algorithm for the additive path (unchanged from before):
 //   1. Only "horizontal" and "vertical" measurements participate (a
 //      "diagonal"/"unknown"-axis measurement can't be placed in a chain by
 //      this logic and is left unclustered).
-//   2. Each measurement's position is read from its own drawn dimension
-//      line (lineStartPct/lineEndPct) when the model provided one — that's
-//      the actual geometry. When it didn't (not clearly visible), we fall
-//      back to the measurement's bboxPct, which is far less precise (it
-//      locates the printed *text*, not the line) but better than nothing.
+//   2. Each geometry-known measurement's position is read from its own
+//      drawn dimension line (lineStartPct/lineEndPct).
 //   3. Measurements on the same axis are clustered into strips by their
 //      CROSS-axis position (the row/column the dimension line sits on):
 //      single-linkage clustering with a tolerance, so a few measurements
@@ -95,23 +145,12 @@ import type { DimensionEvidence } from "./dimension_evidence_schema_v3.ts";
 
 export const STRIP_TOLERANCE_PCT = 4;
 export const OVERALL_COVERAGE_THRESHOLD_PCT = 80;
-// How close a chain's own edges must be to the union-of-all-chains
-// reference span's edges (see file header) to still count as "reaching
-// the edge". Session 23 real-drawing test #1: the true overall horizontal
-// chain (1669) reached 84% coverage but its span started at 14.0% of the
-// page — a couple of points past the original value of 12. Widened to 16
-// (margin above the observed 14.0) so a few points of run-to-run jitter in
-// the model's own line-endpoint reading doesn't re-break this. Kept at 16
-// after the follow-up #2 fix above, now applied against the adaptive
-// union-of-all-chains span rather than the fixed page edges.
 export const EDGE_TOLERANCE_PCT = 16;
 
 export type ChainAxis = "horizontal" | "vertical";
+export type ChainMembership = "additive" | "standalone";
+export type ChainExclusionReason = "missing_line_geometry";
 
-// The canonical main-crop coordinate space every measurement is ultimately
-// expressed in (see dimension_measurement_merge_v3.ts) — coveragePct is the
-// intersection of a chain's raw span with this range, never the raw span
-// itself. See the session-23-follow-up-#3 file-header comment above.
 const CANONICAL_MIN_PCT = 0;
 const CANONICAL_MAX_PCT = 100;
 
@@ -122,21 +161,19 @@ function clampToCanonical(v: number): number {
 export interface BuiltDimensionChain {
   id: string;
   axis: ChainAxis;
-  measurementIds: string[]; // ordered along the axis
-  // Clamped to the canonical [0,100] main-crop space (intersection with
-  // it) — this is what coveragePct/isOverallCandidate are computed from.
+  measurementIds: string[];
   spanStartPct: number;
   spanEndPct: number;
-  // The raw, UNCLAMPED span — can be <0 or >100 for a chain built mostly
-  // from strip evidence (see file header). Diagnostic only: never used for
-  // coverage/candidacy math.
   rawSpanStartPct: number;
   rawSpanEndPct: number;
   coveragePct: number;
   crossStripPct: number;
   isOverallCandidate: boolean;
   dominantReferenceTypeHint: string;
-  usedLineEndpointsCount: number; // how many members had real line data vs. bbox fallback
+  usedLineEndpointsCount: number;
+  // NEW (session 23 follow-up #4):
+  chainMembership: ChainMembership;
+  excludedFromAdditiveChain: ChainExclusionReason | null;
 }
 
 interface MeasurementSpan {
@@ -147,25 +184,35 @@ interface MeasurementSpan {
   usedLineEndpoints: boolean;
 }
 
+function hasLineGeometry(m: DimensionEvidence): boolean {
+  return m.lineStartPct != null && m.lineEndPct != null;
+}
+
 /**
- * Reads one measurement's position along `axis`, preferring its own drawn
- * dimension-line endpoints and falling back to its text bbox when the line
- * wasn't visible/provided.
+ * Reads one measurement's position along `axis` from its own drawn
+ * dimension-line endpoints. Only ever called on measurements that already
+ * passed hasLineGeometry() -- the bbox-fallback branch that used to live
+ * here for chain-building purposes is gone (see file header, follow-up
+ * #4). standaloneSpanFromBbox() below is the only remaining bbox-based
+ * span reader, and it is never used to join a measurement to anything.
  */
-export function measurementSpan(m: DimensionEvidence, axis: ChainAxis): MeasurementSpan {
-  if (m.lineStartPct && m.lineEndPct) {
-    const a = axis === "horizontal" ? m.lineStartPct.xPct : m.lineStartPct.yPct;
-    const b = axis === "horizontal" ? m.lineEndPct.xPct : m.lineEndPct.yPct;
-    const crossA = axis === "horizontal" ? m.lineStartPct.yPct : m.lineStartPct.xPct;
-    const crossB = axis === "horizontal" ? m.lineEndPct.yPct : m.lineEndPct.xPct;
-    return {
-      measurement: m,
-      alongStart: Math.min(a, b),
-      alongEnd: Math.max(a, b),
-      cross: (crossA + crossB) / 2,
-      usedLineEndpoints: true,
-    };
-  }
+function measurementSpanFromLine(m: DimensionEvidence, axis: ChainAxis): MeasurementSpan {
+  const a = axis === "horizontal" ? m.lineStartPct!.xPct : m.lineStartPct!.yPct;
+  const b = axis === "horizontal" ? m.lineEndPct!.xPct : m.lineEndPct!.yPct;
+  const crossA = axis === "horizontal" ? m.lineStartPct!.yPct : m.lineStartPct!.xPct;
+  const crossB = axis === "horizontal" ? m.lineEndPct!.yPct : m.lineEndPct!.xPct;
+  return {
+    measurement: m,
+    alongStart: Math.min(a, b),
+    alongEnd: Math.max(a, b),
+    cross: (crossA + crossB) / 2,
+    usedLineEndpoints: true,
+  };
+}
+
+/** bbox-derived span for a geometry-missing measurement's OWN standalone
+ * candidacy check only -- never used to cluster it with anything else. */
+function standaloneSpanFromBbox(m: DimensionEvidence, axis: ChainAxis): MeasurementSpan {
   const alongStart = axis === "horizontal" ? m.bboxPct.xMinPct : m.bboxPct.yMinPct;
   const alongEnd = axis === "horizontal" ? m.bboxPct.xMaxPct : m.bboxPct.yMaxPct;
   const cross = axis === "horizontal"
@@ -206,28 +253,18 @@ function dominantReferenceTypeHint(spans: MeasurementSpan[]): string {
 }
 
 function buildChainsForAxis(measurements: DimensionEvidence[], axis: ChainAxis): BuiltDimensionChain[] {
-  const spans = measurements
-    .filter((m) => m.axis === axis)
-    .map((m) => measurementSpan(m, axis));
+  const axisMeasurements = measurements.filter((m) => m.axis === axis);
+  const geometryKnown = axisMeasurements.filter(hasLineGeometry);
+  const geometryMissing = axisMeasurements.filter((m) => !hasLineGeometry(m));
 
-  const clusters = clusterByCross(spans);
-
-  // Order strips deterministically (top-to-bottom for horizontal chains,
-  // left-to-right for vertical chains) so chain ids are stable across runs.
+  const knownSpans = geometryKnown.map((m) => measurementSpanFromLine(m, axis));
+  const clusters = clusterByCross(knownSpans);
   clusters.sort((a, b) => (a[0]?.cross ?? 0) - (b[0]?.cross ?? 0));
 
-  // First pass: each cluster's own span/coverage, independent of any
-  // overall-candidate decision. spanStartPct/spanEndPct are the RAW
-  // (possibly <0 or >100) endpoints; spanStartPct/spanEndPct used for
-  // candidacy math are clamped to the canonical [0,100] space immediately
-  // below (session 23 follow-up #3 — see file header).
   const partial = clusters.map((cluster, idx) => {
     const ordered = [...cluster].sort((a, b) => a.alongStart - b.alongStart);
     const rawSpanStartPct = Math.min(...ordered.map((s) => s.alongStart));
     const rawSpanEndPct = Math.max(...ordered.map((s) => s.alongEnd));
-    // Intersection with the canonical main-crop space — never negative,
-    // never exceeds 100. A chain whose raw span doesn't overlap [0,100] at
-    // all (e.g. entirely off one edge) correctly collapses to 0 coverage.
     const spanStartPct = clampToCanonical(rawSpanStartPct);
     const spanEndPct = clampToCanonical(rawSpanEndPct);
     const coveragePct = Math.max(0, spanEndPct - spanStartPct);
@@ -235,15 +272,17 @@ function buildChainsForAxis(measurements: DimensionEvidence[], axis: ChainAxis):
     return { idx, ordered, spanStartPct, spanEndPct, rawSpanStartPct, rawSpanEndPct, coveragePct, crossStripPct };
   });
 
-  // Reference span (see file header): the union of every chain's own
-  // CLAMPED span on this axis. Deliberately NOT the raw 0-100 page extent,
-  // and deliberately NOT the unclamped raw spans either — one wild
-  // strip-derived coordinate must not be able to drag this reference
-  // outward and loosen the edge-tolerance check for every other chain.
+  // Reference span: union of ADDITIVE (geometry-known) chains' clamped
+  // spans only. Standalone candidates are deliberately excluded from
+  // seeding this -- an unreliable bbox-derived span must never be able to
+  // widen or shift the yardstick every candidate (including itself) is
+  // measured against. If there are no additive chains at all, this stays
+  // [0,0] and no standalone candidate can qualify -- conservative by
+  // design (see file header).
   const referenceStartPct = partial.length ? Math.min(...partial.map((p) => p.spanStartPct)) : 0;
   const referenceEndPct = partial.length ? Math.max(...partial.map((p) => p.spanEndPct)) : 0;
 
-  return partial.map(
+  const additiveChains: BuiltDimensionChain[] = partial.map(
     ({ idx, ordered, spanStartPct, spanEndPct, rawSpanStartPct, rawSpanEndPct, coveragePct, crossStripPct }) => {
       const isOverallCandidate =
         coveragePct >= OVERALL_COVERAGE_THRESHOLD_PCT &&
@@ -263,9 +302,50 @@ function buildChainsForAxis(measurements: DimensionEvidence[], axis: ChainAxis):
         isOverallCandidate,
         dominantReferenceTypeHint: dominantReferenceTypeHint(ordered),
         usedLineEndpointsCount: ordered.filter((s) => s.usedLineEndpoints).length,
+        chainMembership: "additive",
+        excludedFromAdditiveChain: null,
       };
     },
   );
+
+  // Standalone chains: one per geometry-missing measurement, never merged
+  // with anything. Evaluated against the additive-only reference span
+  // above, using the SAME threshold/tolerance -- so a measurement without
+  // a drawn line can still (rarely) be trusted as the overall value, but
+  // never by summing it with a neighbor.
+  const standaloneChains: BuiltDimensionChain[] = geometryMissing.map((m) => {
+    const span = standaloneSpanFromBbox(m, axis);
+    const rawSpanStartPct = span.alongStart;
+    const rawSpanEndPct = span.alongEnd;
+    const spanStartPct = clampToCanonical(rawSpanStartPct);
+    const spanEndPct = clampToCanonical(rawSpanEndPct);
+    const coveragePct = Math.max(0, spanEndPct - spanStartPct);
+
+    const isOverallCandidate =
+      partial.length > 0 &&
+      coveragePct >= OVERALL_COVERAGE_THRESHOLD_PCT &&
+      spanStartPct <= referenceStartPct + EDGE_TOLERANCE_PCT &&
+      spanEndPct >= referenceEndPct - EDGE_TOLERANCE_PCT;
+
+    return {
+      id: `standalone_${m.id}_${axis[0]}`,
+      axis,
+      measurementIds: [m.id],
+      spanStartPct,
+      spanEndPct,
+      rawSpanStartPct,
+      rawSpanEndPct,
+      coveragePct,
+      crossStripPct: span.cross,
+      isOverallCandidate,
+      dominantReferenceTypeHint: m.referenceTypeHint,
+      usedLineEndpointsCount: 0,
+      chainMembership: "standalone",
+      excludedFromAdditiveChain: "missing_line_geometry",
+    };
+  });
+
+  return [...additiveChains, ...standaloneChains];
 }
 
 /** Builds chains for both axes from the full measurement list. */
@@ -275,3 +355,4 @@ export function buildDimensionChains(measurements: DimensionEvidence[]): BuiltDi
     ...buildChainsForAxis(measurements, "vertical"),
   ];
 }
+
