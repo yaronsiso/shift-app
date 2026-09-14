@@ -1,5 +1,24 @@
 // supabase/functions/analyze-sketch-v2-measurements/index.ts
 //
+// ⚠️⚠️ SESSION 23 FOLLOW-UP #8 — LEGACY / DEBUG-ONLY, NOT PART OF THE
+// AUTHORITATIVE PIPELINE ANYMORE. Yaron's explicit architecture decision:
+// analyze-sketch-v2-envelope no longer requires this stage and never reads
+// its output. The Flutter UI does not need to call this function before
+// Stage 1 (envelope) anymore. Authoritative dimension resolution now runs
+// entirely through analyze-sketch-v2-page-dimensions ->
+// dimension_chain_builder_v3.ts -> dimension_extent_grouping_v3.ts ->
+// dimension_chain_resolver_v3.ts -> resolved_page_dimensions_v3.ts — see
+// that last file's own header for the full before/after diagram. This
+// function is kept only for manual comparison/debugging (its output is
+// still a valid, harmless artifact row under stage='measurements', just
+// one nothing downstream reads) and is NOT deleted yet per Yaron's
+// explicit instruction, pending one full regression run confirming Stage 1
+// works correctly from page_dimensions alone. Do not add new callers of
+// this function; do not make Stage 1 depend on it again.
+//
+// Everything below this banner is UNCHANGED from the original (session 21)
+// version — no logic was touched in this round.
+//
 // NEW Edge Function — Pass 0.5 ("measurements") of the v2 pipeline, inserted
 // between Stage 0 ("scope") and Stage 1 ("envelope"). Session 21 (continued
 // from the same session that built Stage 0/Stage 1) — built after a real
@@ -28,11 +47,9 @@
 //      (stage='measurements', linked to the same job) — no new migration,
 //      the table already supports any stage name.
 //
-// Consumed by the (now updated) analyze-sketch-v2-envelope, which requires
-// this stage to have run first (same "stage 0 must exist" precondition
-// pattern envelope already used for scope) and uses its output as
-// authoritative ground truth for scale — see that function's own header
-// for exactly how.
+// (Historical, no longer accurate as of session 23 follow-up #8 — see
+// banner above): "Consumed by the (now updated) analyze-sketch-v2-envelope,
+// which requires this stage to have run first..."
 //
 // Explicitly NOT done here:
 //   - No geometry/topology/polygon of any kind.
@@ -361,3 +378,4 @@ Deno.serve(async (req) => {
     attempt,
   });
 });
+

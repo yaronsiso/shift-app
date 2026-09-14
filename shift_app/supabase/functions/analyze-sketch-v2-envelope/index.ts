@@ -18,17 +18,14 @@
 // geometric reasoning, and `strict:true` JSON schema only guarantees the
 // *shape* of the output, never that the numbers inside it are correct.
 //
-// THE FIX, implemented in this file:
-//   1. This function now REQUIRES a new prior stage, "measurements"
-//      (analyze-sketch-v2-measurements — a separate, narrower model call
-//      whose only job is transcribing printed dimension numbers, never
-//      geometry) to have already run for this job. Same "must run first"
-//      precondition pattern this function already used for "scope".
-//   2. The measurements are resolved into authoritative horizontal/
-//      vertical envelope extents IN CODE (resolveAxisExtent below) — never
-//      by asking the model to sum/derive them — and handed to the model as
-//      ground truth text in the prompt, explicitly marked as authoritative
-//      and not to be re-derived from the image.
+// THE FIX, implemented in this file (unchanged in spirit through every
+// session since):
+//   1. This function REQUIRES a prior stage that has already resolved the
+//      building's authoritative horizontal/vertical extent — see SESSION
+//      23 FOLLOW-UP #8 below for which stage that is NOW.
+//   2. The model never sums/derives the authoritative extents itself —
+//      they're handed to it as ground-truth text in the prompt, explicitly
+//      marked as authoritative and not to be re-derived from the image.
 //   3. After the model returns a polygon, CODE validates it: the polygon's
 //      own bounding-box extent is compared against the authoritative
 //      extents (validateAgainstMeasurements). A mismatch beyond
@@ -41,14 +38,51 @@
 //      rectangle built from the authoritative numbers
 //      (buildDeterministicRectangle) — removing the model's arithmetic
 //      from the result altogether for the case that broke it.
-//   5. `confidence` returned to the client is now COMPUTED IN CODE
+//   5. `confidence` returned to the client is COMPUTED IN CODE
 //      (computeFinalConfidence) from measurable facts (were dimensions
 //      found? did the geometry match them? was it corrected? is it code-
 //      overridden?) — never just passed through from the model's own
-//      self-reported confidence, which the test above showed can say
-//      "medium" while being 11% wrong.
+//      self-reported confidence.
 //
-// What this function still does, unchanged from the original version:
+// ⚠️ SESSION 22 FIX ("Patch 01 — Measurement Integrity"): the axis
+// resolver this function used to call directly (axis_extent_resolver.ts)
+// used to AVERAGE disagreeing same-axis chains. It was fixed to never
+// average. See SESSION 23 FOLLOW-UP #8 below: that fix's *spirit*
+// (never average, conflict surfaces honestly) is preserved, but the
+// resolver itself moved.
+//
+// ⚠️⚠️ SESSION 23 FOLLOW-UP #8 (Yaron's architecture decision, after
+// tracing the full data flow with Claude across several follow-up
+// sessions): this function used to require the "measurements" stage
+// (analyze-sketch-v2-measurements, session 21) — a SEPARATE older
+// pipeline where the model was asked to identify and group dimension
+// chains itself, then axis_extent_resolver.ts (also old) resolved them.
+// Meanwhile, an entirely disconnected NEW pipeline had been built over
+// several session-23 follow-ups (analyze-sketch-v2-page-dimensions ->
+// dimension_chain_builder_v3.ts -> dimension_extent_grouping_v3.ts ->
+// dimension_chain_resolver_v3.ts) that does the same job far more
+// reliably — geometry-driven chain building, containment/contiguity
+// checks, completeness gating, extent-equivalence corroboration — but
+// this function never read its output. Two independent pipelines were
+// both deciding "the building's scale", and only the OLDER, weaker one
+// was actually wired into Stage 1.
+//
+// THE FIX: this function now requires the "page_dimensions" stage instead
+// of "measurements", and reads its ALREADY-COMPUTED horizontalExtent/
+// verticalExtent (ResolvedExtentV3, from dimension_chain_resolver_v3.ts)
+// directly from that artifact's payload — no new resolution happens here,
+// this function only reshapes them (via
+// ../_shared/resolved_page_dimensions_v3.ts's toResolvedPageDimensions,
+// a pure function) into the canonical ResolvedPageDimensions the hard
+// gate below reads. The "measurements" stage (Pass 0.5) and
+// axis_extent_resolver.ts are NOT read anywhere in this file anymore —
+// an old "measurements" artifact (even one containing only a stray
+// reading like "274") has no path to influence anything here. Pass 0.5
+// itself is NOT deleted yet (see its own file header for its new
+// legacy/debug-only status) and the Flutter UI no longer needs to call it
+// before this stage.
+//
+// What this function still does, unchanged from every prior version:
 //   - Identifies ONLY the building's outer envelope polygon (schema v2,
 //     buildingEnvelope.vertices). Rooms, interior walls, openings, stairs,
 //     special elements remain out of scope for this stage — always empty
@@ -56,17 +90,6 @@
 //   - Persists the result as a row in `analysis_artifacts`
 //     (stage='envelope') — no new migration; `stage`/`payload` already
 //     support this.
-//
-// ⚠️ SESSION 22 FIX ("Patch 01 — Measurement Integrity", found in an
-// architecture audit and independently confirmed against this file):
-// resolveAxisExtent used to AVERAGE disagreeing same-axis chains (e.g.
-// 16.00m and 17.80m silently became 16.90m — a number that never appeared
-// in the drawing). It now NEVER averages: disagreement beyond
-// CROSS_CHAIN_CONFLICT_THRESHOLD_PCT is a conflict, the axis resolves to
-// no authoritative value at all (same as "not found"), and the
-// conflicting numbers are surfaced in the prompt/diagnostics note instead
-// of being blended. See resolveAxisExtent's own comment below and
-// validate_envelope_axis_resolution_test.mjs for the regression test.
 //
 // Explicitly NOT done here (documented scope limits, not oversights):
 //   - No per-edge / per-chain matching of individual dimension chains to
@@ -80,9 +103,8 @@
 //     specific edge if real testing shows this is needed.
 //   - Only ONE corrective retry (not an open-ended loop) — matches this
 //     project's established "bounded retries, not blind ones" approach
-//     (see analyze-sketch v13-v15) and keeps this within Supabase Free
-//     tier's known compute-time constraints (see claude/50's
-//     WORKER_RESOURCE_LIMIT finding).
+//     and keeps this within Supabase Free tier's known compute-time
+//     constraints.
 //   - The deterministic-rectangle override only applies to simple 4-vertex
 //     axis-aligned rectangles. A non-rectangular envelope (e.g. a building
 //     with a small protruding entrance) still relies on the model's
@@ -95,13 +117,12 @@ import {
   type FloorPlanAnalysisV2,
   type Point2D,
 } from "../_shared/floor_plan_schema_v2.ts";
-import type { DimensionChain } from "../_shared/dimension_extraction_schema.ts";
+import type { ResolvedExtentV3 } from "../_shared/dimension_chain_resolver_v3.ts";
 import {
-  resolveAxisExtent,
-  shouldBlockStage1,
-  type AxisResolution,
-  type ResolvedAxisExtent,
-} from "../_shared/axis_extent_resolver.ts";
+  shouldBlockStage1FromPageDimensions,
+  toResolvedPageDimensions,
+  type ResolvedPageDimensions,
+} from "../_shared/resolved_page_dimensions_v3.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -114,10 +135,6 @@ const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") ?? "gpt-5.6-luna";
 // below the 11% error the original bug produced, so it actually catches
 // the case that motivated this rewrite.
 const MEASUREMENT_MISMATCH_THRESHOLD_PCT = 5;
-// (the old CROSS_CHAIN_CONFLICT_THRESHOLD_PCT constant that used to live
-// here now lives in ../_shared/axis_extent_resolver.ts alongside the
-// resolver logic it controls — see that file's header for the session 22
-// "never average disagreeing chains" fix.)
 
 type Confidence = "high" | "medium" | "low";
 
@@ -165,21 +182,21 @@ coordinateSystem.units כ-"meters".
 `.trim();
 
 function buildAuthoritativeMeasurementsPrompt(
-  horizontal: AxisResolution,
-  vertical: AxisResolution,
+  horizontal: ResolvedExtentV3,
+  vertical: ResolvedExtentV3,
 ): string {
   const lines: string[] = ["מידות סמכותיות (חולצו במעבר נפרד, אל תקרא/י מהתמונה מחדש):"];
 
-  function describeAxis(label: string, res: AxisResolution) {
-    if (res.extent) {
+  function describeAxis(label: string, extent: ResolvedExtentV3) {
+    if (extent.status === "resolved" && extent.valueM != null) {
       lines.push(
-        `- ${label}: ${res.extent.valueM.toFixed(2)} מ' ` +
-          `(מקור: ${res.extent.chainCount} שרשרת/שרשראות מידה, ביטחון ${res.extent.confidence})`,
+        `- ${label}: ${extent.valueM.toFixed(2)} מ' ` +
+          `(מקור: ${extent.sourceChainIds.length} שרשרת/שרשראות מידה, ביטחון ${extent.confidence})`,
       );
-    } else if (res.conflict) {
+    } else if (extent.status === "conflict") {
       lines.push(
         `- ${label}: לא נקבעה מידה סמכותית — נמצאו שרשראות-מידה סותרות ` +
-          `שלא ניתן לפשר ביניהן באופן אמין (${res.conflict.join("; ")}). ` +
+          `שלא ניתן לפשר ביניהן באופן אמין (${extent.diagnostics.join("; ")}). ` +
           `התעלם/י מהמספרים האלה, קבע/י את הציר הזה לפי יחסי-פרופורציות בלבד, והנמך/י את confidence בהתאם.`,
       );
     } else {
@@ -191,6 +208,10 @@ function buildAuthoritativeMeasurementsPrompt(
   describeAxis("ציר אנכי (גובה חיצוני כולל)", vertical);
 
   return lines.join("\n");
+}
+
+function conflictDiagnosticsOrNull(extent: ResolvedExtentV3): string[] | null {
+  return extent.status === "conflict" ? extent.diagnostics : null;
 }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -211,34 +232,23 @@ function isValidPoint(p: unknown): p is Point2D {
   );
 }
 
-// --- measurement resolution (CODE, not the model) -------------------------
-//
-// resolveAxisExtent/ResolvedAxisExtent/AxisResolution now live in
-// ../_shared/axis_extent_resolver.ts (session 22) so the conflict-vs-
-// averaging logic can be independently unit-tested — see
-// validate_envelope_axis_resolution_test.mjs and that file's own header
-// for the full "why" (the averaging bug this replaced).
-
 // --- geometry validation / correction (CODE) -------------------------------
 
-// NOTE (found while testing this fix, kept as documentation): this compares
-// the polygon's x-span against the "horizontal" measurement chains (drawn
-// on the image's top/bottom edges) and its y-span against "vertical"
-// chains (left/right edges). That assumes the model's own x/y assignment
-// lines up with the image's horizontal/vertical — which rule 1 above tries
-// to enforce, but is not itself immune to the model getting it backwards
-// (in the real buggy run that motivated this rewrite, the model's x/y come
-// out swapped relative to the image, so the raw per-axis error numbers can
-// end up blaming the "wrong" axis for part of the discrepancy). This does
-// NOT weaken the fix in practice: mismatchDetected still fires correctly
-// either way (verified in validate_envelope_measurements_test.mjs,
-// scenario 1), and the deterministic-rectangle override below discards the
-// model's x/y entirely and rebuilds from the authoritative
-// horizontal/vertical values directly — so the final rectangle is correct
-// regardless of which axis the model confused. A genuinely axis-swap-aware
-// validator (matching each chain to a specific polygon edge rather than a
-// whole-bbox axis) is a documented future increment, relevant mainly for
-// NON-rectangular envelopes where no override is possible.
+// NOTE (found while testing the original fix, kept as documentation): this
+// compares the polygon's x-span against the "horizontal" authoritative
+// extent (drawn on the image's top/bottom edges) and its y-span against
+// the "vertical" one (left/right edges). That assumes the model's own x/y
+// assignment lines up with the image's horizontal/vertical — which rule 1
+// above tries to enforce, but is not itself immune to the model getting it
+// backwards. This does NOT weaken the fix in practice: mismatchDetected
+// still fires correctly either way, and the deterministic-rectangle
+// override below discards the model's x/y entirely and rebuilds from the
+// authoritative horizontal/vertical values directly — so the final
+// rectangle is correct regardless of which axis the model confused. A
+// genuinely axis-swap-aware validator (matching each chain to a specific
+// polygon edge rather than a whole-bbox axis) is a documented future
+// increment, relevant mainly for NON-rectangular envelopes where no
+// override is possible.
 function bboxExtent(vertices: Point2D[]): { widthM: number; heightM: number } {
   const xs = vertices.map((v) => v.x);
   const ys = vertices.map((v) => v.y);
@@ -285,12 +295,12 @@ interface ValidationOutcome {
 
 function validateAgainstMeasurements(
   vertices: Point2D[],
-  horizontal: ResolvedAxisExtent | null,
-  vertical: ResolvedAxisExtent | null,
+  horizontal: ResolvedExtentV3 | null,
+  vertical: ResolvedExtentV3 | null,
 ): ValidationOutcome {
   const extent = bboxExtent(vertices);
-  const horizontalErrorPct = horizontal ? pctError(extent.widthM, horizontal.valueM) : null;
-  const verticalErrorPct = vertical ? pctError(extent.heightM, vertical.valueM) : null;
+  const horizontalErrorPct = horizontal ? pctError(extent.widthM, horizontal.valueM!) : null;
+  const verticalErrorPct = vertical ? pctError(extent.heightM, vertical.valueM!) : null;
   const mismatchDetected =
     (horizontalErrorPct !== null && horizontalErrorPct > MEASUREMENT_MISMATCH_THRESHOLD_PCT) ||
     (verticalErrorPct !== null && verticalErrorPct > MEASUREMENT_MISMATCH_THRESHOLD_PCT);
@@ -299,8 +309,8 @@ function validateAgainstMeasurements(
 
 function computeFinalConfidence(params: {
   envelopeIsNull: boolean;
-  horizontal: ResolvedAxisExtent | null;
-  vertical: ResolvedAxisExtent | null;
+  horizontal: ResolvedExtentV3 | null;
+  vertical: ResolvedExtentV3 | null;
   finalValidation: ValidationOutcome | null;
   codeOverrodeGeometry: boolean;
 }): Confidence {
@@ -332,8 +342,8 @@ function computeFinalConfidence(params: {
 }
 
 function buildDiagnosticsNoteHe(params: {
-  horizontal: ResolvedAxisExtent | null;
-  vertical: ResolvedAxisExtent | null;
+  horizontal: ResolvedExtentV3 | null;
+  vertical: ResolvedExtentV3 | null;
   horizontalConflict: string[] | null;
   verticalConflict: string[] | null;
   firstValidation: ValidationOutcome | null;
@@ -360,9 +370,6 @@ function buildDiagnosticsNoteHe(params: {
 
   const parts: string[] = [];
 
-  // SESSION 22 FIX: a conflict is NOT the same as "nothing found" — say so
-  // explicitly, and never let the averaged-together number this used to
-  // silently produce show up anywhere.
   if (horizontalConflict) {
     parts.push(`⚠️ ציר אופקי: שרשראות-מידה סותרות, לא נעשה שימוש באף אחת (${horizontalConflict.join("; ")}).`);
   }
@@ -378,8 +385,8 @@ function buildDiagnosticsNoteHe(params: {
   }
 
   const foundParts: string[] = [];
-  if (horizontal) foundParts.push(`רוחב חיצוני ${horizontal.valueM.toFixed(2)} מ'`);
-  if (vertical) foundParts.push(`גובה חיצוני ${vertical.valueM.toFixed(2)} מ'`);
+  if (horizontal) foundParts.push(`רוחב חיצוני ${horizontal.valueM!.toFixed(2)} מ'`);
+  if (vertical) foundParts.push(`גובה חיצוני ${vertical.valueM!.toFixed(2)} מ'`);
   parts.push(`נמצאו מידות כתובות: ${foundParts.join(", ")}.`);
 
   if (codeOverrodeGeometry) {
@@ -540,50 +547,71 @@ Deno.serve(async (req) => {
     );
   }
 
-  // --- NEW precondition: stage "measurements" (Pass 0.5) must have run ----
+  // --- SESSION 23 FOLLOW-UP #8: precondition is now "page_dimensions",
+  // NOT "measurements" (Pass 0.5, old pipeline) -- see file header. -------
 
-  const { data: measurementArtifacts, error: measurementsCheckError } = await supabase
+  const { data: pageDimensionsArtifacts, error: pageDimensionsCheckError } = await supabase
     .from("analysis_artifacts")
     .select("payload")
     .eq("job_id", jobId)
-    .eq("stage", "measurements")
+    .eq("stage", "page_dimensions")
     .order("version", { ascending: false })
     .limit(1);
 
-  if (measurementsCheckError) {
+  if (pageDimensionsCheckError) {
     return jsonResponse(
-      { error: "internal_error", detail: "failed to check measurements stage", jobId },
+      { error: "internal_error", detail: "failed to check page_dimensions stage", jobId },
       500,
     );
   }
-  if (!measurementArtifacts || measurementArtifacts.length === 0) {
+  if (!pageDimensionsArtifacts || pageDimensionsArtifacts.length === 0) {
     return jsonResponse(
       {
         error: "bad_request",
         detail:
-          "stage 0.5 (measurements) must complete for this job before envelope can run — call analyze-sketch-v2-measurements first",
+          "stage 1 (page_dimensions) must complete for this job before envelope can run — call analyze-sketch-v2-page-dimensions first",
         jobId,
       },
       400,
     );
   }
 
-  const measurementsPayload = (measurementArtifacts[0] as { payload: Record<string, unknown> }).payload;
-  const chains = Array.isArray(measurementsPayload?.chains)
-    ? (measurementsPayload.chains as DimensionChain[])
-    : [];
+  const pageDimensionsPayload = (pageDimensionsArtifacts[0] as { payload: Record<string, unknown> }).payload;
+  const horizontalExtent = pageDimensionsPayload?.horizontalExtent as ResolvedExtentV3 | undefined;
+  const verticalExtent = pageDimensionsPayload?.verticalExtent as ResolvedExtentV3 | undefined;
 
-  const horizontalRes = resolveAxisExtent(chains, "horizontal");
-  const verticalRes = resolveAxisExtent(chains, "vertical");
-  // Everything below this point works purely with the resolved (possibly
-  // null) extent, exactly as before the fix — a conflict behaves like "no
-  // reliable measurement" for validation/override purposes (never a
-  // fabricated averaged number), while horizontalRes.conflict/
-  // verticalRes.conflict carry the disagreement itself through to the
-  // prompt and the diagnostics note so it's surfaced, not hidden.
-  const horizontalExtent = horizontalRes.extent;
-  const verticalExtent = verticalRes.extent;
-  const authoritativeMeasurementsText = buildAuthoritativeMeasurementsPrompt(horizontalRes, verticalRes);
+  if (!horizontalExtent || !verticalExtent) {
+    return jsonResponse(
+      {
+        error: "internal_error",
+        detail:
+          "page_dimensions artifact is missing horizontalExtent/verticalExtent -- was it produced before session 23 follow-up #3? re-run analyze-sketch-v2-page-dimensions for this job.",
+        jobId,
+      },
+      500,
+    );
+  }
+
+  // Pure reshape only -- see resolved_page_dimensions_v3.ts's header. This
+  // is the SAME function analyze-sketch-v2-page-dimensions already used to
+  // compute resolvedPageDimensions for its own artifact payload; calling
+  // it again here on the same inputs is not a second resolution, it's
+  // just not trusting an (optional, possibly-absent-on-old-artifacts)
+  // stored field over recomputing the identical pure reshape from data
+  // this function needs to fetch anyway for the prompt below.
+  const resolvedPageDimensions: ResolvedPageDimensions = toResolvedPageDimensions(
+    horizontalExtent,
+    verticalExtent,
+  );
+
+  const horizontalExtentOrNull: ResolvedExtentV3 | null = horizontalExtent.status === "resolved" ? horizontalExtent : null;
+  const verticalExtentOrNull: ResolvedExtentV3 | null = verticalExtent.status === "resolved" ? verticalExtent : null;
+
+  const authoritativeMeasurementsText = buildAuthoritativeMeasurementsPrompt(horizontalExtent, verticalExtent);
+
+  const chainsCount = Array.isArray(pageDimensionsPayload?.builtChains)
+    ? (pageDimensionsPayload.builtChains as unknown[]).length
+    : 0;
 
   // next version number for this job's envelope stage.
   const { data: existingEnvelopeArtifacts, error: versionCheckError } = await supabase
@@ -616,29 +644,29 @@ Deno.serve(async (req) => {
       .eq("id", jobId);
   }
 
-  // --- SESSION 23 FOLLOW-UP #2: hard gate, per Yaron's explicit instruction
-  // ("אם authoritative horizontal או vertical extent אינו resolved, אל
-  // תקרא בכלל ל-OpenAI Envelope ואל תחזיר vertices"). Without a trusted
-  // value for BOTH axes, there is no reliable scale to build geometry
-  // from — calling the model anyway just produces a proportion-only guess
-  // dressed up with real-looking coordinates (exactly the kind of
-  // ungrounded geometry Patch 01 already stopped for the "both axes
-  // disagree" case). No OpenAI call, no vertices, no artifact with a
+  // --- SESSION 23 FOLLOW-UP #2 (original) / #8 (rewired): hard gate, per
+  // Yaron's explicit instruction. Without a trusted value for BOTH axes,
+  // there is no reliable scale to build geometry from — calling the model
+  // anyway just produces a proportion-only guess dressed up with real-
+  // looking coordinates. No OpenAI call, no vertices, no artifact with a
   // fabricated shape — just an honest "blocked" status with the specific
   // per-axis reason (missing vs. conflicting) so the caller can act on it.
-  if (shouldBlockStage1(horizontalRes, verticalRes)) {
+  // The gate condition itself now lives in resolved_page_dimensions_v3.ts
+  // (shouldBlockStage1FromPageDimensions) so it's shared, pure, and
+  // independently tested -- this file only calls it.
+  if (shouldBlockStage1FromPageDimensions(resolvedPageDimensions)) {
     const blockedReasons: string[] = [];
-    if (horizontalRes.extent === null) {
+    if (resolvedPageDimensions.horizontal.status !== "resolved") {
       blockedReasons.push(
-        horizontalRes.conflict
-          ? `ציר אופקי: שרשראות-מידה סותרות, לא נעשה שימוש באף אחת (${horizontalRes.conflict.join("; ")}).`
+        horizontalExtent.status === "conflict"
+          ? `ציר אופקי: שרשראות-מידה סותרות, לא נעשה שימוש באף אחת (${horizontalExtent.diagnostics.join("; ")}).`
           : "ציר אופקי: לא נמצאה מידה סמכותית כלל.",
       );
     }
-    if (verticalRes.extent === null) {
+    if (resolvedPageDimensions.vertical.status !== "resolved") {
       blockedReasons.push(
-        verticalRes.conflict
-          ? `ציר אנכי: שרשראות-מידה סותרות, לא נעשה שימוש באף אחת (${verticalRes.conflict.join("; ")}).`
+        verticalExtent.status === "conflict"
+          ? `ציר אנכי: שרשראות-מידה סותרות, לא נעשה שימוש באף אחת (${verticalExtent.diagnostics.join("; ")}).`
           : "ציר אנכי: לא נמצאה מידה סמכותית כלל.",
       );
     }
@@ -661,14 +689,15 @@ Deno.serve(async (req) => {
           modelReportedConfidence: null,
           notes: blockedNotes,
           blockedReasons,
+          resolvedPageDimensions,
           measurementsUsed: {
             horizontalM: null,
             horizontalConfidence: null,
-            horizontalConflict: horizontalRes.conflict,
+            horizontalConflict: conflictDiagnosticsOrNull(horizontalExtent),
             verticalM: null,
             verticalConfidence: null,
-            verticalConflict: verticalRes.conflict,
-            chainsCount: chains.length,
+            verticalConflict: conflictDiagnosticsOrNull(verticalExtent),
+            chainsCount,
           },
           validation: { retried: false, codeOverrodeGeometry: false, horizontalErrorPct: null, verticalErrorPct: null },
           model: null,
@@ -688,10 +717,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // The stage itself completed — it deterministically decided "not
-    // enough data yet", which is not a crash. Same status the old
-    // "missing measurement, proceed with a low-confidence guess" path used
-    // to report, just without the guess.
     await supabase
       .from("analysis_jobs")
       .update({
@@ -710,14 +735,15 @@ Deno.serve(async (req) => {
       modelReportedConfidence: null,
       notes: blockedNotes,
       blockedReasons,
+      resolvedPageDimensions,
       measurementsUsed: {
         horizontalM: null,
         horizontalConfidence: null,
-        horizontalConflict: horizontalRes.conflict,
+        horizontalConflict: conflictDiagnosticsOrNull(horizontalExtent),
         verticalM: null,
         verticalConfidence: null,
-        verticalConflict: verticalRes.conflict,
-        chainsCount: chains.length,
+        verticalConflict: conflictDiagnosticsOrNull(verticalExtent),
+        chainsCount,
       },
       validation: { retried: false, codeOverrodeGeometry: false, horizontalErrorPct: null, verticalErrorPct: null },
       durationMs: 0,
@@ -805,8 +831,8 @@ Deno.serve(async (req) => {
   let finalValidation: ValidationOutcome | null = null;
   let retried = false;
 
-  if (envelope !== null && (horizontalExtent !== null || verticalExtent !== null)) {
-    firstValidation = validateAgainstMeasurements(envelope.vertices, horizontalExtent, verticalExtent);
+  if (envelope !== null && (horizontalExtentOrNull !== null || verticalExtentOrNull !== null)) {
+    firstValidation = validateAgainstMeasurements(envelope.vertices, horizontalExtentOrNull, verticalExtentOrNull);
     finalValidation = firstValidation;
 
     if (firstValidation.mismatchDetected) {
@@ -815,14 +841,14 @@ Deno.serve(async (req) => {
       const mismatchLines: string[] = [
         "התוצאה הקודמת שלך לא תאמה את המידות הסמכותיות:",
       ];
-      if (horizontalExtent && firstValidation.horizontalErrorPct !== null && firstValidation.horizontalErrorPct > MEASUREMENT_MISMATCH_THRESHOLD_PCT) {
+      if (horizontalExtentOrNull && firstValidation.horizontalErrorPct !== null && firstValidation.horizontalErrorPct > MEASUREMENT_MISMATCH_THRESHOLD_PCT) {
         mismatchLines.push(
-          `- רוחב (ציר אופקי): החזרת צורה שרוחבה בפועל ${extent.widthM.toFixed(2)} מ', אבל המידה הסמכותית היא ${horizontalExtent.valueM.toFixed(2)} מ' (סטייה ${firstValidation.horizontalErrorPct.toFixed(1)}%).`,
+          `- רוחב (ציר אופקי): החזרת צורה שרוחבה בפועל ${extent.widthM.toFixed(2)} מ', אבל המידה הסמכותית היא ${horizontalExtentOrNull.valueM!.toFixed(2)} מ' (סטייה ${firstValidation.horizontalErrorPct.toFixed(1)}%).`,
         );
       }
-      if (verticalExtent && firstValidation.verticalErrorPct !== null && firstValidation.verticalErrorPct > MEASUREMENT_MISMATCH_THRESHOLD_PCT) {
+      if (verticalExtentOrNull && firstValidation.verticalErrorPct !== null && firstValidation.verticalErrorPct > MEASUREMENT_MISMATCH_THRESHOLD_PCT) {
         mismatchLines.push(
-          `- גובה (ציר אנכי): החזרת צורה שגובהה בפועל ${extent.heightM.toFixed(2)} מ', אבל המידה הסמכותית היא ${verticalExtent.valueM.toFixed(2)} מ' (סטייה ${firstValidation.verticalErrorPct.toFixed(1)}%).`,
+          `- גובה (ציר אנכי): החזרת צורה שגובהה בפועל ${extent.heightM.toFixed(2)} מ', אבל המידה הסמכותית היא ${verticalExtentOrNull.valueM!.toFixed(2)} מ' (סטייה ${firstValidation.verticalErrorPct.toFixed(1)}%).`,
         );
       }
       mismatchLines.push(
@@ -853,7 +879,7 @@ Deno.serve(async (req) => {
           analysis = retryAnalysis;
           envelope = retryEnvelope;
           usage = { firstAttempt: usage, retryAttempt: retryResult.usage };
-          finalValidation = validateAgainstMeasurements(envelope!.vertices, horizontalExtent, verticalExtent);
+          finalValidation = validateAgainstMeasurements(envelope!.vertices, horizontalExtentOrNull, verticalExtentOrNull);
         }
         // if the retry came back invalid, we simply keep the first (already
         // validated, even if mismatched) result rather than discarding a
@@ -871,12 +897,12 @@ Deno.serve(async (req) => {
   if (
     envelope !== null &&
     isAxisAlignedRectangle(envelope.vertices) &&
-    horizontalExtent !== null &&
-    verticalExtent !== null &&
-    horizontalExtent.confidence !== "low" &&
-    verticalExtent.confidence !== "low"
+    horizontalExtentOrNull !== null &&
+    verticalExtentOrNull !== null &&
+    horizontalExtentOrNull.confidence !== "low" &&
+    verticalExtentOrNull.confidence !== "low"
   ) {
-    envelope = { vertices: buildDeterministicRectangle(horizontalExtent.valueM, verticalExtent.valueM) };
+    envelope = { vertices: buildDeterministicRectangle(horizontalExtentOrNull.valueM!, verticalExtentOrNull.valueM!) };
     codeOverrodeGeometry = true;
     finalValidation = { horizontalErrorPct: 0, verticalErrorPct: 0, mismatchDetected: false };
   }
@@ -885,17 +911,17 @@ Deno.serve(async (req) => {
 
   const finalConfidence = computeFinalConfidence({
     envelopeIsNull: envelope === null,
-    horizontal: horizontalExtent,
-    vertical: verticalExtent,
+    horizontal: horizontalExtentOrNull,
+    vertical: verticalExtentOrNull,
     finalValidation,
     codeOverrodeGeometry,
   });
 
   const diagnosticsNoteHe = buildDiagnosticsNoteHe({
-    horizontal: horizontalExtent,
-    vertical: verticalExtent,
-    horizontalConflict: horizontalRes.conflict,
-    verticalConflict: verticalRes.conflict,
+    horizontal: horizontalExtentOrNull,
+    vertical: verticalExtentOrNull,
+    horizontalConflict: conflictDiagnosticsOrNull(horizontalExtent),
+    verticalConflict: conflictDiagnosticsOrNull(verticalExtent),
     firstValidation,
     retried,
     finalValidation,
@@ -917,14 +943,15 @@ Deno.serve(async (req) => {
         confidence: finalConfidence,
         modelReportedConfidence: analysis.confidence,
         notes: combinedNotes,
+        resolvedPageDimensions,
         measurementsUsed: {
-          horizontalM: horizontalExtent?.valueM ?? null,
-          horizontalConfidence: horizontalExtent?.confidence ?? null,
-          horizontalConflict: horizontalRes.conflict,
-          verticalM: verticalExtent?.valueM ?? null,
-          verticalConfidence: verticalExtent?.confidence ?? null,
-          verticalConflict: verticalRes.conflict,
-          chainsCount: chains.length,
+          horizontalM: horizontalExtentOrNull?.valueM ?? null,
+          horizontalConfidence: horizontalExtentOrNull?.confidence ?? null,
+          horizontalConflict: conflictDiagnosticsOrNull(horizontalExtent),
+          verticalM: verticalExtentOrNull?.valueM ?? null,
+          verticalConfidence: verticalExtentOrNull?.confidence ?? null,
+          verticalConflict: conflictDiagnosticsOrNull(verticalExtent),
+          chainsCount,
         },
         validation: {
           retried,
@@ -965,14 +992,15 @@ Deno.serve(async (req) => {
     confidence: finalConfidence,
     modelReportedConfidence: analysis.confidence,
     notes: combinedNotes,
+    resolvedPageDimensions,
     measurementsUsed: {
-      horizontalM: horizontalExtent?.valueM ?? null,
-      horizontalConfidence: horizontalExtent?.confidence ?? null,
-      horizontalConflict: horizontalRes.conflict,
-      verticalM: verticalExtent?.valueM ?? null,
-      verticalConfidence: verticalExtent?.confidence ?? null,
-      verticalConflict: verticalRes.conflict,
-      chainsCount: chains.length,
+      horizontalM: horizontalExtentOrNull?.valueM ?? null,
+      horizontalConfidence: horizontalExtentOrNull?.confidence ?? null,
+      horizontalConflict: conflictDiagnosticsOrNull(horizontalExtent),
+      verticalM: verticalExtentOrNull?.valueM ?? null,
+      verticalConfidence: verticalExtentOrNull?.confidence ?? null,
+      verticalConflict: conflictDiagnosticsOrNull(verticalExtent),
+      chainsCount,
     },
     validation: {
       retried,
@@ -984,3 +1012,4 @@ Deno.serve(async (req) => {
     attempt,
   });
 });
+

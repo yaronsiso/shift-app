@@ -74,17 +74,32 @@
 //      the fix: coverage is now the clamped intersection with the
 //      canonical [0,100] main-crop space).
 //
+// SESSION 23 FOLLOW-UPS #4-#7: see ../_shared/dimension_chain_builder_v3.ts,
+// ../_shared/dimension_extent_grouping_v3.ts, and
+// ../_shared/dimension_chain_resolver_v3.ts's own file headers for the
+// missing-line-geometry exclusion, containment/contiguity, extent-
+// equivalence corroboration, and completeness-gating fixes respectively.
+// None of those changed this file.
+//
+// SESSION 23 FOLLOW-UP #8 (Yaron's architecture decision, after tracing
+// the full data flow with Claude): this pass's resolved
+// horizontalExtent/verticalExtent were being computed correctly here the
+// whole time, but Stage 1 (envelope) was never actually reading them — it
+// was reading a completely separate, older pipeline instead (the
+// "measurements" stage from analyze-sketch-v2-measurements, session 21,
+// where the model decides chains itself). See
+// ../_shared/resolved_page_dimensions_v3.ts's file header for the full
+// before/after diagram. The only change in THIS file: the artifact
+// payload (and HTTP response) now also includes `resolvedPageDimensions`
+// — a pure, thin reshape of horizontalExtent/verticalExtent into the
+// canonical contract analyze-sketch-v2-envelope now reads. No new
+// computation; toResolvedPageDimensions never re-resolves anything.
+//
 // Explicitly NOT done here (per Yaron's own words: "אל תבנה Rooms ואל
 // תשנה את Stage 0/1 מעבר לנדרש"):
 //   - No Rooms/Walls/Openings/Stairs reconstruction.
 //   - Stage 0 (scope) itself is untouched by this change (only read from,
 //     for its mainFloorPlanBboxPct, to support the strip remap above).
-//   - Pass 0.5 (the old narrow measurements pass) is untouched.
-//   - Still NOT wired into Stage 1 — Yaron's own acceptance test (this
-//     pipeline resolving 1669->16.69m horizontal, 1099->10.99m vertical,
-//     and 274 never being selected, on the real drawing) needs to pass
-//     first; wiring + retiring Pass 0.5 is an explicit next step, not
-//     taken here.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
@@ -108,6 +123,7 @@ import {
   resolveDocumentUnitConvention,
   type DocumentUnitConventionResult,
 } from "../_shared/document_unit_convention_resolver.ts";
+import { toResolvedPageDimensions } from "../_shared/resolved_page_dimensions_v3.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -544,6 +560,12 @@ Deno.serve(async (req) => {
   const horizontalExtent = resolveAuthoritativeExtentV3(allMeasurements, documentUnitConvention, "horizontal");
   const verticalExtent = resolveAuthoritativeExtentV3(allMeasurements, documentUnitConvention, "vertical");
 
+  // SESSION 23 FOLLOW-UP #8: canonical, thin reshape of the two extents
+  // above into the contract analyze-sketch-v2-envelope reads. Pure
+  // function, no new resolution happening here — see
+  // ../_shared/resolved_page_dimensions_v3.ts's header.
+  const resolvedPageDimensions = toResolvedPageDimensions(horizontalExtent, verticalExtent);
+
   const combinedNotes = [...notesParts, ...(stripDiagnostics.length > 0 ? [`strips: ${stripDiagnostics.join(" ")}`] : [])]
     .join("\n");
 
@@ -563,6 +585,7 @@ Deno.serve(async (req) => {
         normalizedMeasurements,
         horizontalExtent,
         verticalExtent,
+        resolvedPageDimensions,
         stripsUsed,
         stripDiagnostics,
         model: OPENAI_MODEL,
@@ -607,9 +630,11 @@ Deno.serve(async (req) => {
     builtChains,
     horizontalExtent,
     verticalExtent,
+    resolvedPageDimensions,
     stripsUsed,
     stripDiagnostics,
     durationMs,
     attempt,
   });
 });
+
