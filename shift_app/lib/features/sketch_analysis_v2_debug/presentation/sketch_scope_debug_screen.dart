@@ -8,15 +8,18 @@
 // button), then remove that link when done.
 //
 // Now covers FOUR stages/passes of the pipeline:
-//   Pass 1 ("page dimensions") — NEW, session 22, rebuilt around "Patch
-//   01: Measurement Integrity" (an external architecture audit,
-//   independently verified — see sketch_page_dimensions_service.dart's
-//   header). Given Stage 0's crop, reads RAW measurement evidence for
-//   EVERY printed dimension on the page (room dimensions, wall lengths,
-//   openings, areas, elevations, etc.), not just the outer envelope, and
-//   resolves axis extents in code — never averaging disagreeing chains
-//   into a fabricated number. Fully independent — only needs Stage 0,
-//   does not feed Pass 0.5/Stage 1 (yet) — see
+//   Pass 1 ("page dimensions") — session 23 rewrite: the model no longer
+//   groups measurements into chains or decides which one is "overall"
+//   (session 22's real-drawing test showed it's unreliable at both — 44
+//   measurements transcribed well, but only 2 chains built, neither
+//   classified overall_building). Now the model ONLY returns individual
+//   DimensionEvidence records (+ a page-wide unit-convention hint); CODE
+//   builds chains from geometry and decides which chain is an axis's
+//   overall/envelope candidate purely by whether its span covers ~the
+//   full page (which Stage 0 already cropped to just the main floor
+//   plan) — see dimension_chain_builder_v3.ts / dimension_chain_resolver_v3.ts.
+//   Still never averages disagreeing chains. Fully independent — only
+//   needs Stage 0, does not feed Pass 0.5/Stage 1 (yet) — see
 //   analyze-sketch-v2-page-dimensions/index.ts.
 //   Stage 0 ("scope + crop"): pick a real floor-plan photo, find where the
 //   main floor plan is on the page (bbox + excluded regions), crop to it
@@ -324,41 +327,48 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
     return '${c.location} (${c.axis}): $segmentsText$overall — ביטחון: ${c.confidence}';
   }
 
-  String _formatMeasurement(RawMeasurement m) {
+  // session 23: DimensionEvidence — the model only transcribes/classifies
+  // individual measurements now; no referenceType "overall" concept and
+  // no per-measurement unitEvidence (there's a page-wide convention
+  // instead — see _formatConvention below).
+  String _formatMeasurement(DimensionEvidence m) {
     final numeric = m.rawNumeric != null ? m.rawNumeric!.toStringAsFixed(2) : '?';
-    return '[${m.id}] ${m.label} (${m.referenceType}/${m.axis}): "${m.rawText}" '
-        '= $numeric ${m.unit} (מקור-יחידה: ${m.unitEvidence}) — ביטחון: ${m.confidence}';
+    final line = (m.lineStartPct != null && m.lineEndPct != null)
+        ? 'קו: (${m.lineStartPct!.xPct.toStringAsFixed(0)},${m.lineStartPct!.yPct.toStringAsFixed(0)})'
+            '→(${m.lineEndPct!.xPct.toStringAsFixed(0)},${m.lineEndPct!.yPct.toStringAsFixed(0)})'
+        : 'קו: לא זוהה';
+    return '[${m.id}] (${m.referenceTypeHint}/${m.axis}): "${m.rawText}" '
+        '= $numeric ${m.unit} — $line — ביטחון: ${m.confidence}';
   }
 
-  String _formatChainV2(PageDimensionChainV2 c, List<RawMeasurement> allMeasurements) {
+  // session 23: chains are built entirely in code from measurement
+  // geometry (dimension_chain_builder_v3.ts) — isOverallCandidate is a
+  // geometric fact (span coverage vs. the full cropped page), never a
+  // model decision.
+  String _formatBuiltChain(BuiltDimensionChain c, List<DimensionEvidence> allMeasurements) {
     final byId = {for (final m in allMeasurements) m.id: m};
-    final segTexts = c.segmentMeasurementIds.map((id) => byId[id]?.rawText ?? '?($id)').join(' + ');
-    final overallText = c.overallMeasurementId != null
-        ? ' = ${byId[c.overallMeasurementId]?.rawText ?? '?(${c.overallMeasurementId})'}'
-        : ' (אין מספר-סיכום)';
-    return '[${c.level}/${c.referenceType}] ${c.locationLabel} (${c.axis}): '
-        '$segTexts$overallText — ביטחון: ${c.confidence}';
+    final membersText =
+        c.measurementIds.map((id) => byId[id]?.rawText ?? '?($id)').join(' + ');
+    final candidateLabel = c.isOverallCandidate
+        ? '✓ מועמד-מעטפת (coverage ${c.coveragePct.toStringAsFixed(0)}%)'
+        : 'קטע מקומי (coverage ${c.coveragePct.toStringAsFixed(0)}%)';
+    return '[${c.id}] ${c.axis} — $candidateLabel — דומיננטי: ${c.dominantReferenceTypeHint}\n'
+        '    חברים: $membersText\n'
+        '    span: [${c.spanStartPct.toStringAsFixed(1)}, ${c.spanEndPct.toStringAsFixed(1)}] '
+        '(${c.usedLineEndpointsCount}/${c.measurementIds.length} עם קו מזוהה)';
   }
 
-  String _formatChainValidation(ChainValidationV2 v) {
-    final statusLabel = switch (v.status) {
-      'match' => 'תואם',
-      'contradiction' => 'סתירה! (הסכום לא תואם למספר-הסיכום)',
-      'not_checkable' => 'אין מספיק נתונים לבדיקה',
-      _ => v.status,
-    };
-    final nums = v.segmentSumM != null && v.overallM != null
-        ? ' (סכום: ${v.segmentSumM!.toStringAsFixed(2)} מ\' | סיכום כתוב: '
-            '${v.overallM!.toStringAsFixed(2)} מ\' | סטייה: ${v.diffPct?.toStringAsFixed(1) ?? "-"}%)'
-        : '';
-    return 'chain ${v.chainId}: $statusLabel$nums';
+  String _formatConvention(DocumentMeasurementConvention conv) {
+    final evidence = conv.evidence.isNotEmpty ? '\n    ${conv.evidence.join('\n    ')}' : '';
+    return 'קונבנציית יחידות שזוהתה: ${conv.detectedUnit} (ביטחון ${conv.confidence})$evidence';
   }
 
-  String _formatResolvedExtent(String labelHe, ResolvedExtentV2 res) {
+  String _formatResolvedExtent(String labelHe, ResolvedExtentV3 res) {
     final statusLabel = switch (res.status) {
       'resolved' => 'נפתרה',
       'conflict' => '⚠️ סתירה — לא נעשה שימוש באף מספר',
-      'missing' => 'לא נמצאה מידה',
+      'missing' => 'לא נמצאה שרשרת-מעטפת (geometry)',
+      'unresolved' => 'נמצאה שרשרת-מעטפת אך לא ניתן היה להמיר ליחידות',
       _ => res.status,
     };
     final value = res.valueM != null ? '${res.valueM!.toStringAsFixed(2)} מ\'' : '—';
@@ -375,7 +385,7 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Stage 0/1/0.5/1 debug — Scope+Crop / PageDimensions(Patch01) / Measurements / Envelope',
+          'Stage 0/1/0.5/1 debug — Scope+Crop / PageDimensions(v3-geometry) / Measurements / Envelope',
         ),
       ),
       body: SingleChildScrollView(
@@ -464,15 +474,16 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
             if (_croppedFile != null) ...[
               const Divider(height: 32),
               const Text(
-                'Pass 1 — Page Dimensions (Patch 01: עדות גולמית + never-average resolver)',
+                'Pass 1 — Page Dimensions (session 23: קוד בונה שרשראות מגיאומטריה, לא ה-AI)',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               const SizedBox(height: 4),
               const Text(
-                'עצמאי לגמרי מ-Pass 0.5/Stage 1 למטה — קורא עדות גולמית לכל '
-                'מספר בעמוד (בלי המרת-יחידות/סיכום על ידי ה-AI), ופותר בקוד '
-                'מידה סמכותית אחת לכל ציר. אם שרשראות סותרות זו את זו — '
-                'מוצגת סתירה, לא ממוצע.',
+                'עצמאי לגמרי מ-Pass 0.5/Stage 1 למטה — ה-AI מחזיר רק מידות '
+                'בודדות (בלי המרת-יחידות/סיכום/קיבוץ). הקוד בונה שרשראות '
+                'לפי מיקום גיאומטרי ומחליט איזו שרשרת מכסה את כל רוחב/גובה '
+                'העמוד (מועמדת-מעטפת) — ה-AI לא מחליט מה "כולל". אם '
+                'שרשראות-מעטפת סותרות זו את זו — מוצגת סתירה, לא ממוצע.',
                 style: TextStyle(fontSize: 12, color: Colors.black54),
               ),
               const SizedBox(height: 8),
@@ -500,12 +511,17 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
                 const SizedBox(height: 8),
                 Text(
                   'סה"כ: ${pageDimensionsResult.measurements.length} מידות גולמיות, '
-                  '${pageDimensionsResult.chains.length} שרשראות',
+                  '${pageDimensionsResult.builtChains.length} שרשראות (בנויות בקוד)',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'מידות מעטפת שנפתרו בקוד (never-average):',
+                  _formatConvention(pageDimensionsResult.convention),
+                  style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'מידות מעטפת שנפתרו בקוד (geometry-gated, never-average):',
                   style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                 ),
                 Text(
@@ -514,27 +530,16 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
                   style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
                 ),
                 const SizedBox(height: 8),
-                if (pageDimensionsResult.chainValidations.isNotEmpty) ...[
-                  const Text(
-                    'בדיקת-סכום בקוד (per chain):',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    pageDimensionsResult.chainValidations.map(_formatChainValidation).join('\n'),
-                    style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                if (pageDimensionsResult.chains.isEmpty)
+                if (pageDimensionsResult.builtChains.isEmpty)
                   const Text('chains: none', style: TextStyle(color: Colors.orange))
                 else ...[
                   const Text(
-                    'chains (raw, as extracted):',
+                    'chains (built by code from geometry, not by the model):',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                   ),
                   Text(
-                    pageDimensionsResult.chains
-                        .map((c) => _formatChainV2(c, pageDimensionsResult.measurements))
+                    pageDimensionsResult.builtChains
+                        .map((c) => _formatBuiltChain(c, pageDimensionsResult.measurements))
                         .join('\n'),
                     style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
                   ),

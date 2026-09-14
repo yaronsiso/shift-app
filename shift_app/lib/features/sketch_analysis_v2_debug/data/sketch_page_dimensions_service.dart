@@ -1,22 +1,33 @@
 // lib/features/sketch_analysis_v2_debug/data/sketch_page_dimensions_service.dart
 //
-// Debug-only service for Pass 1 ("page dimensions") — session 22, rebuilt
-// around "Patch 01: Measurement Integrity" (see
-// analyze-sketch-v2-page-dimensions/index.ts's file header for full
-// provenance: an external architecture audit, independently verified,
-// that also found and fixed a real averaging bug in the envelope stage).
-// Supersedes this session's own earlier, simpler version of this file
-// (built before the audit, never deployed/run) — same job, richer/safer
-// data model: raw measurement evidence (with bbox + unit-evidence) instead
-// of pre-converted numbers, chains that reference measurement IDs instead
-// of embedding values, and code-resolved horizontal/vertical extents that
-// report a CONFLICT rather than silently averaging disagreeing chains.
+// Debug-only service for Pass 1 ("page dimensions") — session 23 rewrite.
+// The model no longer returns chains or an "overall" classification (see
+// analyze-sketch-v2-page-dimensions/index.ts's header for the full
+// rationale: session 22's real-drawing test showed the model reads/
+// classifies individual numbers well but groups them into chains badly).
+// Chains are now built entirely in code from measurement geometry, and
+// this file's models mirror that server-side shape exactly:
+// DimensionEvidence (per-measurement raw evidence, now including the
+// actual dimension-line endpoints) + DocumentMeasurementConvention
+// (page-wide unit evidence) + BuiltDimensionChain (code-computed) +
+// ResolvedExtentV3 (code-computed, never-averaged).
 //
 // COMPLETELY SEPARATE from SketchMeasurementsService/SketchEnvelopeService
 // — does not depend on them and they don't depend on this. Only
 // precondition is Stage 0 (scope) having already run and uploaded a crop.
 
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+class Point2DPct {
+  final double xPct;
+  final double yPct;
+  Point2DPct({required this.xPct, required this.yPct});
+
+  factory Point2DPct.fromJson(Map<String, dynamic> json) => Point2DPct(
+        xPct: (json['xPct'] as num?)?.toDouble() ?? 0,
+        yPct: (json['yPct'] as num?)?.toDouble() ?? 0,
+      );
+}
 
 class BboxPct {
   final double xMinPct;
@@ -38,127 +49,132 @@ class BboxPct {
       );
 }
 
-/// Raw evidence for one printed measurement — the model transcribes this,
-/// unit conversion/summation is done in code, never by the model. Mirrors
-/// RawMeasurement in page_dimensions_schema_v2.ts exactly.
-class RawMeasurement {
+/// Raw evidence for one printed measurement. NOTE: no "referenceType"
+/// overall/segment distinction anymore — referenceTypeHint is purely
+/// descriptive, mirrors DimensionEvidence in dimension_evidence_schema_v3.ts.
+class DimensionEvidence {
   final String id;
   final String rawText;
   final double? rawNumeric;
   final String unit; // "mm" | "cm" | "m" | "unknown"
-  final String unitEvidence; // "explicit" | "sheet_context" | "inferred" | "unknown"
-  final String referenceType;
   final String axis; // "horizontal" | "vertical" | "diagonal" | "unknown"
   final BboxPct bboxPct;
-  final String label;
+  final Point2DPct? lineStartPct;
+  final Point2DPct? lineEndPct;
+  final String referenceTypeHint; // building | room | wall | opening | elevation | area | unknown
   final String confidence;
 
-  RawMeasurement({
+  DimensionEvidence({
     required this.id,
     required this.rawText,
     required this.rawNumeric,
     required this.unit,
-    required this.unitEvidence,
-    required this.referenceType,
     required this.axis,
     required this.bboxPct,
-    required this.label,
+    required this.lineStartPct,
+    required this.lineEndPct,
+    required this.referenceTypeHint,
     required this.confidence,
   });
 
-  factory RawMeasurement.fromJson(Map<String, dynamic> json) => RawMeasurement(
+  factory DimensionEvidence.fromJson(Map<String, dynamic> json) => DimensionEvidence(
         id: json['id'] as String? ?? '',
         rawText: json['rawText'] as String? ?? '',
         rawNumeric: (json['rawNumeric'] as num?)?.toDouble(),
         unit: json['unit'] as String? ?? 'unknown',
-        unitEvidence: json['unitEvidence'] as String? ?? 'unknown',
-        referenceType: json['referenceType'] as String? ?? 'unknown',
         axis: json['axis'] as String? ?? 'unknown',
         bboxPct: BboxPct.fromJson(json['bboxPct'] as Map<String, dynamic>? ?? const {}),
-        label: json['label'] as String? ?? '',
+        lineStartPct: json['lineStartPct'] == null
+            ? null
+            : Point2DPct.fromJson(json['lineStartPct'] as Map<String, dynamic>),
+        lineEndPct: json['lineEndPct'] == null
+            ? null
+            : Point2DPct.fromJson(json['lineEndPct'] as Map<String, dynamic>),
+        referenceTypeHint: json['referenceTypeHint'] as String? ?? 'unknown',
         confidence: json['confidence'] as String? ?? 'unknown',
       );
 }
 
-/// A chain references measurement IDs rather than embedding values —
-/// mirrors DimensionChain in page_dimensions_schema_v2.ts.
-class PageDimensionChainV2 {
-  final String id;
-  final String axis;
-  final String level;
-  final String referenceType;
-  final BboxPct bboxPct;
-  final String locationLabel;
-  final List<String> segmentMeasurementIds;
-  final String? overallMeasurementId;
+/// Page-wide unit-convention evidence — mirrors DocumentMeasurementConvention.
+class DocumentMeasurementConvention {
+  final String detectedUnit;
   final String confidence;
+  final List<String> evidence;
 
-  PageDimensionChainV2({
+  DocumentMeasurementConvention({
+    required this.detectedUnit,
+    required this.confidence,
+    required this.evidence,
+  });
+
+  factory DocumentMeasurementConvention.fromJson(Map<String, dynamic> json) =>
+      DocumentMeasurementConvention(
+        detectedUnit: json['detectedUnit'] as String? ?? 'unknown',
+        confidence: json['confidence'] as String? ?? 'unknown',
+        evidence: (json['evidence'] as List<dynamic>? ?? []).map((e) => e as String).toList(),
+      );
+}
+
+/// A chain CODE built from measurement geometry — mirrors
+/// BuiltDimensionChain in dimension_chain_builder_v3.ts exactly.
+/// isOverallCandidate is a geometric fact (does this chain's span cover
+/// ~the full page on its axis), never something the model decided.
+class BuiltDimensionChain {
+  final String id;
+  final String axis; // "horizontal" | "vertical"
+  final List<String> measurementIds;
+  final double spanStartPct;
+  final double spanEndPct;
+  final double coveragePct;
+  final double crossStripPct;
+  final bool isOverallCandidate;
+  final String dominantReferenceTypeHint;
+  final int usedLineEndpointsCount;
+
+  BuiltDimensionChain({
     required this.id,
     required this.axis,
-    required this.level,
-    required this.referenceType,
-    required this.bboxPct,
-    required this.locationLabel,
-    required this.segmentMeasurementIds,
-    required this.overallMeasurementId,
-    required this.confidence,
+    required this.measurementIds,
+    required this.spanStartPct,
+    required this.spanEndPct,
+    required this.coveragePct,
+    required this.crossStripPct,
+    required this.isOverallCandidate,
+    required this.dominantReferenceTypeHint,
+    required this.usedLineEndpointsCount,
   });
 
-  factory PageDimensionChainV2.fromJson(Map<String, dynamic> json) => PageDimensionChainV2(
+  factory BuiltDimensionChain.fromJson(Map<String, dynamic> json) => BuiltDimensionChain(
         id: json['id'] as String? ?? '',
         axis: json['axis'] as String? ?? 'unknown',
-        level: json['level'] as String? ?? 'unknown',
-        referenceType: json['referenceType'] as String? ?? 'unknown',
-        bboxPct: BboxPct.fromJson(json['bboxPct'] as Map<String, dynamic>? ?? const {}),
-        locationLabel: json['locationLabel'] as String? ?? '',
-        segmentMeasurementIds: (json['segmentMeasurementIds'] as List<dynamic>? ?? [])
-            .map((e) => e as String)
-            .toList(),
-        overallMeasurementId: json['overallMeasurementId'] as String?,
-        confidence: json['confidence'] as String? ?? 'unknown',
-      );
-}
-
-/// Code-computed (server-side) per-chain validation — mirrors
-/// ChainValidation in measurement_resolver.ts exactly.
-class ChainValidationV2 {
-  final String chainId;
-  final double? segmentSumM;
-  final double? overallM;
-  final double? diffPct;
-  final String status; // "match" | "contradiction" | "not_checkable"
-
-  ChainValidationV2({
-    required this.chainId,
-    required this.segmentSumM,
-    required this.overallM,
-    required this.diffPct,
-    required this.status,
-  });
-
-  factory ChainValidationV2.fromJson(Map<String, dynamic> json) => ChainValidationV2(
-        chainId: json['chainId'] as String? ?? '',
-        segmentSumM: (json['segmentSumM'] as num?)?.toDouble(),
-        overallM: (json['overallM'] as num?)?.toDouble(),
-        diffPct: (json['diffPct'] as num?)?.toDouble(),
-        status: json['status'] as String? ?? 'unknown',
+        measurementIds:
+            (json['measurementIds'] as List<dynamic>? ?? []).map((e) => e as String).toList(),
+        spanStartPct: (json['spanStartPct'] as num?)?.toDouble() ?? 0,
+        spanEndPct: (json['spanEndPct'] as num?)?.toDouble() ?? 0,
+        coveragePct: (json['coveragePct'] as num?)?.toDouble() ?? 0,
+        crossStripPct: (json['crossStripPct'] as num?)?.toDouble() ?? 0,
+        isOverallCandidate: json['isOverallCandidate'] as bool? ?? false,
+        dominantReferenceTypeHint: json['dominantReferenceTypeHint'] as String? ?? 'unknown',
+        usedLineEndpointsCount: (json['usedLineEndpointsCount'] as num?)?.toInt() ?? 0,
       );
 }
 
 /// Code-computed (server-side) resolution of ONE building-wide axis extent
-/// — mirrors ResolvedExtent in measurement_resolver.ts exactly. status
-/// "conflict" means credible chains disagreed and NOTHING was used as
-/// authoritative (never averaged) — this is the session-22 fix.
-class ResolvedExtentV2 {
+/// — mirrors ResolvedExtentV3 in dimension_chain_resolver_v3.ts exactly.
+/// status "conflict" means credible chains disagreed and NOTHING was used
+/// as authoritative (never averaged). "missing" means no chain reached
+/// overall-envelope geometric coverage at all. "unresolved" means a
+/// geometrically-qualifying chain was found but its value couldn't be
+/// converted to meters (unit problem, or a non-length referenceTypeHint).
+class ResolvedExtentV3 {
   final String axis;
   final double? valueM;
   final String confidence;
   final List<String> sourceChainIds;
-  final String status; // "resolved" | "conflict" | "missing"
+  final String status; // "resolved" | "conflict" | "missing" | "unresolved"
   final List<String> diagnostics;
 
-  ResolvedExtentV2({
+  ResolvedExtentV3({
     required this.axis,
     required this.valueM,
     required this.confidence,
@@ -167,7 +183,7 @@ class ResolvedExtentV2 {
     required this.diagnostics,
   });
 
-  factory ResolvedExtentV2.fromJson(Map<String, dynamic> json) => ResolvedExtentV2(
+  factory ResolvedExtentV3.fromJson(Map<String, dynamic> json) => ResolvedExtentV3(
         axis: json['axis'] as String? ?? 'unknown',
         valueM: (json['valueM'] as num?)?.toDouble(),
         confidence: json['confidence'] as String? ?? 'unknown',
@@ -181,12 +197,12 @@ class ResolvedExtentV2 {
 class PageDimensionsResult {
   final String jobId;
   final String artifactId;
-  final List<RawMeasurement> measurements;
-  final List<PageDimensionChainV2> chains;
+  final List<DimensionEvidence> measurements;
+  final DocumentMeasurementConvention convention;
   final String notes;
-  final List<ChainValidationV2> chainValidations;
-  final ResolvedExtentV2 horizontalExtent;
-  final ResolvedExtentV2 verticalExtent;
+  final List<BuiltDimensionChain> builtChains;
+  final ResolvedExtentV3 horizontalExtent;
+  final ResolvedExtentV3 verticalExtent;
   final int durationMs;
   final int attempt;
 
@@ -194,9 +210,9 @@ class PageDimensionsResult {
     required this.jobId,
     required this.artifactId,
     required this.measurements,
-    required this.chains,
+    required this.convention,
     required this.notes,
-    required this.chainValidations,
+    required this.builtChains,
     required this.horizontalExtent,
     required this.verticalExtent,
     required this.durationMs,
@@ -207,19 +223,18 @@ class PageDimensionsResult {
         jobId: json['jobId'] as String,
         artifactId: json['artifactId'] as String,
         measurements: (json['measurements'] as List<dynamic>? ?? [])
-            .map((m) => RawMeasurement.fromJson(m as Map<String, dynamic>))
+            .map((m) => DimensionEvidence.fromJson(m as Map<String, dynamic>))
             .toList(),
-        chains: (json['chains'] as List<dynamic>? ?? [])
-            .map((c) => PageDimensionChainV2.fromJson(c as Map<String, dynamic>))
-            .toList(),
+        convention: DocumentMeasurementConvention.fromJson(
+            json['convention'] as Map<String, dynamic>? ?? const {}),
         notes: json['notes'] as String? ?? '',
-        chainValidations: (json['chainValidations'] as List<dynamic>? ?? [])
-            .map((v) => ChainValidationV2.fromJson(v as Map<String, dynamic>))
+        builtChains: (json['builtChains'] as List<dynamic>? ?? [])
+            .map((c) => BuiltDimensionChain.fromJson(c as Map<String, dynamic>))
             .toList(),
         horizontalExtent:
-            ResolvedExtentV2.fromJson(json['horizontalExtent'] as Map<String, dynamic>? ?? const {}),
+            ResolvedExtentV3.fromJson(json['horizontalExtent'] as Map<String, dynamic>? ?? const {}),
         verticalExtent:
-            ResolvedExtentV2.fromJson(json['verticalExtent'] as Map<String, dynamic>? ?? const {}),
+            ResolvedExtentV3.fromJson(json['verticalExtent'] as Map<String, dynamic>? ?? const {}),
         durationMs: json['durationMs'] as int,
         attempt: json['attempt'] as int,
       );
