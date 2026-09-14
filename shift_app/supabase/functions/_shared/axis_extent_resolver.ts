@@ -19,7 +19,18 @@
 // resolves to no authoritative value at all (extent stays null, same as
 // "no measurement found"), and the conflicting numbers are returned
 // separately so callers can surface them instead of hiding them.
-
+//
+// SESSION 23 FOLLOW-UP #2 (Yaron's second real-drawing test): added
+// shouldBlockStage1 — a tiny, independently-testable predicate for a new
+// hard rule Yaron asked for directly: if EITHER axis has no authoritative
+// extent at all (missing OR conflicting — anything short of a single
+// trusted value), Stage 1 must not call the Envelope model at all, must
+// not return any vertices, and must report a "blocked" status instead.
+// Building a polygon from a proportion-only guess on an unresolved axis is
+// exactly the kind of ungrounded geometry Patch 01 already fixed for the
+// "both axes disagree" case — this closes the same gap for "one or both
+// axes have no measurement at all", which the model call used to just
+// paper over with a low-confidence guess instead of refusing outright.
 import type { DimensionChain } from "./dimension_extraction_schema.ts";
 
 export type Confidence = "high" | "medium" | "low";
@@ -102,4 +113,14 @@ export function resolveAxisExtent(
     extent: { valueM: best.valueM, confidence: best.chain.confidence, chainCount: candidates.length },
     conflict: null,
   };
+}
+
+/**
+ * True iff Stage 1 must NOT call the Envelope model at all — either axis
+ * has no authoritative extent (missing or conflicting). Pure predicate so
+ * the "hard gate" rule itself is independently testable, separate from the
+ * I/O-heavy Edge Function handler that acts on it.
+ */
+export function shouldBlockStage1(horizontal: AxisResolution, vertical: AxisResolution): boolean {
+  return horizontal.extent === null || vertical.extent === null;
 }

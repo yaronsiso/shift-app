@@ -51,6 +51,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/client_side_crop.dart';
+import '../data/dimension_strips.dart';
 import '../data/sketch_envelope_service.dart';
 import '../data/sketch_measurements_service.dart';
 import '../data/sketch_page_dimensions_service.dart';
@@ -80,6 +81,15 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
   ScopeResult? _result;
   String? _error;
   bool _busy = false;
+
+  // Session 23, follow-up #2 ("dimension strips"): whichever strips were
+  // successfully cropped+uploaded for the current job, keyed by name, with
+  // each one's own bbox (ORIGINAL-image percentage space) — this is what
+  // gets sent to Pass 1 so the server knows what to sign/read and how to
+  // remap each strip's measurements back into the main crop's coordinate
+  // space. Null/empty just means "no strips this run" — Pass 1 still works
+  // fine without them (best-effort feature, never required).
+  Map<String, BboxPct> _uploadedStripBboxes = {};
 
   // Original-image preview state. Kept fully separate from _originalFile
   // (which is what actually gets sent to Stage 0, untouched) — this is
@@ -133,6 +143,7 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
       _envelopeError = null;
       _pageDimensionsResult = null;
       _pageDimensionsError = null;
+      _uploadedStripBboxes = {};
     });
 
     // Fire-and-forget: the display preview must never block or fail the
@@ -154,6 +165,7 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
       _envelopeError = null;
       _pageDimensionsResult = null;
       _pageDimensionsError = null;
+      _uploadedStripBboxes = {};
     });
     await _runAndCrop(() => _service.retryScope(jobId));
   }
@@ -164,10 +176,29 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
       final cropped =
           await cropImageToBboxPct(_originalFile!, result.mainFloorPlanBboxPct);
       await _service.uploadCrop(cropped, result.jobId);
+
+      // Session 23, follow-up #2 ("dimension strips"): best-effort — a
+      // strip-cropping/upload failure must never fail Stage 0 itself, since
+      // Pass 1 works fine without strips (see dimension_strips.dart's file
+      // header). Whichever strips succeed get their own bbox recorded so
+      // Pass 1 can remap their measurements back into the main crop.
+      Map<String, BboxPct> uploadedStripBboxes = {};
+      try {
+        final stripBboxes = computeStripBboxes(result.mainFloorPlanBboxPct);
+        final strippedFiles = await cropDimensionStrips(_originalFile!, stripBboxes);
+        for (final entry in strippedFiles.entries) {
+          await _service.uploadStrip(entry.value, result.jobId, entry.key);
+          uploadedStripBboxes[entry.key] = stripBboxes[entry.key]!;
+        }
+      } catch (e) {
+        debugPrint('[sketch-debug] dimension strips failed (non-fatal): $e');
+      }
+
       if (!mounted) return;
       setState(() {
         _result = result;
         _croppedFile = cropped;
+        _uploadedStripBboxes = uploadedStripBboxes;
         _busy = false;
       });
     } catch (e) {
@@ -214,7 +245,10 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
       _pageDimensionsError = null;
     });
     try {
-      final result = await _pageDimensionsService.runPageDimensions(jobId);
+      final result = await _pageDimensionsService.runPageDimensions(
+        jobId,
+        stripBboxes: _uploadedStripBboxes,
+      );
       if (!mounted) return;
       setState(() {
         _pageDimensionsResult = result;
@@ -502,12 +536,28 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
                   style: const TextStyle(color: Colors.red),
                 ),
               ],
+              if (_uploadedStripBboxes.isNotEmpty)
+                Text(
+                  'dimension strips מוכנות לשליחה: ${_uploadedStripBboxes.keys.join(", ")}',
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                ),
               if (pageDimensionsResult != null) ...[
                 const SizedBox(height: 16),
                 Text('page-dimensions attempt: ${pageDimensionsResult.attempt}'),
                 Text('page-dimensions durationMs: ${pageDimensionsResult.durationMs}'),
                 if (pageDimensionsResult.notes.isNotEmpty)
                   Text('notes: ${pageDimensionsResult.notes}'),
+                Text(
+                  pageDimensionsResult.stripsUsed.isEmpty
+                      ? 'stripsUsed: none (הריצה הזו התבססה רק על הדף/crop המלא)'
+                      : 'stripsUsed: ${pageDimensionsResult.stripsUsed.join(", ")}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                if (pageDimensionsResult.stripDiagnostics.isNotEmpty)
+                  Text(
+                    'stripDiagnostics:\n    ${pageDimensionsResult.stripDiagnostics.join('\n    ')}',
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
                 const SizedBox(height: 8),
                 Text(
                   'סה"כ: ${pageDimensionsResult.measurements.length} מידות גולמיות, '
@@ -656,9 +706,21 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
                 Text('envelope durationMs: ${envelopeResult.durationMs}'),
                 Text(
                   'confidence (מחושב בקוד): ${envelopeResult.confidence}   '
-                  '(מה שה-AI עצמו דיווח: ${envelopeResult.modelReportedConfidence})',
+                  '(מה שה-AI עצמו דיווח: '
+                  '${envelopeResult.modelReportedConfidence ?? "לא נקרא בכלל — ראה/י status למטה"})',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
+                if (envelopeResult.isBlocked) ...[
+                  const SizedBox(height: 4),
+                  const Text(
+                    '⛔ status: blocked — מודל ה-Envelope לא נקרא כלל '
+                    '(session 23, follow-up #2: hard gate — geometry ללא '
+                    'שני scales סמכותיים אסורה).',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                  ),
+                  for (final reason in envelopeResult.blockedReasons)
+                    Text('  • $reason', style: const TextStyle(fontSize: 12, color: Colors.red)),
+                ],
                 const SizedBox(height: 8),
                 Text(
                   'מידות שנמצאו ושימשו לבדיקה: '
@@ -683,10 +745,15 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
                 ],
                 const SizedBox(height: 12),
                 if (envelopeResult.buildingEnvelope == null)
-                  const Text(
-                    'buildingEnvelope: null — המודל דיווח שלא הצליח לעקוב '
-                    'אחרי מעטפת רציפה שלמה בתמונה הזו (תשובה כנה, לא שגיאה).',
-                    style: TextStyle(color: Colors.orange),
+                  Text(
+                    envelopeResult.isBlocked
+                        ? 'buildingEnvelope: null — Stage 1 נחסם לפני שהמודל '
+                            'נקרא בכלל (ראה/י blockedReasons למעלה). זו לא '
+                            'תשובה של המודל, ולא ניחוש — אין עדיין שתי מידות '
+                            'סמכותיות (אופקי+אנכי) לבנות עליהן גיאומטריה.'
+                        : 'buildingEnvelope: null — המודל דיווח שלא הצליח לעקוב '
+                            'אחרי מעטפת רציפה שלמה בתמונה הזו (תשובה כנה, לא שגיאה).',
+                    style: const TextStyle(color: Colors.orange),
                   )
                 else ...[
                   const Text(

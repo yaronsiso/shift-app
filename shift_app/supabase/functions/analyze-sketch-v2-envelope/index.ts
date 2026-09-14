@@ -98,6 +98,7 @@ import {
 import type { DimensionChain } from "../_shared/dimension_extraction_schema.ts";
 import {
   resolveAxisExtent,
+  shouldBlockStage1,
   type AxisResolution,
   type ResolvedAxisExtent,
 } from "../_shared/axis_extent_resolver.ts";
@@ -613,6 +614,115 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       })
       .eq("id", jobId);
+  }
+
+  // --- SESSION 23 FOLLOW-UP #2: hard gate, per Yaron's explicit instruction
+  // ("אם authoritative horizontal או vertical extent אינו resolved, אל
+  // תקרא בכלל ל-OpenAI Envelope ואל תחזיר vertices"). Without a trusted
+  // value for BOTH axes, there is no reliable scale to build geometry
+  // from — calling the model anyway just produces a proportion-only guess
+  // dressed up with real-looking coordinates (exactly the kind of
+  // ungrounded geometry Patch 01 already stopped for the "both axes
+  // disagree" case). No OpenAI call, no vertices, no artifact with a
+  // fabricated shape — just an honest "blocked" status with the specific
+  // per-axis reason (missing vs. conflicting) so the caller can act on it.
+  if (shouldBlockStage1(horizontalRes, verticalRes)) {
+    const blockedReasons: string[] = [];
+    if (horizontalRes.extent === null) {
+      blockedReasons.push(
+        horizontalRes.conflict
+          ? `ציר אופקי: שרשראות-מידה סותרות, לא נעשה שימוש באף אחת (${horizontalRes.conflict.join("; ")}).`
+          : "ציר אופקי: לא נמצאה מידה סמכותית כלל.",
+      );
+    }
+    if (verticalRes.extent === null) {
+      blockedReasons.push(
+        verticalRes.conflict
+          ? `ציר אנכי: שרשראות-מידה סותרות, לא נעשה שימוש באף אחת (${verticalRes.conflict.join("; ")}).`
+          : "ציר אנכי: לא נמצאה מידה סמכותית כלל.",
+      );
+    }
+    const blockedNotes =
+      `Stage 1 חסום — נדרשות שתי מידות סמכותיות (אופקי וגם אנכי) לפני הפעלת מודל המעטפת: ${
+        blockedReasons.join(" ")
+      }`;
+
+    const { data: blockedArtifactRow, error: blockedArtifactError } = await supabase
+      .from("analysis_artifacts")
+      .insert({
+        job_id: jobId,
+        user_id: userId,
+        stage: "envelope",
+        version: attempt,
+        payload: {
+          status: "blocked",
+          buildingEnvelope: null,
+          confidence: "low",
+          modelReportedConfidence: null,
+          notes: blockedNotes,
+          blockedReasons,
+          measurementsUsed: {
+            horizontalM: null,
+            horizontalConfidence: null,
+            horizontalConflict: horizontalRes.conflict,
+            verticalM: null,
+            verticalConfidence: null,
+            verticalConflict: verticalRes.conflict,
+            chainsCount: chains.length,
+          },
+          validation: { retried: false, codeOverrodeGeometry: false, horizontalErrorPct: null, verticalErrorPct: null },
+          model: null,
+          durationMs: 0,
+          attempt,
+          usage: null,
+        },
+      })
+      .select("id")
+      .single();
+
+    if (blockedArtifactError || !blockedArtifactRow) {
+      await failJob("failed to persist blocked envelope artifact");
+      return jsonResponse(
+        { error: "internal_error", detail: "failed to persist blocked envelope artifact", jobId },
+        500,
+      );
+    }
+
+    // The stage itself completed — it deterministically decided "not
+    // enough data yet", which is not a crash. Same status the old
+    // "missing measurement, proceed with a low-confidence guess" path used
+    // to report, just without the guess.
+    await supabase
+      .from("analysis_jobs")
+      .update({
+        status: "stage_complete",
+        current_stage: "envelope",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", jobId);
+
+    return jsonResponse({
+      jobId,
+      artifactId: (blockedArtifactRow as { id: string }).id,
+      status: "blocked",
+      buildingEnvelope: null,
+      confidence: "low",
+      modelReportedConfidence: null,
+      notes: blockedNotes,
+      blockedReasons,
+      measurementsUsed: {
+        horizontalM: null,
+        horizontalConfidence: null,
+        horizontalConflict: horizontalRes.conflict,
+        verticalM: null,
+        verticalConfidence: null,
+        verticalConflict: verticalRes.conflict,
+        chainsCount: chains.length,
+      },
+      validation: { retried: false, codeOverrodeGeometry: false, horizontalErrorPct: null, verticalErrorPct: null },
+      durationMs: 0,
+      attempt,
+    });
   }
 
   // --- run stage 1 ---------------------------------------------------------

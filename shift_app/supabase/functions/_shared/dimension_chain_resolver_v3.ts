@@ -25,9 +25,12 @@
 //
 // resolveAuthoritativeExtentV3 — only considers chains the chain-builder
 // already flagged isOverallCandidate (a geometric fact: does this chain's
-// span cover ~the whole page on its axis, reaching both edges). Among
-// those, if more than one is usable and they disagree beyond tolerance,
-// the result is `status: "conflict"` with valueM: null — NEVER an average.
+// span cover ~the whole combined dimensioned extent on its axis, reaching
+// both its far edges — see dimension_chain_builder_v3.ts's file header for
+// the session-23-follow-up-#2 fix that made this adaptive to a drawing's
+// own margin instead of the literal page 0-100). Among those, if more than
+// one is usable and they disagree beyond tolerance, the result is
+// `status: "conflict"` with valueM: null — NEVER an average.
 
 import type {
   Confidence,
@@ -140,7 +143,7 @@ export function resolveAuthoritativeExtentV3(
       diagnostics: [
         `No ${axis} chain reached overall-envelope coverage ` +
         `(needs >= ${OVERALL_COVERAGE_THRESHOLD_PCT}% of the page and both ends within ` +
-        `${EDGE_TOLERANCE_PCT}% of the edges).`,
+        `${EDGE_TOLERANCE_PCT}% of the far edges of the combined dimensioned extent on this axis).`,
         ...allChains.map((c) =>
           `${c.id}: coverage=${c.coveragePct.toFixed(1)}% span=[${c.spanStartPct.toFixed(1)},${
             c.spanEndPct.toFixed(1)

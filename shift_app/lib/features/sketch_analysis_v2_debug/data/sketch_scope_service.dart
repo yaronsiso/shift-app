@@ -35,6 +35,19 @@ class BboxPct {
         xMaxPct: (json['xMaxPct'] as num).toDouble(),
         yMaxPct: (json['yMaxPct'] as num).toDouble(),
       );
+
+  // Session 23, follow-up #2 ("dimension strips"): each strip's own bbox
+  // (in the ORIGINAL image's percentage space, computed client-side by
+  // dimension_strips.dart) has to travel back to the server as JSON so it
+  // can remap that strip's measurements into the main crop's coordinate
+  // space — see analyze-sketch-v2-page-dimensions/index.ts's stripBboxes
+  // request field.
+  Map<String, dynamic> toJson() => {
+        'xMinPct': xMinPct,
+        'yMinPct': yMinPct,
+        'xMaxPct': xMaxPct,
+        'yMaxPct': yMaxPct,
+      };
 }
 
 class ExcludedRegion {
@@ -149,6 +162,25 @@ class SketchScopeService {
     await _client.storage.from('renders').upload(
           path,
           croppedFile,
+          fileOptions: const FileOptions(upsert: true),
+        );
+    return path;
+  }
+
+  /// Uploads one client-cropped dimension-strip image (session 23,
+  /// follow-up #2 — see ../data/dimension_strips.dart) under
+  /// `<uid>/analysis/<jobId>/strip_<name>.jpg`, mirroring uploadCrop's own
+  /// path convention exactly. [stripName] is one of "top"/"bottom"/
+  /// "left"/"right".
+  Future<String> uploadStrip(File stripFile, String jobId, String stripName) async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) {
+      throw StateError('not signed in');
+    }
+    final path = '$uid/analysis/$jobId/strip_$stripName.jpg';
+    await _client.storage.from('renders').upload(
+          path,
+          stripFile,
           fileOptions: const FileOptions(upsert: true),
         );
     return path;

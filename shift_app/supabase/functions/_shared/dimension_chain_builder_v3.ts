@@ -7,19 +7,49 @@
 // for "the building's overall extent" on its axis.
 //
 // The core idea, straight from Yaron's instruction: the AI never decides
-// "this is the overall measurement". Geometry decides. Stage 0 already
-// cropped the image down to just the main floor plan (mainFloorPlanBboxPct
-// — see analyze-sketch-v2-scope), and Pass 1 runs on that exact crop, so
-// within Pass 1's own image the crop's 0-100 extent on each axis already
-// *is* "the main building's bbox" as far as the pipeline can tell without
-// doing actual wall/room geometry detection (explicitly not being built
-// yet). A dimension chain whose span covers nearly the full 0-100 width
-// (horizontal) or height (vertical) of that crop, right out to both edges,
-// is geometrically an overall/envelope chain. A chain that only covers a
-// small fraction (the "274" case) is a local segment — regardless of what
-// the model might have guessed about it.
+// "this is the overall measurement". Geometry decides.
 //
-// Algorithm:
+// SESSION 23 FOLLOW-UP #2 (Yaron's second real-drawing test): the first
+// version of this file decided "overall candidate" by checking whether a
+// chain's span reached close to the literal 0/100 edges of the cropped
+// PAGE — reasoning that Stage 0 already cropped the image down to just the
+// main floor plan, so the crop's own 0-100 extent "is" the building's bbox.
+// That assumption turned out to be too tight in practice: a real crop can
+// carry a margin, a legend strip, or unrelated site-plan annotations (e.g.
+// a "קו בניין"/setback line) that sit inside the crop but outside the
+// actual dimensioned building, so the true overall dimension line does not
+// reach all the way to the crop's own edges. Widening the page-edge
+// tolerance (12->16) only patched the specific case observed once; it does
+// not generalize to a drawing with a different margin.
+//
+// THE FIX: instead of comparing a chain's span to the fixed page extent
+// [0,100], compare it to the SPAN OF ALL DIMENSION EVIDENCE COMBINED on
+// that axis — i.e. the union of every chain's own span. This is "how far
+// out does ANY measurement on this axis reach, in total" — a much better
+// proxy for "the building's actual dimensioned extent" than the raw page
+// boundary, because it adapts to whatever margin a given drawing/crop
+// happens to have. A chain still needs BOTH:
+//   1. absolute coverage >= OVERALL_COVERAGE_THRESHOLD_PCT of the full page
+//      (unchanged, still checked against the literal 100-point page width/
+//      height) — this is what stops the fix from being circular: a single
+//      isolated local segment (e.g. "274") is, by definition, the only
+//      chain on its axis in a case with no other evidence, so the
+//      union-of-all-chains span trivially equals its own span — but its
+//      absolute page coverage is tiny, so it still correctly fails here.
+//   2. both of its own edges within EDGE_TOLERANCE_PCT of the union span's
+//      edges (replaces the old "within EDGE_TOLERANCE_PCT of the literal
+//      page 0/100" check).
+//
+// Known, documented limitation (unchanged in spirit from before): this
+// still does not distinguish "real building dimension evidence" from
+// unrelated annotations that happen to carry a referenceTypeHint the model
+// got wrong (e.g. a site-plan "קו בניין" setback line mis-tagged as
+// "building") — such a stray measurement would still enter the
+// union-of-all-chains span and could skew it. Not solved here; would need
+// actual room/wall geometry reconstruction (explicitly out of scope, see
+// Yaron's "אל תבנה Rooms" instruction) to fix properly.
+//
+// Algorithm (unchanged from the first version):
 //   1. Only "horizontal" and "vertical" measurements participate (a
 //      "diagonal"/"unknown"-axis measurement can't be placed in a chain by
 //      this logic and is left unclustered).
@@ -35,30 +65,21 @@
 //      group into one row.
 //   4. Within a strip, measurements are ordered along the axis (left to
 //      right / top to bottom) to form the chain.
-//   5. A chain's coverage is (max end - min start) along its axis, out of
-//      the full 0-100 page. isOverallCandidate requires BOTH wide coverage
-//      AND that the chain actually reaches close to both edges (guards
-//      against, e.g., an 80%-wide chain that stops well short of the true
-//      far edge because more building continues past it).
-//
-// Known limitation, documented rather than silently ignored: this does not
-// detect or correct overlapping/misaligned measurements within a strip —
-// if the model's bbox/line data is noisy, a chain's span can be thrown off.
-// That's a real risk to watch for in results, not something this file
-// tries to paper over.
+//   5. isOverallCandidate — see the session-23-follow-up-#2 comment above.
 
 import type { DimensionEvidence } from "./dimension_evidence_schema_v3.ts";
 
 export const STRIP_TOLERANCE_PCT = 4;
 export const OVERALL_COVERAGE_THRESHOLD_PCT = 80;
-// session 23 real-drawing test (Yaron's actual complex plan): the true
-// overall horizontal chain (1669) reached 84% coverage but its span
-// started at 14.0% — 2 points past the original EDGE_TOLERANCE_PCT of 12,
-// because real crops carry a small margin/legend strip, not a perfectly
-// tight bounding box around the building. Widened to 16 (with margin
-// above the observed 14.0) rather than the bare minimum, so a few points
-// of run-to-run jitter in the model's own line-endpoint reading doesn't
-// re-break this on the next run.
+// How close a chain's own edges must be to the union-of-all-chains
+// reference span's edges (see file header) to still count as "reaching
+// the edge". Session 23 real-drawing test #1: the true overall horizontal
+// chain (1669) reached 84% coverage but its span started at 14.0% of the
+// page — a couple of points past the original value of 12. Widened to 16
+// (margin above the observed 14.0) so a few points of run-to-run jitter in
+// the model's own line-endpoint reading doesn't re-break this. Kept at 16
+// after the follow-up #2 fix above, now applied against the adaptive
+// union-of-all-chains span rather than the fixed page edges.
 export const EDGE_TOLERANCE_PCT = 16;
 
 export type ChainAxis = "horizontal" | "vertical";
@@ -153,16 +174,27 @@ function buildChainsForAxis(measurements: DimensionEvidence[], axis: ChainAxis):
   // left-to-right for vertical chains) so chain ids are stable across runs.
   clusters.sort((a, b) => (a[0]?.cross ?? 0) - (b[0]?.cross ?? 0));
 
-  return clusters.map((cluster, idx) => {
+  // First pass: each cluster's own span/coverage, independent of any
+  // overall-candidate decision.
+  const partial = clusters.map((cluster, idx) => {
     const ordered = [...cluster].sort((a, b) => a.alongStart - b.alongStart);
     const spanStartPct = Math.min(...ordered.map((s) => s.alongStart));
     const spanEndPct = Math.max(...ordered.map((s) => s.alongEnd));
     const coveragePct = spanEndPct - spanStartPct;
     const crossStripPct = ordered.reduce((sum, s) => sum + s.cross, 0) / ordered.length;
+    return { idx, ordered, spanStartPct, spanEndPct, coveragePct, crossStripPct };
+  });
+
+  // Reference span (see file header): the union of every chain's own span
+  // on this axis. Deliberately NOT the raw 0-100 page extent.
+  const referenceStartPct = partial.length ? Math.min(...partial.map((p) => p.spanStartPct)) : 0;
+  const referenceEndPct = partial.length ? Math.max(...partial.map((p) => p.spanEndPct)) : 0;
+
+  return partial.map(({ idx, ordered, spanStartPct, spanEndPct, coveragePct, crossStripPct }) => {
     const isOverallCandidate =
       coveragePct >= OVERALL_COVERAGE_THRESHOLD_PCT &&
-      spanStartPct <= EDGE_TOLERANCE_PCT &&
-      spanEndPct >= 100 - EDGE_TOLERANCE_PCT;
+      spanStartPct <= referenceStartPct + EDGE_TOLERANCE_PCT &&
+      spanEndPct >= referenceEndPct - EDGE_TOLERANCE_PCT;
 
     return {
       id: `chain_${String(idx + 1).padStart(2, "0")}_${axis[0]}`,

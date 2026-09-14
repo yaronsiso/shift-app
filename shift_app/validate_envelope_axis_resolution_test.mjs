@@ -18,7 +18,7 @@
 // (the apply script does this automatically and deletes the build dir
 // afterward — .envelope_test_build is never committed).
 
-import { resolveAxisExtent } from "./.envelope_test_build/axis_extent_resolver.js";
+import { resolveAxisExtent, shouldBlockStage1 } from "./.envelope_test_build/axis_extent_resolver.js";
 
 let failures = 0;
 function assertEqual(actual, expected, label) {
@@ -114,6 +114,50 @@ function chain(id, axis, overallValueM, segmentValuesM, confidence = "high") {
   ];
   const res = resolveAxisExtent(chains, "horizontal");
   assertEqual(res.extent?.valueM, 16.0, "cross-axis chains do not interfere with each other");
+}
+
+// 8-11. shouldBlockStage1 (session 23, follow-up #2): the new hard gate
+// Yaron asked for directly — Stage 1 must not call the Envelope model at
+// all unless BOTH axes have a resolved (non-null) extent.
+{
+  const bothResolved = { extent: { valueM: 16.0, confidence: "high", chainCount: 1 }, conflict: null };
+  const bothResolved2 = { extent: { valueM: 10.0, confidence: "high", chainCount: 1 }, conflict: null };
+  assertEqual(
+    shouldBlockStage1(bothResolved, bothResolved2),
+    false,
+    "shouldBlockStage1: both axes resolved -> not blocked",
+  );
+}
+{
+  const resolved = { extent: { valueM: 16.0, confidence: "high", chainCount: 1 }, conflict: null };
+  const missing = { extent: null, conflict: null };
+  assertEqual(
+    shouldBlockStage1(resolved, missing),
+    true,
+    "shouldBlockStage1: vertical missing -> blocked, even though horizontal is fine",
+  );
+  assertEqual(
+    shouldBlockStage1(missing, resolved),
+    true,
+    "shouldBlockStage1: horizontal missing -> blocked, even though vertical is fine",
+  );
+}
+{
+  const resolved = { extent: { valueM: 16.0, confidence: "high", chainCount: 1 }, conflict: null };
+  const conflicting = { extent: null, conflict: ["a: 16.00מ'", "b: 17.80מ'"] };
+  assertEqual(
+    shouldBlockStage1(resolved, conflicting),
+    true,
+    "shouldBlockStage1: a CONFLICT (not just missing) on one axis also blocks -- a conflict is not a usable extent",
+  );
+}
+{
+  const missing = { extent: null, conflict: null };
+  assertEqual(
+    shouldBlockStage1(missing, missing),
+    true,
+    "shouldBlockStage1: both axes missing -> blocked",
+  );
 }
 
 console.log(failures === 0 ? "\nALL TESTS PASSED" : `\n${failures} TEST(S) FAILED`);

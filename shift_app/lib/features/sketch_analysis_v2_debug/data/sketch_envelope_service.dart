@@ -55,23 +55,37 @@ class EnvelopePoint {
 class MeasurementsUsed {
   final double? horizontalM;
   final String? horizontalConfidence;
+  // Session 23, follow-up #2: when the horizontal axis resolved to a
+  // CONFLICT (not just "missing"), the server now also sends the
+  // disagreeing chain descriptions here — null when there was no conflict
+  // (either resolved cleanly, or genuinely nothing found).
+  final List<String>? horizontalConflict;
   final double? verticalM;
   final String? verticalConfidence;
+  final List<String>? verticalConflict;
   final int chainsCount;
 
   MeasurementsUsed({
     required this.horizontalM,
     required this.horizontalConfidence,
+    required this.horizontalConflict,
     required this.verticalM,
     required this.verticalConfidence,
+    required this.verticalConflict,
     required this.chainsCount,
   });
 
   factory MeasurementsUsed.fromJson(Map<String, dynamic>? json) => MeasurementsUsed(
         horizontalM: (json?['horizontalM'] as num?)?.toDouble(),
         horizontalConfidence: json?['horizontalConfidence'] as String?,
+        horizontalConflict: (json?['horizontalConflict'] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
         verticalM: (json?['verticalM'] as num?)?.toDouble(),
         verticalConfidence: json?['verticalConfidence'] as String?,
+        verticalConflict: (json?['verticalConflict'] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
         chainsCount: json?['chainsCount'] as int? ?? 0,
       );
 }
@@ -104,14 +118,23 @@ class EnvelopeValidation {
 class EnvelopeResult {
   final String jobId;
   final String artifactId;
-  final List<EnvelopePoint>? buildingEnvelope; // null = model honestly could not trace one
+  final List<EnvelopePoint>? buildingEnvelope; // null = model honestly could not trace one, OR Stage 1 was blocked (see status/blockedReasons below)
   final String confidence; // server-computed, see file header
-  final String modelReportedConfidence; // the model's own raw self-report, for comparison
+  final String? modelReportedConfidence; // the model's own raw self-report; null when the model was never called (blocked)
   final String notes;
   final MeasurementsUsed measurementsUsed;
   final EnvelopeValidation validation;
   final int durationMs;
   final int attempt;
+  // Session 23, follow-up #2 ("hard Stage-1 gate"): when the server could
+  // not resolve BOTH an authoritative horizontal AND vertical extent, it
+  // now refuses to call the Envelope model at all and reports
+  // status:"blocked" with the specific per-axis reasons — instead of
+  // silently returning a low-confidence proportion-only guess (or, before
+  // this fix, sometimes a guess with no confidence signal at all). `status`
+  // is null on the normal (model-ran) path — only "blocked" is ever sent.
+  final String? status;
+  final List<String> blockedReasons;
 
   EnvelopeResult({
     required this.jobId,
@@ -124,7 +147,11 @@ class EnvelopeResult {
     required this.validation,
     required this.durationMs,
     required this.attempt,
+    required this.status,
+    required this.blockedReasons,
   });
+
+  bool get isBlocked => status == 'blocked';
 
   factory EnvelopeResult.fromJson(Map<String, dynamic> json) {
     final envelopeJson = json['buildingEnvelope'] as Map<String, dynamic>?;
@@ -138,13 +165,17 @@ class EnvelopeResult {
               .map((v) => EnvelopePoint.fromJson(v as Map<String, dynamic>))
               .toList(),
       confidence: json['confidence'] as String? ?? 'unknown',
-      modelReportedConfidence: json['modelReportedConfidence'] as String? ?? 'unknown',
+      modelReportedConfidence: json['modelReportedConfidence'] as String?,
       notes: json['notes'] as String? ?? '',
       measurementsUsed:
           MeasurementsUsed.fromJson(json['measurementsUsed'] as Map<String, dynamic>?),
       validation: EnvelopeValidation.fromJson(json['validation'] as Map<String, dynamic>?),
       durationMs: json['durationMs'] as int,
       attempt: json['attempt'] as int,
+      status: json['status'] as String?,
+      blockedReasons: (json['blockedReasons'] as List<dynamic>? ?? [])
+          .map((e) => e as String)
+          .toList(),
     );
   }
 }

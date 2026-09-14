@@ -18,6 +18,16 @@
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+// Session 23, follow-up #2 ("dimension strips"): aliased import purely for
+// its BboxPct type (the ORIGINAL-image-percentage bbox each strip was cut
+// from) — aliased because this file already declares its OWN, semantically
+// different BboxPct below (a per-measurement text bbox, in the PASS-1
+// IMAGE's own percentage space). Deliberately not merged into one type:
+// the two represent different coordinate spaces and mixing them up would
+// be exactly the kind of bug this feature's whole remap step exists to
+// prevent.
+import 'sketch_scope_service.dart' as scope_service;
+
 class Point2DPct {
   final double xPct;
   final double yPct;
@@ -203,6 +213,12 @@ class PageDimensionsResult {
   final List<BuiltDimensionChain> builtChains;
   final ResolvedExtentV3 horizontalExtent;
   final ResolvedExtentV3 verticalExtent;
+  // Session 23, follow-up #2: which dimension strips (top/bottom/left/
+  // right) actually contributed measurements this run, and a short
+  // per-strip trail of what happened to each one (skipped/used/failed/
+  // dedup count) — purely diagnostic, for the debug screen.
+  final List<String> stripsUsed;
+  final List<String> stripDiagnostics;
   final int durationMs;
   final int attempt;
 
@@ -215,6 +231,8 @@ class PageDimensionsResult {
     required this.builtChains,
     required this.horizontalExtent,
     required this.verticalExtent,
+    required this.stripsUsed,
+    required this.stripDiagnostics,
     required this.durationMs,
     required this.attempt,
   });
@@ -235,6 +253,10 @@ class PageDimensionsResult {
             ResolvedExtentV3.fromJson(json['horizontalExtent'] as Map<String, dynamic>? ?? const {}),
         verticalExtent:
             ResolvedExtentV3.fromJson(json['verticalExtent'] as Map<String, dynamic>? ?? const {}),
+        stripsUsed:
+            (json['stripsUsed'] as List<dynamic>? ?? []).map((e) => e as String).toList(),
+        stripDiagnostics:
+            (json['stripDiagnostics'] as List<dynamic>? ?? []).map((e) => e as String).toList(),
         durationMs: json['durationMs'] as int,
         attempt: json['attempt'] as int,
       );
@@ -258,11 +280,29 @@ class SketchPageDimensionsService {
   /// completed and uploaded a crop. Independent of Pass 0.5/Stage 1 — does
   /// not require either to have run. Every call is a fresh attempt — the
   /// server records each as its own artifact version.
-  Future<PageDimensionsResult> runPageDimensions(String jobId) async {
+  ///
+  /// [stripBboxes] (session 23, follow-up #2, optional) — the bboxes (in
+  /// the ORIGINAL image's percentage space) of whichever dimension strips
+  /// were actually cropped AND uploaded for this job (see
+  /// ../data/dimension_strips.dart + SketchScopeService.uploadStrip). Only
+  /// include a strip here if its file really was uploaded — the server
+  /// signs each strip's storage path itself and simply skips any that
+  /// don't resolve, but there's no point asking it to try one that was
+  /// never uploaded.
+  Future<PageDimensionsResult> runPageDimensions(
+    String jobId, {
+    Map<String, scope_service.BboxPct>? stripBboxes,
+  }) async {
     try {
+      final body = <String, dynamic>{'jobId': jobId};
+      if (stripBboxes != null && stripBboxes.isNotEmpty) {
+        body['stripBboxes'] = {
+          for (final entry in stripBboxes.entries) entry.key: entry.value.toJson(),
+        };
+      }
       final res = await _client.functions.invoke(
         'analyze-sketch-v2-page-dimensions',
-        body: {'jobId': jobId},
+        body: body,
       );
       final data = res.data as Map<String, dynamic>;
       return PageDimensionsResult.fromJson(data);

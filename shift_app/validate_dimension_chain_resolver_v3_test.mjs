@@ -283,5 +283,41 @@ const realDrawingFixture = [
   assertEqual(res.status, "missing", "274 alone: coverage far too low to ever qualify as overall, tolerance notwithstanding");
 }
 
+// 12. THE GENERAL FIX (session 23, follow-up #2), not just a wider
+// constant: isOverallCandidate's edge check is now against the union of
+// ALL dimension evidence on the axis (the drawing's own combined
+// dimensioned extent), not the literal page 0/100. This case is
+// constructed so the OLD page-edge check (even with the already-widened
+// EDGE_TOLERANCE_PCT=16) would still have wrongly rejected it: a chain
+// spanning [18,98] has its left edge 18 points from the page's own left
+// edge — 2 points past a literal-page-relative tolerance of 16 — yet it
+// is, by construction, the ENTIRE combined dimensioned extent on this
+// axis (nothing else was ever measured further left or right). The new
+// adaptive check correctly accepts it; the old literal-page check would
+// not have. Real drawings can have a margin/legend of any size — this is
+// the fix that stops the specific "14 vs 12" incident from recurring
+// under a different margin, rather than a value that merely fit the one
+// drawing already seen.
+{
+  const marginedOverall = [
+    m("m1", 1820, {
+      axis: "horizontal", unit: "cm", referenceTypeHint: "building",
+      lineStartPct: point(18, 3), lineEndPct: point(98, 3),
+    }),
+  ];
+  const chains = buildDimensionChains(marginedOverall);
+  const chain = chains.find((c) => c.axis === "horizontal");
+  assertTrue(!!chain, "margined overall: chain exists");
+  assertEqual(chain.coveragePct, 80, "margined overall: coverage is exactly 80% of the literal page");
+  assertEqual(
+    chain.isOverallCandidate,
+    true,
+    "margined overall: qualifies via the adaptive union-of-evidence edge check, even though its edges (18/98) are outside a literal-page tolerance of 16",
+  );
+  const res = resolveAuthoritativeExtentV3(marginedOverall, CONVENTION_UNKNOWN, "horizontal");
+  assertEqual(res.status, "resolved", "margined overall: resolves");
+  assertClose(res.valueM, 18.2, "margined overall: 1820cm -> 18.20m");
+}
+
 console.log(failures === 0 ? "\nALL TESTS PASSED" : `\n${failures} TEST(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);
