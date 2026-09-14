@@ -1,13 +1,23 @@
 // lib/features/sketch_analysis_v2_debug/presentation/sketch_scope_debug_screen.dart
 //
 // Debug-only screen for the new staged sketch-analysis pipeline (session
-// 20-21). NOT linked from app_router.dart or any real user-facing
+// 20-22). NOT linked from app_router.dart or any real user-facing
 // navigation, and not exported/used by any existing screen — reach it
 // only by temporarily wiring a route to it yourself while testing (e.g. a
 // throwaway GoRoute, or pushing it directly with Navigator from a debug
 // button), then remove that link when done.
 //
-// Now covers THREE stages of the pipeline:
+// Now covers FOUR stages/passes of the pipeline:
+//   Pass 1 ("page dimensions") — NEW, session 22, rebuilt around "Patch
+//   01: Measurement Integrity" (an external architecture audit,
+//   independently verified — see sketch_page_dimensions_service.dart's
+//   header). Given Stage 0's crop, reads RAW measurement evidence for
+//   EVERY printed dimension on the page (room dimensions, wall lengths,
+//   openings, areas, elevations, etc.), not just the outer envelope, and
+//   resolves axis extents in code — never averaging disagreeing chains
+//   into a fabricated number. Fully independent — only needs Stage 0,
+//   does not feed Pass 0.5/Stage 1 (yet) — see
+//   analyze-sketch-v2-page-dimensions/index.ts.
 //   Stage 0 ("scope + crop"): pick a real floor-plan photo, find where the
 //   main floor plan is on the page (bbox + excluded regions), crop to it
 //   client-side. Session 20/21 — see claude/51/52.
@@ -40,6 +50,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/client_side_crop.dart';
 import '../data/sketch_envelope_service.dart';
 import '../data/sketch_measurements_service.dart';
+import '../data/sketch_page_dimensions_service.dart';
 import '../data/sketch_scope_service.dart';
 import 'envelope_overlay_painter.dart';
 
@@ -58,6 +69,8 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
       SketchMeasurementsService(Supabase.instance.client);
   late final SketchEnvelopeService _envelopeService =
       SketchEnvelopeService(Supabase.instance.client);
+  late final SketchPageDimensionsService _pageDimensionsService =
+      SketchPageDimensionsService(Supabase.instance.client);
 
   File? _originalFile;
   File? _croppedFile;
@@ -78,6 +91,16 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
   MeasurementsResult? _measurementsResult;
   String? _measurementsError;
   bool _measurementsBusy = false;
+
+  // Pass 1 (page dimensions) state — session 22, rebuilt around "Patch 01:
+  // Measurement Integrity" (see sketch_page_dimensions_service.dart's file
+  // header). Completely independent of Pass 0.5/Stage 1: only needs Stage
+  // 0's crop. Reads raw measurement evidence for EVERY printed dimension
+  // on the page (not just the outer envelope) and resolves the axis
+  // extents in code, never averaging disagreeing chains.
+  PageDimensionsResult? _pageDimensionsResult;
+  String? _pageDimensionsError;
+  bool _pageDimensionsBusy = false;
 
   // Stage 1 (envelope) state — independent of Stage 0's _busy/_error so a
   // Stage 1 run never disables the Stage 0 controls.
@@ -105,6 +128,8 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
       _measurementsError = null;
       _envelopeResult = null;
       _envelopeError = null;
+      _pageDimensionsResult = null;
+      _pageDimensionsError = null;
     });
 
     // Fire-and-forget: the display preview must never block or fail the
@@ -124,6 +149,8 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
       _measurementsError = null;
       _envelopeResult = null;
       _envelopeError = null;
+      _pageDimensionsResult = null;
+      _pageDimensionsError = null;
     });
     await _runAndCrop(() => _service.retryScope(jobId));
   }
@@ -172,6 +199,29 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
       setState(() {
         _measurementsError = e.toString();
         _measurementsBusy = false;
+      });
+    }
+  }
+
+  Future<void> _runPageDimensions() async {
+    final jobId = _result?.jobId;
+    if (jobId == null) return;
+    setState(() {
+      _pageDimensionsBusy = true;
+      _pageDimensionsError = null;
+    });
+    try {
+      final result = await _pageDimensionsService.runPageDimensions(jobId);
+      if (!mounted) return;
+      setState(() {
+        _pageDimensionsResult = result;
+        _pageDimensionsBusy = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _pageDimensionsError = e.toString();
+        _pageDimensionsBusy = false;
       });
     }
   }
@@ -274,14 +324,59 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
     return '${c.location} (${c.axis}): $segmentsText$overall — ביטחון: ${c.confidence}';
   }
 
+  String _formatMeasurement(RawMeasurement m) {
+    final numeric = m.rawNumeric != null ? m.rawNumeric!.toStringAsFixed(2) : '?';
+    return '[${m.id}] ${m.label} (${m.referenceType}/${m.axis}): "${m.rawText}" '
+        '= $numeric ${m.unit} (מקור-יחידה: ${m.unitEvidence}) — ביטחון: ${m.confidence}';
+  }
+
+  String _formatChainV2(PageDimensionChainV2 c, List<RawMeasurement> allMeasurements) {
+    final byId = {for (final m in allMeasurements) m.id: m};
+    final segTexts = c.segmentMeasurementIds.map((id) => byId[id]?.rawText ?? '?($id)').join(' + ');
+    final overallText = c.overallMeasurementId != null
+        ? ' = ${byId[c.overallMeasurementId]?.rawText ?? '?(${c.overallMeasurementId})'}'
+        : ' (אין מספר-סיכום)';
+    return '[${c.level}/${c.referenceType}] ${c.locationLabel} (${c.axis}): '
+        '$segTexts$overallText — ביטחון: ${c.confidence}';
+  }
+
+  String _formatChainValidation(ChainValidationV2 v) {
+    final statusLabel = switch (v.status) {
+      'match' => 'תואם',
+      'contradiction' => 'סתירה! (הסכום לא תואם למספר-הסיכום)',
+      'not_checkable' => 'אין מספיק נתונים לבדיקה',
+      _ => v.status,
+    };
+    final nums = v.segmentSumM != null && v.overallM != null
+        ? ' (סכום: ${v.segmentSumM!.toStringAsFixed(2)} מ\' | סיכום כתוב: '
+            '${v.overallM!.toStringAsFixed(2)} מ\' | סטייה: ${v.diffPct?.toStringAsFixed(1) ?? "-"}%)'
+        : '';
+    return 'chain ${v.chainId}: $statusLabel$nums';
+  }
+
+  String _formatResolvedExtent(String labelHe, ResolvedExtentV2 res) {
+    final statusLabel = switch (res.status) {
+      'resolved' => 'נפתרה',
+      'conflict' => '⚠️ סתירה — לא נעשה שימוש באף מספר',
+      'missing' => 'לא נמצאה מידה',
+      _ => res.status,
+    };
+    final value = res.valueM != null ? '${res.valueM!.toStringAsFixed(2)} מ\'' : '—';
+    final diag = res.diagnostics.isNotEmpty ? '\n    ${res.diagnostics.join('\n    ')}' : '';
+    return '$labelHe: $value ($statusLabel, ביטחון ${res.confidence})$diag';
+  }
+
   @override
   Widget build(BuildContext context) {
     final result = _result;
     final measurementsResult = _measurementsResult;
     final envelopeResult = _envelopeResult;
+    final pageDimensionsResult = _pageDimensionsResult;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Stage 0/0.5/1 debug — Scope+Crop / Measurements / Envelope'),
+        title: const Text(
+          'Stage 0/1/0.5/1 debug — Scope+Crop / PageDimensions(Patch01) / Measurements / Envelope',
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -357,6 +452,107 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
               const SizedBox(height: 16),
               const Text('Cropped result (client-side crop from the bbox above):'),
               Image.file(_croppedFile!),
+            ],
+
+            // --- Pass 1 (page dimensions) — NEW, session 22, rebuilt ----
+            // around "Patch 01: Measurement Integrity". Independent of
+            // Pass 0.5/Stage 1 below — only needs Stage 0's crop. Reads
+            // raw measurement evidence for EVERY printed dimension on the
+            // page and resolves axis extents in code — a real
+            // disagreement between chains is reported as a conflict,
+            // never silently averaged.
+            if (_croppedFile != null) ...[
+              const Divider(height: 32),
+              const Text(
+                'Pass 1 — Page Dimensions (Patch 01: עדות גולמית + never-average resolver)',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'עצמאי לגמרי מ-Pass 0.5/Stage 1 למטה — קורא עדות גולמית לכל '
+                'מספר בעמוד (בלי המרת-יחידות/סיכום על ידי ה-AI), ופותר בקוד '
+                'מידה סמכותית אחת לכל ציר. אם שרשראות סותרות זו את זו — '
+                'מוצגת סתירה, לא ממוצע.',
+                style: TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: _pageDimensionsBusy ? null : _runPageDimensions,
+                child: Text(
+                  _pageDimensionsBusy
+                      ? 'Running...'
+                      : 'Run Pass 1 (Page Dimensions)',
+                ),
+              ),
+              if (_pageDimensionsError != null) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'Error: $_pageDimensionsError',
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ],
+              if (pageDimensionsResult != null) ...[
+                const SizedBox(height: 16),
+                Text('page-dimensions attempt: ${pageDimensionsResult.attempt}'),
+                Text('page-dimensions durationMs: ${pageDimensionsResult.durationMs}'),
+                if (pageDimensionsResult.notes.isNotEmpty)
+                  Text('notes: ${pageDimensionsResult.notes}'),
+                const SizedBox(height: 8),
+                Text(
+                  'סה"כ: ${pageDimensionsResult.measurements.length} מידות גולמיות, '
+                  '${pageDimensionsResult.chains.length} שרשראות',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'מידות מעטפת שנפתרו בקוד (never-average):',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  '${_formatResolvedExtent("ציר אופקי", pageDimensionsResult.horizontalExtent)}\n'
+                  '${_formatResolvedExtent("ציר אנכי", pageDimensionsResult.verticalExtent)}',
+                  style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                ),
+                const SizedBox(height: 8),
+                if (pageDimensionsResult.chainValidations.isNotEmpty) ...[
+                  const Text(
+                    'בדיקת-סכום בקוד (per chain):',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    pageDimensionsResult.chainValidations.map(_formatChainValidation).join('\n'),
+                    style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                if (pageDimensionsResult.chains.isEmpty)
+                  const Text('chains: none', style: TextStyle(color: Colors.orange))
+                else ...[
+                  const Text(
+                    'chains (raw, as extracted):',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    pageDimensionsResult.chains
+                        .map((c) => _formatChainV2(c, pageDimensionsResult.measurements))
+                        .join('\n'),
+                    style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                if (pageDimensionsResult.measurements.isEmpty)
+                  const Text('measurements: none', style: TextStyle(color: Colors.orange))
+                else ...[
+                  const Text(
+                    'measurements (raw evidence, as extracted):',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    pageDimensionsResult.measurements.map(_formatMeasurement).join('\n'),
+                    style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                  ),
+                ],
+              ],
             ],
 
             // --- Pass 0.5 (measurements) --------------------------------

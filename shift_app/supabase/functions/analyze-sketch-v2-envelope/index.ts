@@ -57,6 +57,17 @@
 //     (stage='envelope') — no new migration; `stage`/`payload` already
 //     support this.
 //
+// ⚠️ SESSION 22 FIX ("Patch 01 — Measurement Integrity", found in an
+// architecture audit and independently confirmed against this file):
+// resolveAxisExtent used to AVERAGE disagreeing same-axis chains (e.g.
+// 16.00m and 17.80m silently became 16.90m — a number that never appeared
+// in the drawing). It now NEVER averages: disagreement beyond
+// CROSS_CHAIN_CONFLICT_THRESHOLD_PCT is a conflict, the axis resolves to
+// no authoritative value at all (same as "not found"), and the
+// conflicting numbers are surfaced in the prompt/diagnostics note instead
+// of being blended. See resolveAxisExtent's own comment below and
+// validate_envelope_axis_resolution_test.mjs for the regression test.
+//
 // Explicitly NOT done here (documented scope limits, not oversights):
 //   - No per-edge / per-chain matching of individual dimension chains to
 //     specific polygon edges. The validator checks the polygon's overall
@@ -85,6 +96,11 @@ import {
   type Point2D,
 } from "../_shared/floor_plan_schema_v2.ts";
 import type { DimensionChain } from "../_shared/dimension_extraction_schema.ts";
+import {
+  resolveAxisExtent,
+  type AxisResolution,
+  type ResolvedAxisExtent,
+} from "../_shared/axis_extent_resolver.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -97,11 +113,10 @@ const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") ?? "gpt-5.6-luna";
 // below the 11% error the original bug produced, so it actually catches
 // the case that motivated this rewrite.
 const MEASUREMENT_MISMATCH_THRESHOLD_PCT = 5;
-// Two same-axis chains (e.g. top edge and bottom edge) disagreeing with
-// each other by more than this is itself a sign the extraction is shaky —
-// downgrades that axis's confidence rather than silently averaging as if
-// nothing were wrong.
-const CHAIN_DISAGREEMENT_THRESHOLD_PCT = 5;
+// (the old CROSS_CHAIN_CONFLICT_THRESHOLD_PCT constant that used to live
+// here now lives in ../_shared/axis_extent_resolver.ts alongside the
+// resolver logic it controls — see that file's header for the session 22
+// "never average disagreeing chains" fix.)
 
 type Confidence = "high" | "medium" | "low";
 
@@ -149,36 +164,30 @@ coordinateSystem.units כ-"meters".
 `.trim();
 
 function buildAuthoritativeMeasurementsPrompt(
-  horizontal: ResolvedAxisExtent | null,
-  vertical: ResolvedAxisExtent | null,
+  horizontal: AxisResolution,
+  vertical: AxisResolution,
 ): string {
   const lines: string[] = ["מידות סמכותיות (חולצו במעבר נפרד, אל תקרא/י מהתמונה מחדש):"];
 
-  if (horizontal) {
-    lines.push(
-      `- ציר אופקי (רוחב חיצוני כולל): ${horizontal.valueM.toFixed(2)} מ' ` +
-        `(מקור: ${horizontal.chainCount} שרשרת/שרשראות מידה, ביטחון ${horizontal.confidence}` +
-        (horizontal.disagreementPct !== null
-          ? `, פער בין שרשראות שונות: ${horizontal.disagreementPct.toFixed(1)}%`
-          : "") +
-        ")",
-    );
-  } else {
-    lines.push("- ציר אופקי: לא נמצאה שום מידה כתובה קריאה בתמונה עבור הרוחב החיצוני.");
+  function describeAxis(label: string, res: AxisResolution) {
+    if (res.extent) {
+      lines.push(
+        `- ${label}: ${res.extent.valueM.toFixed(2)} מ' ` +
+          `(מקור: ${res.extent.chainCount} שרשרת/שרשראות מידה, ביטחון ${res.extent.confidence})`,
+      );
+    } else if (res.conflict) {
+      lines.push(
+        `- ${label}: לא נקבעה מידה סמכותית — נמצאו שרשראות-מידה סותרות ` +
+          `שלא ניתן לפשר ביניהן באופן אמין (${res.conflict.join("; ")}). ` +
+          `התעלם/י מהמספרים האלה, קבע/י את הציר הזה לפי יחסי-פרופורציות בלבד, והנמך/י את confidence בהתאם.`,
+      );
+    } else {
+      lines.push(`- ${label}: לא נמצאה שום מידה כתובה קריאה בתמונה.`);
+    }
   }
 
-  if (vertical) {
-    lines.push(
-      `- ציר אנכי (גובה חיצוני כולל): ${vertical.valueM.toFixed(2)} מ' ` +
-        `(מקור: ${vertical.chainCount} שרשרת/שרשראות מידה, ביטחון ${vertical.confidence}` +
-        (vertical.disagreementPct !== null
-          ? `, פער בין שרשראות שונות: ${vertical.disagreementPct.toFixed(1)}%`
-          : "") +
-        ")",
-    );
-  } else {
-    lines.push("- ציר אנכי: לא נמצאה שום מידה כתובה קריאה בתמונה עבור הגובה החיצוני.");
-  }
+  describeAxis("ציר אופקי (רוחב חיצוני כולל)", horizontal);
+  describeAxis("ציר אנכי (גובה חיצוני כולל)", vertical);
 
   return lines.join("\n");
 }
@@ -202,47 +211,12 @@ function isValidPoint(p: unknown): p is Point2D {
 }
 
 // --- measurement resolution (CODE, not the model) -------------------------
-
-interface ResolvedAxisExtent {
-  valueM: number;
-  confidence: Confidence;
-  chainCount: number;
-  disagreementPct: number | null;
-}
-
-function resolveChainTotalM(chain: DimensionChain): number {
-  if (chain.overallValueM !== null && Number.isFinite(chain.overallValueM)) {
-    return chain.overallValueM;
-  }
-  return chain.segments.reduce((sum, seg) => sum + (Number.isFinite(seg.valueM) ? seg.valueM : 0), 0);
-}
-
-function resolveAxisExtent(
-  chains: DimensionChain[],
-  axis: "horizontal" | "vertical",
-): ResolvedAxisExtent | null {
-  const axisChains = chains.filter((c) => c.axis === axis && (c.segments.length > 0 || c.overallValueM !== null));
-  if (axisChains.length === 0) return null;
-
-  const totals = axisChains.map(resolveChainTotalM).filter((v) => Number.isFinite(v) && v > 0);
-  if (totals.length === 0) return null;
-
-  const avg = totals.reduce((a, b) => a + b, 0) / totals.length;
-  const maxDiff = Math.max(...totals) - Math.min(...totals);
-  const disagreementPct = totals.length > 1 && avg > 0 ? (maxDiff / avg) * 100 : null;
-
-  const confidences = axisChains.map((c) => c.confidence);
-  let confidence: Confidence = confidences.includes("low")
-    ? "low"
-    : confidences.includes("medium")
-      ? "medium"
-      : "high";
-  if (disagreementPct !== null && disagreementPct > CHAIN_DISAGREEMENT_THRESHOLD_PCT) {
-    confidence = "low";
-  }
-
-  return { valueM: avg, confidence, chainCount: axisChains.length, disagreementPct };
-}
+//
+// resolveAxisExtent/ResolvedAxisExtent/AxisResolution now live in
+// ../_shared/axis_extent_resolver.ts (session 22) so the conflict-vs-
+// averaging logic can be independently unit-tested — see
+// validate_envelope_axis_resolution_test.mjs and that file's own header
+// for the full "why" (the averaging bug this replaced).
 
 // --- geometry validation / correction (CODE) -------------------------------
 
@@ -359,20 +333,41 @@ function computeFinalConfidence(params: {
 function buildDiagnosticsNoteHe(params: {
   horizontal: ResolvedAxisExtent | null;
   vertical: ResolvedAxisExtent | null;
+  horizontalConflict: string[] | null;
+  verticalConflict: string[] | null;
   firstValidation: ValidationOutcome | null;
   retried: boolean;
   finalValidation: ValidationOutcome | null;
   codeOverrodeGeometry: boolean;
   envelopeIsNull: boolean;
 }): string {
-  const { horizontal, vertical, firstValidation, retried, finalValidation, codeOverrodeGeometry, envelopeIsNull } =
-    params;
+  const {
+    horizontal,
+    vertical,
+    horizontalConflict,
+    verticalConflict,
+    firstValidation,
+    retried,
+    finalValidation,
+    codeOverrodeGeometry,
+    envelopeIsNull,
+  } = params;
 
   if (envelopeIsNull) {
     return "לא נמצאו מידות סמכותיות רלוונטיות (או שהמעטפת עצמה יצאה null) — אין בדיקת-התאמה למספרים.";
   }
 
   const parts: string[] = [];
+
+  // SESSION 22 FIX: a conflict is NOT the same as "nothing found" — say so
+  // explicitly, and never let the averaged-together number this used to
+  // silently produce show up anywhere.
+  if (horizontalConflict) {
+    parts.push(`⚠️ ציר אופקי: שרשראות-מידה סותרות, לא נעשה שימוש באף אחת (${horizontalConflict.join("; ")}).`);
+  }
+  if (verticalConflict) {
+    parts.push(`⚠️ ציר אנכי: שרשראות-מידה סותרות, לא נעשה שימוש באף אחת (${verticalConflict.join("; ")}).`);
+  }
 
   if (!horizontal && !vertical) {
     parts.push(
@@ -577,9 +572,17 @@ Deno.serve(async (req) => {
     ? (measurementsPayload.chains as DimensionChain[])
     : [];
 
-  const horizontalExtent = resolveAxisExtent(chains, "horizontal");
-  const verticalExtent = resolveAxisExtent(chains, "vertical");
-  const authoritativeMeasurementsText = buildAuthoritativeMeasurementsPrompt(horizontalExtent, verticalExtent);
+  const horizontalRes = resolveAxisExtent(chains, "horizontal");
+  const verticalRes = resolveAxisExtent(chains, "vertical");
+  // Everything below this point works purely with the resolved (possibly
+  // null) extent, exactly as before the fix — a conflict behaves like "no
+  // reliable measurement" for validation/override purposes (never a
+  // fabricated averaged number), while horizontalRes.conflict/
+  // verticalRes.conflict carry the disagreement itself through to the
+  // prompt and the diagnostics note so it's surfaced, not hidden.
+  const horizontalExtent = horizontalRes.extent;
+  const verticalExtent = verticalRes.extent;
+  const authoritativeMeasurementsText = buildAuthoritativeMeasurementsPrompt(horizontalRes, verticalRes);
 
   // next version number for this job's envelope stage.
   const { data: existingEnvelopeArtifacts, error: versionCheckError } = await supabase
@@ -781,6 +784,8 @@ Deno.serve(async (req) => {
   const diagnosticsNoteHe = buildDiagnosticsNoteHe({
     horizontal: horizontalExtent,
     vertical: verticalExtent,
+    horizontalConflict: horizontalRes.conflict,
+    verticalConflict: verticalRes.conflict,
     firstValidation,
     retried,
     finalValidation,
@@ -805,8 +810,10 @@ Deno.serve(async (req) => {
         measurementsUsed: {
           horizontalM: horizontalExtent?.valueM ?? null,
           horizontalConfidence: horizontalExtent?.confidence ?? null,
+          horizontalConflict: horizontalRes.conflict,
           verticalM: verticalExtent?.valueM ?? null,
           verticalConfidence: verticalExtent?.confidence ?? null,
+          verticalConflict: verticalRes.conflict,
           chainsCount: chains.length,
         },
         validation: {
@@ -851,8 +858,10 @@ Deno.serve(async (req) => {
     measurementsUsed: {
       horizontalM: horizontalExtent?.valueM ?? null,
       horizontalConfidence: horizontalExtent?.confidence ?? null,
+      horizontalConflict: horizontalRes.conflict,
       verticalM: verticalExtent?.valueM ?? null,
       verticalConfidence: verticalExtent?.confidence ?? null,
+      verticalConflict: verticalRes.conflict,
       chainsCount: chains.length,
     },
     validation: {
