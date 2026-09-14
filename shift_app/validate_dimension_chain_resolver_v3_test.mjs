@@ -28,6 +28,7 @@ import {
   resolveAuthoritativeExtentV3,
   toMetersV3,
 } from "./.dim_v3_test_build/dimension_chain_resolver_v3.js";
+import { resolveDocumentUnitConvention } from "./.dim_v3_test_build/document_unit_convention_resolver.js";
 
 let failures = 0;
 function assertEqual(actual, expected, label) {
@@ -317,6 +318,134 @@ const realDrawingFixture = [
   const res = resolveAuthoritativeExtentV3(marginedOverall, CONVENTION_UNKNOWN, "horizontal");
   assertEqual(res.status, "resolved", "margined overall: resolves");
   assertClose(res.valueM, 18.2, "margined overall: 1820cm -> 18.20m");
+}
+
+// 13. SESSION 23 FOLLOW-UP #3, Fix B: strip-derived coordinates outside the
+// canonical [0,100] main-crop space must never inflate coveragePct past
+// 100, or let a wildly-out-of-range chain masquerade as an overall
+// candidate via an inflated union-of-chains reference span. Shaped
+// directly on Yaron's real (buggy, pre-fix) screenshot data:
+// chain_02_h had raw span [-9.1, 115.2] and reported "124%" coverage.
+{
+  const stripOverrun = [
+    m("strip_h", 1780, {
+      axis: "horizontal", unit: "cm", referenceTypeHint: "building",
+      lineStartPct: point(-9.1, 50), lineEndPct: point(115.2, 50),
+    }),
+  ];
+  const chains = buildDimensionChains(stripOverrun);
+  const chain = chains.find((c) => c.axis === "horizontal");
+  assertTrue(!!chain, "strip overrun: chain exists");
+  assertEqual(chain.rawSpanStartPct, -9.1, "strip overrun: raw span start preserved for diagnostics (unclamped)");
+  assertClose(chain.rawSpanEndPct, 115.2, "strip overrun: raw span end preserved for diagnostics (unclamped)");
+  assertEqual(chain.spanStartPct, 0, "strip overrun: clamped span start floors at 0");
+  assertEqual(chain.spanEndPct, 100, "strip overrun: clamped span end caps at 100");
+  assertEqual(chain.coveragePct, 100, "strip overrun: coverage clamps to exactly 100, never 124");
+  assertTrue(chain.coveragePct <= 100, "strip overrun: coverage never exceeds 100 under any circumstance");
+  assertEqual(chain.isOverallCandidate, true, "strip overrun: still correctly recognized as an overall candidate (fully covers the crop)");
+
+  const res = resolveAuthoritativeExtentV3(stripOverrun, CONVENTION_UNKNOWN, "horizontal");
+  assertEqual(res.status, "resolved", "strip overrun: still resolves normally despite the out-of-range raw evidence");
+  assertClose(res.valueM, 17.8, "strip overrun: 1780cm -> 17.80m, unaffected by the clamp");
+}
+
+// 13b. A chain whose raw span sits ENTIRELY off one edge of the canonical
+// space (e.g. a strip measurement that never actually reaches back into
+// the main crop) must collapse to exactly 0% coverage, not a negative
+// width and not a spurious overall candidacy.
+{
+  const entirelyOffEdge = [
+    m("off_edge", 300, {
+      axis: "horizontal", unit: "cm", referenceTypeHint: "wall",
+      lineStartPct: point(-30, 50), lineEndPct: point(-5, 50),
+    }),
+  ];
+  const chains = buildDimensionChains(entirelyOffEdge);
+  const chain = chains.find((c) => c.axis === "horizontal");
+  assertEqual(chain.rawSpanStartPct, -30, "entirely-off-edge: raw start preserved");
+  assertEqual(chain.rawSpanEndPct, -5, "entirely-off-edge: raw end preserved");
+  assertEqual(chain.spanStartPct, 0, "entirely-off-edge: clamped start floors at 0");
+  assertEqual(chain.spanEndPct, 0, "entirely-off-edge: clamped end also floors at 0 (no overlap with [0,100])");
+  assertEqual(chain.coveragePct, 0, "entirely-off-edge: coverage is exactly 0, never negative");
+  assertEqual(chain.isOverallCandidate, false, "entirely-off-edge: never an overall candidate");
+}
+
+// 14. FULL-PIPELINE REGRESSION, matching Yaron's exact stated success
+// criteria for this round: using the NEW code-computed
+// DocumentUnitConvention (not a hand-fed one) end to end --
+// horizontal=16.69m (source bottom_m22), vertical=10.99m (source
+// left_m12), no averaging, and neither the Pass-0.5-shaped "274" nor
+// "655" local segments are ever selected as either axis's overall value.
+// The convention pool below is modeled on the real screenshots: building
+// envelope + a handful of room/wall unknown-unit numbers that only make
+// sense as cm.
+{
+  const fullDrawing = [
+    // The two authoritative overall measurements (unit "unknown" on the
+    // record itself, exactly like the real drawing -- must be resolved
+    // via the CODE-COMPUTED convention, not a printed unit).
+    m("bottom_m22", 1669, {
+      axis: "horizontal", referenceTypeHint: "building",
+      lineStartPct: point(1, 2), lineEndPct: point(99, 2),
+    }),
+    m("left_m12", 1099, {
+      axis: "vertical", referenceTypeHint: "building",
+      lineStartPct: point(2, 1), lineEndPct: point(2, 98),
+    }),
+    // Room/wall evidence purely to give the convention resolver enough
+    // mutually-consistent unknown-unit measurements to infer "cm" from
+    // (never used as chain members for the overall axes below -- they
+    // sit on unrelated strips/cross-positions).
+    m("room_a", 395, { axis: "horizontal", referenceTypeHint: "room", lineStartPct: point(20, 30), lineEndPct: point(59.5, 30) }),
+    m("room_b", 390, { axis: "horizontal", referenceTypeHint: "room", lineStartPct: point(20, 40), lineEndPct: point(59, 40) }),
+    m("wall_a", 20, { axis: "vertical", referenceTypeHint: "wall", lineStartPct: point(45, 30), lineEndPct: point(45, 32) }),
+    m("wall_b", 22, { axis: "vertical", referenceTypeHint: "wall", lineStartPct: point(55, 30), lineEndPct: point(55, 32.2) }),
+    // The Pass-0.5-shaped local segments that must NEVER be promoted to
+    // "overall" -- short spans, nowhere near full coverage.
+    m("m_274", 274, {
+      axis: "horizontal", referenceTypeHint: "wall",
+      lineStartPct: point(62, 55), lineEndPct: point(78, 55),
+    }),
+    m("m_655", 655, {
+      axis: "vertical", referenceTypeHint: "room",
+      lineStartPct: point(70, 20), lineEndPct: point(70, 40),
+    }),
+  ];
+
+  const computedConvention = resolveDocumentUnitConvention(fullDrawing);
+  assertEqual(computedConvention.detectedUnit, "cm", "full pipeline: code-computed convention is cm (never hand-fed)");
+
+  const hRes = resolveAuthoritativeExtentV3(fullDrawing, computedConvention, "horizontal");
+  assertEqual(hRes.status, "resolved", "full pipeline: horizontal resolves using the code-computed convention");
+  assertClose(hRes.valueM, 16.69, "full pipeline: horizontal = 16.69m");
+  assertTrue(hRes.sourceChainIds.every((id) => {
+    const chain = buildDimensionChains(fullDrawing).find((c) => c.id === id);
+    return !chain?.measurementIds.includes("m_274");
+  }), "full pipeline: 274 never contributes to the resolved horizontal overall");
+
+  const vRes = resolveAuthoritativeExtentV3(fullDrawing, computedConvention, "vertical");
+  assertEqual(vRes.status, "resolved", "full pipeline: vertical resolves using the code-computed convention");
+  assertClose(vRes.valueM, 10.99, "full pipeline: vertical = 10.99m");
+  assertTrue(vRes.sourceChainIds.every((id) => {
+    const chain = buildDimensionChains(fullDrawing).find((c) => c.id === id);
+    return !chain?.measurementIds.includes("m_655");
+  }), "full pipeline: 655 never contributes to the resolved vertical overall");
+
+  // And directly: neither local segment's own chain ever qualifies as an
+  // overall candidate in the first place.
+  const allChains = buildDimensionChains(fullDrawing);
+  const chain274 = allChains.find((c) => c.measurementIds.includes("m_274"));
+  const chain655 = allChains.find((c) => c.measurementIds.includes("m_655"));
+  assertEqual(chain274.isOverallCandidate, false, "full pipeline: 274's chain never qualifies as overall");
+  assertEqual(chain655.isOverallCandidate, false, "full pipeline: 655's chain never qualifies as overall");
+
+  // All reported coverage across every chain in the full fixture stays
+  // within [0,100] -- the general form of Fix B, not just the two
+  // targeted overrun cases above.
+  assertTrue(
+    allChains.every((c) => c.coveragePct >= 0 && c.coveragePct <= 100),
+    "full pipeline: every chain's coveragePct is within [0,100]",
+  );
 }
 
 console.log(failures === 0 ? "\nALL TESTS PASSED" : `\n${failures} TEST(S) FAILED`);

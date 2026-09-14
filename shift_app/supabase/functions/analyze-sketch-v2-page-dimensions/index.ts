@@ -52,6 +52,28 @@
 // to the drawing's own combined dimensioned extent, not the literal page
 // edges).
 //
+// SESSION 23 FOLLOW-UP #3 (Yaron's real-drawing test WITH strips live):
+// 1669/1099 finally got read correctly (high confidence, via
+// bottom_m22/left_m12), but almost every measurement on this drawing has
+// unit:"unknown" (no printed mm/cm/m label), and the model's own page-wide
+// convention hint came back "unknown" too (an honest "no explicit note
+// visible", not something resolveAuthoritativeExtentV3 can convert with).
+// Both axes stayed stuck at status:"unresolved" even with the right raw
+// numbers in hand. Two fixes, both applied below:
+//   A. A NEW deterministic code-side layer,
+//      ../_shared/document_unit_convention_resolver.ts, infers the
+//      document's unit convention from cross-measurement architectural
+//      plausibility (never a single number, never a silent cm default —
+//      see that file's header). Its result — `documentUnitConvention` —
+//      is what actually feeds normalizeMeasurementsV3/
+//      resolveAuthoritativeExtentV3 now, NOT the model's own `convention`
+//      hint (still computed/returned as-is, for reference/debug only).
+//   B. dimension_chain_builder_v3.ts's coveragePct could exceed 100% for a
+//      chain built mostly from strip evidence (strip-remapped coordinates
+//      intentionally go outside [0,100] — see that file's own header for
+//      the fix: coverage is now the clamped intersection with the
+//      canonical [0,100] main-crop space).
+//
 // Explicitly NOT done here (per Yaron's own words: "אל תבנה Rooms ואל
 // תשנה את Stage 0/1 מעבר לנדרש"):
 //   - No Rooms/Walls/Openings/Stairs reconstruction.
@@ -82,6 +104,10 @@ import {
   remapStripMeasurements,
   type StripName,
 } from "../_shared/dimension_measurement_merge_v3.ts";
+import {
+  resolveDocumentUnitConvention,
+  type DocumentUnitConventionResult,
+} from "../_shared/document_unit_convention_resolver.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -504,9 +530,19 @@ Deno.serve(async (req) => {
   // resolution) — never the model's own arithmetic or grouping -----------
 
   const builtChains = buildDimensionChains(allMeasurements);
-  const normalizedMeasurements = normalizeMeasurementsV3(allMeasurements, convention);
-  const horizontalExtent = resolveAuthoritativeExtentV3(allMeasurements, convention, "horizontal");
-  const verticalExtent = resolveAuthoritativeExtentV3(allMeasurements, convention, "vertical");
+
+  // SESSION 23 FOLLOW-UP #3, fix A: the document's unit convention is now
+  // resolved DETERMINISTICALLY in code from the raw measurement evidence
+  // itself (never from a single number, never a silent cm default — see
+  // ../_shared/document_unit_convention_resolver.ts's header) and is what
+  // actually drives conversion below. The model's own `convention` field
+  // (self-reported hint) is kept untouched and still returned/persisted
+  // for reference/debug, but is no longer what toMetersV3 consults.
+  const documentUnitConvention: DocumentUnitConventionResult = resolveDocumentUnitConvention(allMeasurements);
+
+  const normalizedMeasurements = normalizeMeasurementsV3(allMeasurements, documentUnitConvention);
+  const horizontalExtent = resolveAuthoritativeExtentV3(allMeasurements, documentUnitConvention, "horizontal");
+  const verticalExtent = resolveAuthoritativeExtentV3(allMeasurements, documentUnitConvention, "vertical");
 
   const combinedNotes = [...notesParts, ...(stripDiagnostics.length > 0 ? [`strips: ${stripDiagnostics.join(" ")}`] : [])]
     .join("\n");
@@ -521,6 +557,7 @@ Deno.serve(async (req) => {
       payload: {
         measurements: allMeasurements,
         convention,
+        documentUnitConvention,
         notes: combinedNotes,
         builtChains,
         normalizedMeasurements,
@@ -565,6 +602,7 @@ Deno.serve(async (req) => {
     artifactId: (artifactRow as { id: string }).id,
     measurements: allMeasurements,
     convention,
+    documentUnitConvention,
     notes: combinedNotes,
     builtChains,
     horizontalExtent,

@@ -133,8 +133,15 @@ class BuiltDimensionChain {
   final String id;
   final String axis; // "horizontal" | "vertical"
   final List<String> measurementIds;
+  // Session 23, follow-up #3: clamped to the canonical [0,100] main-crop
+  // space (intersection with it) — coveragePct/isOverallCandidate are
+  // computed from these, never from the raw span below.
   final double spanStartPct;
   final double spanEndPct;
+  // The raw, UNCLAMPED span — can be <0 or >100 for a chain built mostly
+  // from strip evidence. Diagnostic only.
+  final double rawSpanStartPct;
+  final double rawSpanEndPct;
   final double coveragePct;
   final double crossStripPct;
   final bool isOverallCandidate;
@@ -147,6 +154,8 @@ class BuiltDimensionChain {
     required this.measurementIds,
     required this.spanStartPct,
     required this.spanEndPct,
+    required this.rawSpanStartPct,
+    required this.rawSpanEndPct,
     required this.coveragePct,
     required this.crossStripPct,
     required this.isOverallCandidate,
@@ -161,6 +170,12 @@ class BuiltDimensionChain {
             (json['measurementIds'] as List<dynamic>? ?? []).map((e) => e as String).toList(),
         spanStartPct: (json['spanStartPct'] as num?)?.toDouble() ?? 0,
         spanEndPct: (json['spanEndPct'] as num?)?.toDouble() ?? 0,
+        rawSpanStartPct: (json['rawSpanStartPct'] as num?)?.toDouble() ??
+            (json['spanStartPct'] as num?)?.toDouble() ??
+            0,
+        rawSpanEndPct: (json['rawSpanEndPct'] as num?)?.toDouble() ??
+            (json['spanEndPct'] as num?)?.toDouble() ??
+            0,
         coveragePct: (json['coveragePct'] as num?)?.toDouble() ?? 0,
         crossStripPct: (json['crossStripPct'] as num?)?.toDouble() ?? 0,
         isOverallCandidate: json['isOverallCandidate'] as bool? ?? false,
@@ -209,6 +224,15 @@ class PageDimensionsResult {
   final String artifactId;
   final List<DimensionEvidence> measurements;
   final DocumentMeasurementConvention convention;
+  // Session 23, follow-up #3: the CODE-computed, deterministic unit
+  // convention (document_unit_convention_resolver.ts) — this, not the
+  // model-reported `convention` above, is what horizontalExtent/
+  // verticalExtent were actually resolved with. Kept as a separate field
+  // (rather than replacing `convention`) so the debug screen can show
+  // both side by side: the model's own page-wide hint (often
+  // low-confidence "unknown") vs. what code inferred from cross-
+  // measurement architectural plausibility.
+  final DocumentMeasurementConvention documentUnitConvention;
   final String notes;
   final List<BuiltDimensionChain> builtChains;
   final ResolvedExtentV3 horizontalExtent;
@@ -227,6 +251,7 @@ class PageDimensionsResult {
     required this.artifactId,
     required this.measurements,
     required this.convention,
+    required this.documentUnitConvention,
     required this.notes,
     required this.builtChains,
     required this.horizontalExtent,
@@ -245,6 +270,8 @@ class PageDimensionsResult {
             .toList(),
         convention: DocumentMeasurementConvention.fromJson(
             json['convention'] as Map<String, dynamic>? ?? const {}),
+        documentUnitConvention: DocumentMeasurementConvention.fromJson(
+            json['documentUnitConvention'] as Map<String, dynamic>? ?? const {}),
         notes: json['notes'] as String? ?? '',
         builtChains: (json['builtChains'] as List<dynamic>? ?? [])
             .map((c) => BuiltDimensionChain.fromJson(c as Map<String, dynamic>))

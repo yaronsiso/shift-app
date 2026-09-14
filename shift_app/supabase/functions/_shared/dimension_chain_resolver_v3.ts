@@ -60,7 +60,12 @@ export interface ResolvedExtentV3 {
 
 const CROSS_CHAIN_TOLERANCE_PCT = 2.0;
 
-function isLengthType(hint: ReferenceTypeHint): boolean {
+// Exported (session 23, follow-up #3) so document_unit_convention_resolver.ts
+// can filter to the exact same population this file's toMetersV3 will ever
+// actually convert -- "area" and "elevation" measurements must never
+// influence unit-convention inference any more than they're allowed to
+// influence a resolved extent.
+export function isLengthType(hint: ReferenceTypeHint): boolean {
   return hint === "building" || hint === "room" || hint === "wall" || hint === "opening";
 }
 

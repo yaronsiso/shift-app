@@ -49,6 +49,30 @@
 // actual room/wall geometry reconstruction (explicitly out of scope, see
 // Yaron's "אל תבנה Rooms" instruction) to fix properly.
 //
+// SESSION 23 FOLLOW-UP #3 (real-drawing regression with dimension strips
+// live): once strip-sourced measurements started flowing in (see
+// dimension_measurement_merge_v3.ts), Yaron's actual test run showed chains
+// with coveragePct of 111%, 120%, even 124% — nonsensical for a percentage.
+// Root cause: a strip's remapped lineStartPct/lineEndPct is INTENTIONALLY
+// allowed to fall outside [0,100] (that's the whole point of a strip's
+// padding — it can see a bit past the main crop's own edge), and this
+// file's span/coverage math used those raw along-axis positions directly.
+// A chain built mostly from strip evidence could therefore have a raw span
+// like [-12.7, 98.0] — width 110.7, "coverage" 111%.
+//
+// THE FIX: spanStartPct/spanEndPct/coveragePct below are now the
+// INTERSECTION of the chain's raw span with the canonical main-crop
+// coordinate space [0,100] — i.e. clamped independently at each end, so
+// coveragePct can never exceed 100 and is 0 for a chain whose raw span
+// doesn't overlap [0,100] at all. The raw (unclamped, possibly negative or
+// >100) span is preserved separately as rawSpanStartPct/rawSpanEndPct for
+// diagnostics — per Yaron's explicit instruction, an out-of-bounds mapped
+// coordinate may be kept for visibility but must never inflate an
+// overall-envelope candidacy decision. The union-of-all-chains reference
+// span (used by the edge-tolerance check above) is likewise computed from
+// the CLAMPED per-chain spans, so one wild raw coordinate can no longer
+// drag the whole reference span outward either.
+//
 // Algorithm (unchanged from the first version):
 //   1. Only "horizontal" and "vertical" measurements participate (a
 //      "diagonal"/"unknown"-axis measurement can't be placed in a chain by
@@ -84,12 +108,30 @@ export const EDGE_TOLERANCE_PCT = 16;
 
 export type ChainAxis = "horizontal" | "vertical";
 
+// The canonical main-crop coordinate space every measurement is ultimately
+// expressed in (see dimension_measurement_merge_v3.ts) — coveragePct is the
+// intersection of a chain's raw span with this range, never the raw span
+// itself. See the session-23-follow-up-#3 file-header comment above.
+const CANONICAL_MIN_PCT = 0;
+const CANONICAL_MAX_PCT = 100;
+
+function clampToCanonical(v: number): number {
+  return Math.min(CANONICAL_MAX_PCT, Math.max(CANONICAL_MIN_PCT, v));
+}
+
 export interface BuiltDimensionChain {
   id: string;
   axis: ChainAxis;
   measurementIds: string[]; // ordered along the axis
+  // Clamped to the canonical [0,100] main-crop space (intersection with
+  // it) — this is what coveragePct/isOverallCandidate are computed from.
   spanStartPct: number;
   spanEndPct: number;
+  // The raw, UNCLAMPED span — can be <0 or >100 for a chain built mostly
+  // from strip evidence (see file header). Diagnostic only: never used for
+  // coverage/candidacy math.
+  rawSpanStartPct: number;
+  rawSpanEndPct: number;
   coveragePct: number;
   crossStripPct: number;
   isOverallCandidate: boolean;
@@ -175,40 +217,55 @@ function buildChainsForAxis(measurements: DimensionEvidence[], axis: ChainAxis):
   clusters.sort((a, b) => (a[0]?.cross ?? 0) - (b[0]?.cross ?? 0));
 
   // First pass: each cluster's own span/coverage, independent of any
-  // overall-candidate decision.
+  // overall-candidate decision. spanStartPct/spanEndPct are the RAW
+  // (possibly <0 or >100) endpoints; spanStartPct/spanEndPct used for
+  // candidacy math are clamped to the canonical [0,100] space immediately
+  // below (session 23 follow-up #3 — see file header).
   const partial = clusters.map((cluster, idx) => {
     const ordered = [...cluster].sort((a, b) => a.alongStart - b.alongStart);
-    const spanStartPct = Math.min(...ordered.map((s) => s.alongStart));
-    const spanEndPct = Math.max(...ordered.map((s) => s.alongEnd));
-    const coveragePct = spanEndPct - spanStartPct;
+    const rawSpanStartPct = Math.min(...ordered.map((s) => s.alongStart));
+    const rawSpanEndPct = Math.max(...ordered.map((s) => s.alongEnd));
+    // Intersection with the canonical main-crop space — never negative,
+    // never exceeds 100. A chain whose raw span doesn't overlap [0,100] at
+    // all (e.g. entirely off one edge) correctly collapses to 0 coverage.
+    const spanStartPct = clampToCanonical(rawSpanStartPct);
+    const spanEndPct = clampToCanonical(rawSpanEndPct);
+    const coveragePct = Math.max(0, spanEndPct - spanStartPct);
     const crossStripPct = ordered.reduce((sum, s) => sum + s.cross, 0) / ordered.length;
-    return { idx, ordered, spanStartPct, spanEndPct, coveragePct, crossStripPct };
+    return { idx, ordered, spanStartPct, spanEndPct, rawSpanStartPct, rawSpanEndPct, coveragePct, crossStripPct };
   });
 
-  // Reference span (see file header): the union of every chain's own span
-  // on this axis. Deliberately NOT the raw 0-100 page extent.
+  // Reference span (see file header): the union of every chain's own
+  // CLAMPED span on this axis. Deliberately NOT the raw 0-100 page extent,
+  // and deliberately NOT the unclamped raw spans either — one wild
+  // strip-derived coordinate must not be able to drag this reference
+  // outward and loosen the edge-tolerance check for every other chain.
   const referenceStartPct = partial.length ? Math.min(...partial.map((p) => p.spanStartPct)) : 0;
   const referenceEndPct = partial.length ? Math.max(...partial.map((p) => p.spanEndPct)) : 0;
 
-  return partial.map(({ idx, ordered, spanStartPct, spanEndPct, coveragePct, crossStripPct }) => {
-    const isOverallCandidate =
-      coveragePct >= OVERALL_COVERAGE_THRESHOLD_PCT &&
-      spanStartPct <= referenceStartPct + EDGE_TOLERANCE_PCT &&
-      spanEndPct >= referenceEndPct - EDGE_TOLERANCE_PCT;
+  return partial.map(
+    ({ idx, ordered, spanStartPct, spanEndPct, rawSpanStartPct, rawSpanEndPct, coveragePct, crossStripPct }) => {
+      const isOverallCandidate =
+        coveragePct >= OVERALL_COVERAGE_THRESHOLD_PCT &&
+        spanStartPct <= referenceStartPct + EDGE_TOLERANCE_PCT &&
+        spanEndPct >= referenceEndPct - EDGE_TOLERANCE_PCT;
 
-    return {
-      id: `chain_${String(idx + 1).padStart(2, "0")}_${axis[0]}`,
-      axis,
-      measurementIds: ordered.map((s) => s.measurement.id),
-      spanStartPct,
-      spanEndPct,
-      coveragePct,
-      crossStripPct,
-      isOverallCandidate,
-      dominantReferenceTypeHint: dominantReferenceTypeHint(ordered),
-      usedLineEndpointsCount: ordered.filter((s) => s.usedLineEndpoints).length,
-    };
-  });
+      return {
+        id: `chain_${String(idx + 1).padStart(2, "0")}_${axis[0]}`,
+        axis,
+        measurementIds: ordered.map((s) => s.measurement.id),
+        spanStartPct,
+        spanEndPct,
+        rawSpanStartPct,
+        rawSpanEndPct,
+        coveragePct,
+        crossStripPct,
+        isOverallCandidate,
+        dominantReferenceTypeHint: dominantReferenceTypeHint(ordered),
+        usedLineEndpointsCount: ordered.filter((s) => s.usedLineEndpoints).length,
+      };
+    },
+  );
 }
 
 /** Builds chains for both axes from the full measurement list. */

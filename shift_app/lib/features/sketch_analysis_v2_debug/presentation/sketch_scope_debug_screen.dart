@@ -393,15 +393,25 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
     final candidateLabel = c.isOverallCandidate
         ? '✓ מועמד-מעטפת (coverage ${c.coveragePct.toStringAsFixed(0)}%)'
         : 'קטע מקומי (coverage ${c.coveragePct.toStringAsFixed(0)}%)';
+    // Session 23, follow-up #3: span is now the CLAMPED [0,100] canonical
+    // span (what coverage/isOverallCandidate are computed from). Only show
+    // the raw, unclamped span separately when it actually differs — that's
+    // the signal a strip-derived measurement pushed this chain outside the
+    // canonical crop before clamping.
+    final rawDiffers =
+        (c.rawSpanStartPct - c.spanStartPct).abs() > 0.05 || (c.rawSpanEndPct - c.spanEndPct).abs() > 0.05;
+    final rawSpanText = rawDiffers
+        ? '\n    raw span (לפני clamp): [${c.rawSpanStartPct.toStringAsFixed(1)}, ${c.rawSpanEndPct.toStringAsFixed(1)}]'
+        : '';
     return '[${c.id}] ${c.axis} — $candidateLabel — דומיננטי: ${c.dominantReferenceTypeHint}\n'
         '    חברים: $membersText\n'
         '    span: [${c.spanStartPct.toStringAsFixed(1)}, ${c.spanEndPct.toStringAsFixed(1)}] '
-        '(${c.usedLineEndpointsCount}/${c.measurementIds.length} עם קו מזוהה)';
+        '(${c.usedLineEndpointsCount}/${c.measurementIds.length} עם קו מזוהה)$rawSpanText';
   }
 
-  String _formatConvention(DocumentMeasurementConvention conv) {
+  String _formatConvention(String labelHe, DocumentMeasurementConvention conv) {
     final evidence = conv.evidence.isNotEmpty ? '\n    ${conv.evidence.join('\n    ')}' : '';
-    return 'קונבנציית יחידות שזוהתה: ${conv.detectedUnit} (ביטחון ${conv.confidence})$evidence';
+    return '$labelHe: ${conv.detectedUnit} (ביטחון ${conv.confidence})$evidence';
   }
 
   String _formatResolvedExtent(String labelHe, ResolvedExtentV3 res) {
@@ -573,8 +583,16 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _formatConvention(pageDimensionsResult.convention),
-                  style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                  _formatConvention('קונבנציית יחידות (רמז AI, לא בשימוש להמרה)', pageDimensionsResult.convention),
+                  style: const TextStyle(fontSize: 12, fontFamily: 'monospace', color: Colors.black54),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _formatConvention(
+                    'קונבנציית יחידות (מוחלטת, מחושבת בקוד — זו שבאמת בשימוש)',
+                    pageDimensionsResult.documentUnitConvention,
+                  ),
+                  style: const TextStyle(fontSize: 12, fontFamily: 'monospace', fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 Text(
