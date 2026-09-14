@@ -54,7 +54,14 @@ import '../data/client_side_crop.dart';
 import '../data/dimension_strips.dart';
 import '../data/sketch_envelope_service.dart';
 import '../data/sketch_measurements_service.dart';
-import '../data/sketch_page_dimensions_service.dart';
+// `hide BboxPct`: sketch_page_dimensions_service.dart declares its OWN,
+// semantically-different `BboxPct` class (a single measurement's bbox,
+// within DimensionEvidence) — see that file's own `scope_service.BboxPct`
+// aliased import for the same reason. This screen only ever needs the
+// OTHER BboxPct (sketch_scope_service.dart's — the main-floor-plan/strip
+// bbox type used for _uploadedStripBboxes etc.), so hiding this file's
+// same-named class here is what lets both imports coexist unaliased.
+import '../data/sketch_page_dimensions_service.dart' hide BboxPct;
 import '../data/sketch_scope_service.dart';
 import 'envelope_overlay_painter.dart';
 
