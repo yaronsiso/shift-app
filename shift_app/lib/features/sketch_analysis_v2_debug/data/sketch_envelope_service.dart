@@ -8,6 +8,21 @@
 // `analyze-sketch` (v15, production), `sketch_analyses`, or Stage 0's own
 // service/tables beyond reading a job that Stage 0 already created.
 //
+// ⚠️ REWRITTEN (same session, continued) after a real accuracy bug: given a
+// drawing with large explicit printed dimensions (16.00m x 10.00m
+// rectangle), the original version of analyze-sketch-v2-envelope returned
+// a polygon measuring 17.80m x 10.25m (11% error), despite its own `notes`
+// claiming the printed numbers were used. The fix (see
+// analyze-sketch-v2-envelope/index.ts's file header for the full story)
+// added a new required prior stage — Pass 0.5 "measurements"
+// (sketch_measurements_service.dart) — whose output the server now
+// validates the model's geometry against, and can override entirely (for
+// simple rectangles) using code, not model arithmetic. This file's job is
+// just to parse the richer response that came out of that fix: `confidence`
+// is now the server's CODE-COMPUTED confidence (not the model's raw
+// self-report — that's separately available as `modelReportedConfidence`),
+// plus new `measurementsUsed`/`validation` diagnostic blocks.
+//
 // Important: buildingEnvelope.vertices are NOT pixel/percentage positions
 // in the cropped image — they are the model's own architectural
 // interpretation, in meters, of the building's outline (same convention
@@ -33,12 +48,68 @@ class EnvelopePoint {
       );
 }
 
+/// Which measurements (from Pass 0.5) the server actually had available and
+/// used to validate/build this envelope — surfaced so the debug screen can
+/// show, in plain terms, whether this run had real numbers to check
+/// against at all.
+class MeasurementsUsed {
+  final double? horizontalM;
+  final String? horizontalConfidence;
+  final double? verticalM;
+  final String? verticalConfidence;
+  final int chainsCount;
+
+  MeasurementsUsed({
+    required this.horizontalM,
+    required this.horizontalConfidence,
+    required this.verticalM,
+    required this.verticalConfidence,
+    required this.chainsCount,
+  });
+
+  factory MeasurementsUsed.fromJson(Map<String, dynamic>? json) => MeasurementsUsed(
+        horizontalM: (json?['horizontalM'] as num?)?.toDouble(),
+        horizontalConfidence: json?['horizontalConfidence'] as String?,
+        verticalM: (json?['verticalM'] as num?)?.toDouble(),
+        verticalConfidence: json?['verticalConfidence'] as String?,
+        chainsCount: json?['chainsCount'] as int? ?? 0,
+      );
+}
+
+/// Diagnostics from the server-side validator (validateAgainstMeasurements
+/// in analyze-sketch-v2-envelope/index.ts) — did the model's geometry match
+/// the authoritative measurements, was a corrective retry needed, did code
+/// end up overriding the geometry entirely.
+class EnvelopeValidation {
+  final bool retried;
+  final bool codeOverrodeGeometry;
+  final double? horizontalErrorPct;
+  final double? verticalErrorPct;
+
+  EnvelopeValidation({
+    required this.retried,
+    required this.codeOverrodeGeometry,
+    required this.horizontalErrorPct,
+    required this.verticalErrorPct,
+  });
+
+  factory EnvelopeValidation.fromJson(Map<String, dynamic>? json) => EnvelopeValidation(
+        retried: json?['retried'] as bool? ?? false,
+        codeOverrodeGeometry: json?['codeOverrodeGeometry'] as bool? ?? false,
+        horizontalErrorPct: (json?['horizontalErrorPct'] as num?)?.toDouble(),
+        verticalErrorPct: (json?['verticalErrorPct'] as num?)?.toDouble(),
+      );
+}
+
 class EnvelopeResult {
   final String jobId;
   final String artifactId;
   final List<EnvelopePoint>? buildingEnvelope; // null = model honestly could not trace one
-  final String confidence;
+  final String confidence; // server-computed, see file header
+  final String modelReportedConfidence; // the model's own raw self-report, for comparison
   final String notes;
+  final MeasurementsUsed measurementsUsed;
+  final EnvelopeValidation validation;
   final int durationMs;
   final int attempt;
 
@@ -47,7 +118,10 @@ class EnvelopeResult {
     required this.artifactId,
     required this.buildingEnvelope,
     required this.confidence,
+    required this.modelReportedConfidence,
     required this.notes,
+    required this.measurementsUsed,
+    required this.validation,
     required this.durationMs,
     required this.attempt,
   });
@@ -64,7 +138,11 @@ class EnvelopeResult {
               .map((v) => EnvelopePoint.fromJson(v as Map<String, dynamic>))
               .toList(),
       confidence: json['confidence'] as String? ?? 'unknown',
+      modelReportedConfidence: json['modelReportedConfidence'] as String? ?? 'unknown',
       notes: json['notes'] as String? ?? '',
+      measurementsUsed:
+          MeasurementsUsed.fromJson(json['measurementsUsed'] as Map<String, dynamic>?),
+      validation: EnvelopeValidation.fromJson(json['validation'] as Map<String, dynamic>?),
       durationMs: json['durationMs'] as int,
       attempt: json['attempt'] as int,
     );
@@ -73,6 +151,9 @@ class EnvelopeResult {
 
 /// Thrown when the Edge Function itself reports a failure (as opposed to a
 /// network/client-side error) — mirrors ScopeFailure's shape from Stage 0.
+/// Since the rewrite, this is also what surfaces the new precondition ("run
+/// Pass 0.5 measurements first") if the debug screen's button ordering is
+/// somehow bypassed.
 class EnvelopeFailure implements Exception {
   final String detail;
   EnvelopeFailure(this.detail);
@@ -85,8 +166,8 @@ class SketchEnvelopeService {
   final SupabaseClient _client;
   SketchEnvelopeService(this._client);
 
-  /// Runs Stage 1 (envelope) on a job whose Stage 0 (scope) already
-  /// completed and uploaded a crop. Every call is a fresh attempt — the
+  /// Runs Stage 1 (envelope) on a job whose Stage 0 (scope) AND Pass 0.5
+  /// (measurements) already completed. Every call is a fresh attempt — the
   /// server records each as its own artifact version, so calling this
   /// again (a "run again" debug button) is always safe and never
   /// overwrites a previous result.

@@ -7,15 +7,25 @@
 // throwaway GoRoute, or pushing it directly with Navigator from a debug
 // button), then remove that link when done.
 //
-// Now covers two stages of the pipeline:
+// Now covers THREE stages of the pipeline:
 //   Stage 0 ("scope + crop"): pick a real floor-plan photo, find where the
 //   main floor plan is on the page (bbox + excluded regions), crop to it
 //   client-side. Session 20/21 — see claude/51/52.
-//   Stage 1 ("envelope"): given Stage 0's crop, identify only the
-//   building's outer envelope polygon. Session 21 — see claude/52. Every
-//   later stage (rooms/walls/openings/stairs) is still unbuilt by design —
-//   Yaron's explicit "one small step at a time, verify before continuing"
-//   requirement (see claude/00_HANDOFF "מי אני ומה התפקיד שלי כאן").
+//   Pass 0.5 ("measurements") — NEW, session 21 continued: given Stage 0's
+//   crop, transcribe every written dimension chain measuring the outer
+//   envelope (no geometry at all). Built after a real accuracy bug: Stage 1,
+//   given a drawing with explicit printed 16.00m x 10.00m dimensions,
+//   returned a polygon of 17.80m x 10.25m. Must run BEFORE Stage 1 now —
+//   Stage 1 requires it and will fail with a clear message if skipped.
+//   Stage 1 ("envelope"): given Stage 0's crop + Pass 0.5's measurements,
+//   identify the building's outer envelope polygon — now validated (and,
+//   for simple rectangles, entirely rebuilt in code) against the
+//   authoritative measurements rather than trusting the model's own
+//   arithmetic/self-reported confidence. Session 21 — see claude/52 and
+//   analyze-sketch-v2-envelope/index.ts's file header for the full story.
+//   Every later stage (rooms/walls/openings/stairs) is still unbuilt by
+//   design — Yaron's explicit "one small step at a time, verify before
+//   continuing" requirement (see claude/00_HANDOFF).
 
 import 'dart:async';
 import 'dart:io';
@@ -29,6 +39,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/client_side_crop.dart';
 import '../data/sketch_envelope_service.dart';
+import '../data/sketch_measurements_service.dart';
 import '../data/sketch_scope_service.dart';
 import 'envelope_overlay_painter.dart';
 
@@ -43,6 +54,8 @@ class SketchScopeDebugScreen extends StatefulWidget {
 class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
   late final SketchScopeService _service =
       SketchScopeService(Supabase.instance.client);
+  late final SketchMeasurementsService _measurementsService =
+      SketchMeasurementsService(Supabase.instance.client);
   late final SketchEnvelopeService _envelopeService =
       SketchEnvelopeService(Supabase.instance.client);
 
@@ -57,6 +70,14 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
   // display-only.
   Uint8List? _originalDisplayBytes;
   String? _originalDisplayError;
+
+  // Pass 0.5 (measurements) state — must complete before Stage 1 can run
+  // (the server enforces this too; the button below is just a convenience
+  // gate so Yaron can't hit the same "forgot a step" error the server
+  // would otherwise report).
+  MeasurementsResult? _measurementsResult;
+  String? _measurementsError;
+  bool _measurementsBusy = false;
 
   // Stage 1 (envelope) state — independent of Stage 0's _busy/_error so a
   // Stage 1 run never disables the Stage 0 controls.
@@ -80,6 +101,8 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
       _originalFile = File(picked.path);
       _originalDisplayBytes = null;
       _originalDisplayError = null;
+      _measurementsResult = null;
+      _measurementsError = null;
       _envelopeResult = null;
       _envelopeError = null;
     });
@@ -97,6 +120,8 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
     setState(() {
       _busy = true;
       _error = null;
+      _measurementsResult = null;
+      _measurementsError = null;
       _envelopeResult = null;
       _envelopeError = null;
     });
@@ -120,6 +145,33 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
       setState(() {
         _error = e.toString();
         _busy = false;
+      });
+    }
+  }
+
+  Future<void> _runMeasurements() async {
+    final jobId = _result?.jobId;
+    if (jobId == null) return;
+    setState(() {
+      _measurementsBusy = true;
+      _measurementsError = null;
+      // a re-run of measurements invalidates any envelope already built
+      // from the previous measurements version, so clear it too.
+      _envelopeResult = null;
+      _envelopeError = null;
+    });
+    try {
+      final result = await _measurementsService.runMeasurements(jobId);
+      if (!mounted) return;
+      setState(() {
+        _measurementsResult = result;
+        _measurementsBusy = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _measurementsError = e.toString();
+        _measurementsBusy = false;
       });
     }
   }
@@ -214,12 +266,23 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
     return Size(decoded.width.toDouble(), decoded.height.toDouble());
   }
 
+  String _formatChain(DimensionChain c) {
+    final segmentsText = c.segments.map((s) => s.text).join(' + ');
+    final overall = c.overallValueM != null
+        ? ' = ${c.overallText ?? c.overallValueM!.toStringAsFixed(2)}'
+        : ' (אין מספר-סיכום כתוב, סה"כ מחושב: ${c.resolvedTotalM.toStringAsFixed(2)} מ\')';
+    return '${c.location} (${c.axis}): $segmentsText$overall — ביטחון: ${c.confidence}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final result = _result;
+    final measurementsResult = _measurementsResult;
     final envelopeResult = _envelopeResult;
     return Scaffold(
-      appBar: AppBar(title: const Text('Stage 0/1 debug — Scope+Crop / Envelope')),
+      appBar: AppBar(
+        title: const Text('Stage 0/0.5/1 debug — Scope+Crop / Measurements / Envelope'),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -296,6 +359,66 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
               Image.file(_croppedFile!),
             ],
 
+            // --- Pass 0.5 (measurements) --------------------------------
+            if (_croppedFile != null) ...[
+              const Divider(height: 32),
+              const Text(
+                'Pass 0.5 — Measurements (NEW: must run before Stage 1)',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'קורא ומתעד אך ורק את המספרים הכתובים בתמונה על ההיקף '
+                'החיצוני — לא מצייר ולא מחשב שום צורה. Stage 1 למטה ישתמש '
+                'במספרים האלה כ"עובדה קבועה" ולא ינסה לקרוא אותם שוב '
+                'בעצמו.',
+                style: TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: _measurementsBusy ? null : _runMeasurements,
+                child: Text(
+                  _measurementsBusy
+                      ? 'Running...'
+                      : 'Run Pass 0.5 (Measurements)',
+                ),
+              ),
+              if (_measurementsError != null) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'Error: $_measurementsError',
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ],
+              if (measurementsResult != null) ...[
+                const SizedBox(height: 16),
+                Text('measurements attempt: ${measurementsResult.attempt}'),
+                Text('measurements durationMs: ${measurementsResult.durationMs}'),
+                if (measurementsResult.notes.isNotEmpty)
+                  Text('notes: ${measurementsResult.notes}'),
+                const SizedBox(height: 8),
+                if (measurementsResult.chains.isEmpty)
+                  const Text(
+                    'chains: none — לא נמצאה שום מידה כתובה קריאה בתמונה '
+                    'הזו על ההיקף החיצוני (תשובה כנה, לא שגיאה). Stage 1 '
+                    'יסתמך רק על הערכת-פרופורציה, וה-confidence שלו יהיה '
+                    'נמוך.',
+                    style: TextStyle(color: Colors.orange),
+                  )
+                else ...[
+                  const Text(
+                    'chains (raw, as extracted — this is what Stage 1 will '
+                    'treat as authoritative):',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    measurementsResult.chains.map(_formatChain).join('\n'),
+                    style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                  ),
+                ],
+              ],
+            ],
+
             // --- Stage 1 (envelope) -------------------------------------
             if (_croppedFile != null) ...[
               const Divider(height: 32),
@@ -304,8 +427,17 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               const SizedBox(height: 8),
+              if (measurementsResult == null)
+                const Text(
+                  'הרץ קודם את Pass 0.5 (למעלה) — Stage 1 דורש את זה '
+                  'ויכשל אחרת.',
+                  style: TextStyle(fontSize: 12, color: Colors.orange),
+                ),
+              const SizedBox(height: 4),
               ElevatedButton(
-                onPressed: _envelopeBusy ? null : _runEnvelope,
+                onPressed: (_envelopeBusy || measurementsResult == null)
+                    ? null
+                    : _runEnvelope,
                 child: Text(
                   _envelopeBusy ? 'Running...' : 'Run Stage 1 (Envelope)',
                 ),
@@ -321,9 +453,33 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
                 const SizedBox(height: 16),
                 Text('envelope attempt: ${envelopeResult.attempt}'),
                 Text('envelope durationMs: ${envelopeResult.durationMs}'),
-                Text('envelope confidence: ${envelopeResult.confidence}'),
-                if (envelopeResult.notes.isNotEmpty)
+                Text(
+                  'confidence (מחושב בקוד): ${envelopeResult.confidence}   '
+                  '(מה שה-AI עצמו דיווח: ${envelopeResult.modelReportedConfidence})',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'מידות שנמצאו ושימשו לבדיקה: '
+                  'רוחב ${envelopeResult.measurementsUsed.horizontalM?.toStringAsFixed(2) ?? "לא נמצא"} מ\' '
+                  '(${envelopeResult.measurementsUsed.horizontalConfidence ?? "-"})'
+                  ' | גובה ${envelopeResult.measurementsUsed.verticalM?.toStringAsFixed(2) ?? "לא נמצא"} מ\' '
+                  '(${envelopeResult.measurementsUsed.verticalConfidence ?? "-"})'
+                  ' | ${envelopeResult.measurementsUsed.chainsCount} שרשראות-מידה',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                Text(
+                  'בדיקת-התאמה: '
+                  '${envelopeResult.validation.retried ? "בוצע ניסיון-תיקון" : "לא נדרש ניסיון-תיקון"}'
+                  ' | ${envelopeResult.validation.codeOverrodeGeometry ? "הצורה הוחלפה בחישוב-קוד מדויק" : "הצורה נשארה כפי שה-AI קבע (אחרי בדיקה)"}'
+                  '${envelopeResult.validation.horizontalErrorPct != null ? " | סטיית-רוחב: ${envelopeResult.validation.horizontalErrorPct!.toStringAsFixed(1)}%" : ""}'
+                  '${envelopeResult.validation.verticalErrorPct != null ? " | סטיית-גובה: ${envelopeResult.validation.verticalErrorPct!.toStringAsFixed(1)}%" : ""}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                if (envelopeResult.notes.isNotEmpty) ...[
+                  const SizedBox(height: 8),
                   Text('notes: ${envelopeResult.notes}'),
+                ],
                 const SizedBox(height: 12),
                 if (envelopeResult.buildingEnvelope == null)
                   const Text(
@@ -343,8 +499,8 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'vertices (raw, meters, as returned by the model — this '
-                    'is the number list, not the drawing above):',
+                    'vertices (raw, meters, as returned — this is the '
+                    'number list, not the drawing above):',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                   ),
                   Text(

@@ -6,57 +6,106 @@
 // not replace, call, or modify `analyze-sketch` (v15, production) or
 // `analyze-sketch-v2-scope` (Stage 0) in any way — all three coexist.
 //
-// What this function does, and nothing more (same "one small step"
-// discipline as Stage 0, confirmed again by Yaron before writing this):
-//   1. Given a jobId whose Stage 0 ("scope") already ran and uploaded a
-//      client-side crop (see sketch_scope_service.dart's `uploadCrop`,
-//      path convention `<uid>/analysis/<jobId>/cropped.jpg` in the
-//      existing `renders` bucket — no new bucket/path convention here),
-//      identify ONLY the building's outer envelope polygon
-//      (buildingEnvelope.vertices, schema v2). Rooms, interior walls,
-//      openings, stairs and special elements are explicitly NOT
-//      identified in this stage — the model is instructed to return empty
-//      arrays for all of them. That comes in later, separate stages.
-//   2. One OpenAI call, no retry loop (same precedent as Stage 0 — a
-//      corrective retry loop can be added later if real runs show it's
-//      needed, not built speculatively now).
-//   3. Persists the result as a NEW row in the existing `analysis_artifacts`
-//      table (stage='envelope', linked to the same job Stage 0 created) —
-//      no new migration needed, the table's `stage`/`payload` columns
-//      already support any stage name.
+// ⚠️ REWRITTEN (same session, continued) after a real accuracy bug was
+// found by testing: given a drawing with large, explicit, unambiguous
+// printed dimensions (16.00m x 10.00m rectangle), this function's FIRST
+// version returned a polygon measuring 17.80m x 10.25m — an 11% error on
+// the long axis — even though its own `notes` field claimed the printed
+// numbers had been used. Root cause (independently reached here, then
+// cross-checked against a ChatGPT architecture review Yaron brought back —
+// same conclusion): asking one model call to both READ printed numbers
+// AND CONSTRUCT geometry in the same step conflates OCR/extraction with
+// geometric reasoning, and `strict:true` JSON schema only guarantees the
+// *shape* of the output, never that the numbers inside it are correct.
 //
-// Explicitly NOT done here (out of scope for this step, by instruction):
-//   - No room/wall/opening/stair/special-element detection.
-//   - No corrective retry-on-validation-failure loop yet.
-//   - No new job creation — this always operates on an existing job whose
-//     Stage 0 (scope) already completed and uploaded a crop. If it hasn't,
-//     this function fails cleanly rather than guessing.
+// THE FIX, implemented in this file:
+//   1. This function now REQUIRES a new prior stage, "measurements"
+//      (analyze-sketch-v2-measurements — a separate, narrower model call
+//      whose only job is transcribing printed dimension numbers, never
+//      geometry) to have already run for this job. Same "must run first"
+//      precondition pattern this function already used for "scope".
+//   2. The measurements are resolved into authoritative horizontal/
+//      vertical envelope extents IN CODE (resolveAxisExtent below) — never
+//      by asking the model to sum/derive them — and handed to the model as
+//      ground truth text in the prompt, explicitly marked as authoritative
+//      and not to be re-derived from the image.
+//   3. After the model returns a polygon, CODE validates it: the polygon's
+//      own bounding-box extent is compared against the authoritative
+//      extents (validateAgainstMeasurements). A mismatch beyond
+//      MEASUREMENT_MISMATCH_THRESHOLD_PCT triggers ONE corrective retry —
+//      not a blind re-ask, but a follow-up message that states the exact
+//      numbers that didn't match and asks for a corrected polygon.
+//   4. When the resulting polygon is a simple axis-aligned rectangle AND
+//      both axes have confident authoritative extents, CODE overrides the
+//      model's vertices entirely with a deterministically-constructed
+//      rectangle built from the authoritative numbers
+//      (buildDeterministicRectangle) — removing the model's arithmetic
+//      from the result altogether for the case that broke it.
+//   5. `confidence` returned to the client is now COMPUTED IN CODE
+//      (computeFinalConfidence) from measurable facts (were dimensions
+//      found? did the geometry match them? was it corrected? is it code-
+//      overridden?) — never just passed through from the model's own
+//      self-reported confidence, which the test above showed can say
+//      "medium" while being 11% wrong.
 //
-// Reuses the v2 schema (`floor_plan_schema_v2.ts`, written in session 20,
-// not consumed by anything until now) read-only — this is the first stage
-// that actually produces a FloorPlanAnalysisV2-shaped response, even
-// though only buildingEnvelope/confidence/notes are meaningful in it yet.
+// What this function still does, unchanged from the original version:
+//   - Identifies ONLY the building's outer envelope polygon (schema v2,
+//     buildingEnvelope.vertices). Rooms, interior walls, openings, stairs,
+//     special elements remain out of scope for this stage — always empty
+//     arrays, later stages fill them in.
+//   - Persists the result as a row in `analysis_artifacts`
+//     (stage='envelope') — no new migration; `stage`/`payload` already
+//     support this.
+//
+// Explicitly NOT done here (documented scope limits, not oversights):
+//   - No per-edge / per-chain matching of individual dimension chains to
+//     specific polygon edges. The validator checks the polygon's overall
+//     bounding-box width/height against the authoritative totals — correct
+//     and sufficient for the normal architectural convention that exterior
+//     dimension lines run the full length of a building edge, but it will
+//     not catch an error confined to one interior notch/segment of a more
+//     complex non-rectangular envelope while the overall extents still
+//     happen to match. A future increment could match each chain to its
+//     specific edge if real testing shows this is needed.
+//   - Only ONE corrective retry (not an open-ended loop) — matches this
+//     project's established "bounded retries, not blind ones" approach
+//     (see analyze-sketch v13-v15) and keeps this within Supabase Free
+//     tier's known compute-time constraints (see claude/50's
+//     WORKER_RESOURCE_LIMIT finding).
+//   - The deterministic-rectangle override only applies to simple 4-vertex
+//     axis-aligned rectangles. A non-rectangular envelope (e.g. a building
+//     with a small protruding entrance) still relies on the model's
+//     (validated, possibly corrected) topology — code cannot yet construct
+//     arbitrary orthogonal polygons from measurements alone.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   FLOOR_PLAN_JSON_SCHEMA_V2,
   type FloorPlanAnalysisV2,
+  type Point2D,
 } from "../_shared/floor_plan_schema_v2.ts";
+import type { DimensionChain } from "../_shared/dimension_extraction_schema.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") ?? "gpt-5.6-luna";
 
-// Rules 1/2/3/4 below are direct, deliberate adaptations of language
-// already validated in production (`analyze-sketch` v14/v15's
-// GEOMETRY_SYSTEM_PROMPT rules 4 and 17 — see claude/49/50) — narrowed
-// down to ONLY the envelope, since this stage does not touch rooms/walls
-// at all (unlike v14/v15's Pass 1A, which did envelope+rooms+walls
-// together). The input image here is already the Stage 0 crop, so unlike
-// v15 there is no need to tell the model to ignore separate detail/
-// section drawings elsewhere on the page — Stage 0 already removed them.
-const ENVELOPE_SYSTEM_PROMPT = `
+// A geometry-vs-measurement mismatch bigger than this (relative, percent)
+// is treated as wrong, not noise — triggers a corrective retry. Chosen
+// well above normal rounding/model noise (a percent or two) but well
+// below the 11% error the original bug produced, so it actually catches
+// the case that motivated this rewrite.
+const MEASUREMENT_MISMATCH_THRESHOLD_PCT = 5;
+// Two same-axis chains (e.g. top edge and bottom edge) disagreeing with
+// each other by more than this is itself a sign the extraction is shaky —
+// downgrades that axis's confidence rather than silently averaging as if
+// nothing were wrong.
+const CHAIN_DISAGREEMENT_THRESHOLD_PCT = 5;
+
+type Confidence = "high" | "medium" | "low";
+
+const ENVELOPE_SYSTEM_PROMPT_BASE = `
 את/ה אדריכל/ית שמנתח/ת שרטוט קומה שצולם/נסרק (התמונה שקיבלת כבר חתוכה
 מראש לתוכנית הקומה עצמה בלבד). בשלב הזה (Stage 1: מעטפת בלבד) המשימה
 שלך מצומצמת בכוונה: לזהות אך ורק את קו הגבול החיצוני השלם של הבניין/
@@ -88,12 +137,51 @@ coordinateSystem.units כ-"meters".
    או חתוך בתמונה) - buildingEnvelope צריך להיות null. זו תשובה כנה
    ותקינה, עדיפה בהרבה על ניחוש.
 
-5. אם יש בשרטוט מידות כתובות (מספרים/קווי מידה) - השתמש/י בהן לקבוע את
-   קנה המידה האמיתי במטרים של הקואורדינטות שאת/ה מחזיר/ה. אם אין שום
-   מידה כתובה בתמונה בכלל - קבע/י קואורדינטות עקביות ביחסים הנכונים בינן
-   לבין עצמן (צורה ופרופורציות נכונות), והנמך/י את confidence בהתאם, במקום
-   להמציא מידה מדויקת שאין לך דרך לדעת אותה.
+5. חשוב מאוד - קריאת מידות: קיבלת בהודעה הבאה רשימת "מידות סמכותיות"
+   שכבר חולצו במעבר נפרד ומדויק על קריאת המספרים הכתובים בתמונה הזו
+   בלבד. **אסור לך לקרוא בעצמך את המספרים מהתמונה מחדש ואסור להעריך אותם
+   ויזואלית** - השתמש/י אך ורק במידות הסמכומיות שקיבלת כדי לקבוע את קנה-
+   המידה במטרים של הקואורדינטות שאת/ה מחזיר/ה. תפקידך כאן הוא לקבוע
+   טופולוגיה (כמה קודקודים, אילו זוויות, איזו צורה) - לא לקרוא ספרות.
+   אם לא קיבלת מידה סמכותית לציר מסוים (המערכת תציין זאת במפורש), רק אז
+   קבע/י קואורדינטות לפי יחסי-פרופורציות בלבד לאותו ציר, והנמך/י את
+   confidence בהתאם.
 `.trim();
+
+function buildAuthoritativeMeasurementsPrompt(
+  horizontal: ResolvedAxisExtent | null,
+  vertical: ResolvedAxisExtent | null,
+): string {
+  const lines: string[] = ["מידות סמכותיות (חולצו במעבר נפרד, אל תקרא/י מהתמונה מחדש):"];
+
+  if (horizontal) {
+    lines.push(
+      `- ציר אופקי (רוחב חיצוני כולל): ${horizontal.valueM.toFixed(2)} מ' ` +
+        `(מקור: ${horizontal.chainCount} שרשרת/שרשראות מידה, ביטחון ${horizontal.confidence}` +
+        (horizontal.disagreementPct !== null
+          ? `, פער בין שרשראות שונות: ${horizontal.disagreementPct.toFixed(1)}%`
+          : "") +
+        ")",
+    );
+  } else {
+    lines.push("- ציר אופקי: לא נמצאה שום מידה כתובה קריאה בתמונה עבור הרוחב החיצוני.");
+  }
+
+  if (vertical) {
+    lines.push(
+      `- ציר אנכי (גובה חיצוני כולל): ${vertical.valueM.toFixed(2)} מ' ` +
+        `(מקור: ${vertical.chainCount} שרשרת/שרשראות מידה, ביטחון ${vertical.confidence}` +
+        (vertical.disagreementPct !== null
+          ? `, פער בין שרשראות שונות: ${vertical.disagreementPct.toFixed(1)}%`
+          : "") +
+        ")",
+    );
+  } else {
+    lines.push("- ציר אנכי: לא נמצאה שום מידה כתובה קריאה בתמונה עבור הגובה החיצוני.");
+  }
+
+  return lines.join("\n");
+}
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -102,7 +190,7 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-function isValidPoint(p: unknown): p is { x: number; y: number } {
+function isValidPoint(p: unknown): p is Point2D {
   return (
     typeof p === "object" &&
     p !== null &&
@@ -111,6 +199,229 @@ function isValidPoint(p: unknown): p is { x: number; y: number } {
     typeof (p as { y?: unknown }).y === "number" &&
     Number.isFinite((p as { y: number }).y)
   );
+}
+
+// --- measurement resolution (CODE, not the model) -------------------------
+
+interface ResolvedAxisExtent {
+  valueM: number;
+  confidence: Confidence;
+  chainCount: number;
+  disagreementPct: number | null;
+}
+
+function resolveChainTotalM(chain: DimensionChain): number {
+  if (chain.overallValueM !== null && Number.isFinite(chain.overallValueM)) {
+    return chain.overallValueM;
+  }
+  return chain.segments.reduce((sum, seg) => sum + (Number.isFinite(seg.valueM) ? seg.valueM : 0), 0);
+}
+
+function resolveAxisExtent(
+  chains: DimensionChain[],
+  axis: "horizontal" | "vertical",
+): ResolvedAxisExtent | null {
+  const axisChains = chains.filter((c) => c.axis === axis && (c.segments.length > 0 || c.overallValueM !== null));
+  if (axisChains.length === 0) return null;
+
+  const totals = axisChains.map(resolveChainTotalM).filter((v) => Number.isFinite(v) && v > 0);
+  if (totals.length === 0) return null;
+
+  const avg = totals.reduce((a, b) => a + b, 0) / totals.length;
+  const maxDiff = Math.max(...totals) - Math.min(...totals);
+  const disagreementPct = totals.length > 1 && avg > 0 ? (maxDiff / avg) * 100 : null;
+
+  const confidences = axisChains.map((c) => c.confidence);
+  let confidence: Confidence = confidences.includes("low")
+    ? "low"
+    : confidences.includes("medium")
+      ? "medium"
+      : "high";
+  if (disagreementPct !== null && disagreementPct > CHAIN_DISAGREEMENT_THRESHOLD_PCT) {
+    confidence = "low";
+  }
+
+  return { valueM: avg, confidence, chainCount: axisChains.length, disagreementPct };
+}
+
+// --- geometry validation / correction (CODE) -------------------------------
+
+// NOTE (found while testing this fix, kept as documentation): this compares
+// the polygon's x-span against the "horizontal" measurement chains (drawn
+// on the image's top/bottom edges) and its y-span against "vertical"
+// chains (left/right edges). That assumes the model's own x/y assignment
+// lines up with the image's horizontal/vertical — which rule 1 above tries
+// to enforce, but is not itself immune to the model getting it backwards
+// (in the real buggy run that motivated this rewrite, the model's x/y come
+// out swapped relative to the image, so the raw per-axis error numbers can
+// end up blaming the "wrong" axis for part of the discrepancy). This does
+// NOT weaken the fix in practice: mismatchDetected still fires correctly
+// either way (verified in validate_envelope_measurements_test.mjs,
+// scenario 1), and the deterministic-rectangle override below discards the
+// model's x/y entirely and rebuilds from the authoritative
+// horizontal/vertical values directly — so the final rectangle is correct
+// regardless of which axis the model confused. A genuinely axis-swap-aware
+// validator (matching each chain to a specific polygon edge rather than a
+// whole-bbox axis) is a documented future increment, relevant mainly for
+// NON-rectangular envelopes where no override is possible.
+function bboxExtent(vertices: Point2D[]): { widthM: number; heightM: number } {
+  const xs = vertices.map((v) => v.x);
+  const ys = vertices.map((v) => v.y);
+  return {
+    widthM: Math.max(...xs) - Math.min(...xs),
+    heightM: Math.max(...ys) - Math.min(...ys),
+  };
+}
+
+function pctError(actualM: number, expectedM: number): number {
+  if (expectedM === 0) return actualM === 0 ? 0 : 100;
+  return (Math.abs(actualM - expectedM) / expectedM) * 100;
+}
+
+function isAxisAlignedRectangle(vertices: Point2D[]): boolean {
+  if (vertices.length !== 4) return false;
+  const tol = 0.05; // 5cm tolerance — "essentially the same coordinate"
+  for (let i = 0; i < 4; i++) {
+    const a = vertices[i];
+    const b = vertices[(i + 1) % 4];
+    const dx = Math.abs(a.x - b.x);
+    const dy = Math.abs(a.y - b.y);
+    const isHorizontalEdge = dy <= tol && dx > tol;
+    const isVerticalEdge = dx <= tol && dy > tol;
+    if (!isHorizontalEdge && !isVerticalEdge) return false;
+  }
+  return true;
+}
+
+function buildDeterministicRectangle(widthM: number, heightM: number): Point2D[] {
+  return [
+    { x: 0, y: 0 },
+    { x: widthM, y: 0 },
+    { x: widthM, y: heightM },
+    { x: 0, y: heightM },
+  ];
+}
+
+interface ValidationOutcome {
+  horizontalErrorPct: number | null;
+  verticalErrorPct: number | null;
+  mismatchDetected: boolean;
+}
+
+function validateAgainstMeasurements(
+  vertices: Point2D[],
+  horizontal: ResolvedAxisExtent | null,
+  vertical: ResolvedAxisExtent | null,
+): ValidationOutcome {
+  const extent = bboxExtent(vertices);
+  const horizontalErrorPct = horizontal ? pctError(extent.widthM, horizontal.valueM) : null;
+  const verticalErrorPct = vertical ? pctError(extent.heightM, vertical.valueM) : null;
+  const mismatchDetected =
+    (horizontalErrorPct !== null && horizontalErrorPct > MEASUREMENT_MISMATCH_THRESHOLD_PCT) ||
+    (verticalErrorPct !== null && verticalErrorPct > MEASUREMENT_MISMATCH_THRESHOLD_PCT);
+  return { horizontalErrorPct, verticalErrorPct, mismatchDetected };
+}
+
+function computeFinalConfidence(params: {
+  envelopeIsNull: boolean;
+  horizontal: ResolvedAxisExtent | null;
+  vertical: ResolvedAxisExtent | null;
+  finalValidation: ValidationOutcome | null;
+  codeOverrodeGeometry: boolean;
+}): Confidence {
+  const { envelopeIsNull, horizontal, vertical, finalValidation, codeOverrodeGeometry } = params;
+  if (envelopeIsNull) return "low";
+  if (codeOverrodeGeometry) return "high"; // exact by construction from authoritative numbers
+
+  const haveBothAxes = horizontal !== null && vertical !== null;
+  const haveOneAxis = horizontal !== null || vertical !== null;
+
+  if (!haveOneAxis) return "low"; // no written dimensions found at all — pure proportion guess
+
+  const worstAxisConfidence: Confidence =
+    [horizontal?.confidence, vertical?.confidence].filter((c): c is Confidence => !!c).includes("low")
+      ? "low"
+      : "medium";
+
+  if (!finalValidation) return worstAxisConfidence;
+
+  const errors = [finalValidation.horizontalErrorPct, finalValidation.verticalErrorPct].filter(
+    (e): e is number => e !== null,
+  );
+  const worstError = errors.length > 0 ? Math.max(...errors) : null;
+
+  if (worstError === null) return worstAxisConfidence;
+  if (worstError <= MEASUREMENT_MISMATCH_THRESHOLD_PCT && haveBothAxes) return "high";
+  if (worstError <= MEASUREMENT_MISMATCH_THRESHOLD_PCT) return "medium";
+  return "low"; // still mismatched after the corrective retry
+}
+
+function buildDiagnosticsNoteHe(params: {
+  horizontal: ResolvedAxisExtent | null;
+  vertical: ResolvedAxisExtent | null;
+  firstValidation: ValidationOutcome | null;
+  retried: boolean;
+  finalValidation: ValidationOutcome | null;
+  codeOverrodeGeometry: boolean;
+  envelopeIsNull: boolean;
+}): string {
+  const { horizontal, vertical, firstValidation, retried, finalValidation, codeOverrodeGeometry, envelopeIsNull } =
+    params;
+
+  if (envelopeIsNull) {
+    return "לא נמצאו מידות סמכותיות רלוונטיות (או שהמעטפת עצמה יצאה null) — אין בדיקת-התאמה למספרים.";
+  }
+
+  const parts: string[] = [];
+
+  if (!horizontal && !vertical) {
+    parts.push(
+      "לא נמצאו בתמונה מידות כתובות מפורשות על ההיקף החיצוני — הקואורדינטות מבוססות על הערכת-פרופורציה בלבד של ה-AI, ללא אימות מספרי.",
+    );
+    return parts.join(" ");
+  }
+
+  const foundParts: string[] = [];
+  if (horizontal) foundParts.push(`רוחב חיצוני ${horizontal.valueM.toFixed(2)} מ'`);
+  if (vertical) foundParts.push(`גובה חיצוני ${vertical.valueM.toFixed(2)} מ'`);
+  parts.push(`נמצאו מידות כתובות: ${foundParts.join(", ")}.`);
+
+  if (codeOverrodeGeometry) {
+    parts.push(
+      "הצורה שזוהתה היא מלבן פשוט — הקואורדינטות הסופיות הוחלפו בחישוב מדויק בקוד לפי המידות הכתובות (לא לפי הקואורדינטות שה-AI עצמו חישב).",
+    );
+    return parts.join(" ");
+  }
+
+  if (retried && firstValidation) {
+    const firstErrs = [firstValidation.horizontalErrorPct, firstValidation.verticalErrorPct].filter(
+      (e): e is number => e !== null,
+    );
+    const worstFirst = firstErrs.length > 0 ? Math.max(...firstErrs) : null;
+    if (worstFirst !== null) {
+      parts.push(
+        `הניסיון הראשון של ה-AI לא תאם את המידות (סטייה של עד ${worstFirst.toFixed(1)}%) — נשלחה בקשת-תיקון עם המידות המדויקות, וזו הצורה שיצאה אחרי התיקון.`,
+      );
+    }
+  }
+
+  if (finalValidation) {
+    const finalErrs = [finalValidation.horizontalErrorPct, finalValidation.verticalErrorPct].filter(
+      (e): e is number => e !== null,
+    );
+    const worstFinal = finalErrs.length > 0 ? Math.max(...finalErrs) : null;
+    if (worstFinal !== null) {
+      if (worstFinal <= MEASUREMENT_MISMATCH_THRESHOLD_PCT) {
+        parts.push(`הצורה הסופית תואמת את המידות הכתובות (סטייה ${worstFinal.toFixed(1)}%).`);
+      } else {
+        parts.push(
+          `⚠️ גם אחרי ניסיון-תיקון, הצורה עדיין לא תואמת את המידות הכתובות (סטייה ${worstFinal.toFixed(1)}%) — יש להתייחס לתוצאה בזהירות.`,
+        );
+      }
+    }
+  }
+
+  return parts.join(" ");
 }
 
 async function callOpenAiJsonSchema(
@@ -233,10 +544,44 @@ Deno.serve(async (req) => {
     );
   }
 
-  // next version number for this job's envelope stage (no retry loop
-  // built into this function yet, but re-running it manually — e.g. a
-  // "run again" debug button — should still be recorded as a new,
-  // separate artifact version rather than overwriting).
+  // --- NEW precondition: stage "measurements" (Pass 0.5) must have run ----
+
+  const { data: measurementArtifacts, error: measurementsCheckError } = await supabase
+    .from("analysis_artifacts")
+    .select("payload")
+    .eq("job_id", jobId)
+    .eq("stage", "measurements")
+    .order("version", { ascending: false })
+    .limit(1);
+
+  if (measurementsCheckError) {
+    return jsonResponse(
+      { error: "internal_error", detail: "failed to check measurements stage", jobId },
+      500,
+    );
+  }
+  if (!measurementArtifacts || measurementArtifacts.length === 0) {
+    return jsonResponse(
+      {
+        error: "bad_request",
+        detail:
+          "stage 0.5 (measurements) must complete for this job before envelope can run — call analyze-sketch-v2-measurements first",
+        jobId,
+      },
+      400,
+    );
+  }
+
+  const measurementsPayload = (measurementArtifacts[0] as { payload: Record<string, unknown> }).payload;
+  const chains = Array.isArray(measurementsPayload?.chains)
+    ? (measurementsPayload.chains as DimensionChain[])
+    : [];
+
+  const horizontalExtent = resolveAxisExtent(chains, "horizontal");
+  const verticalExtent = resolveAxisExtent(chains, "vertical");
+  const authoritativeMeasurementsText = buildAuthoritativeMeasurementsPrompt(horizontalExtent, verticalExtent);
+
+  // next version number for this job's envelope stage.
   const { data: existingEnvelopeArtifacts, error: versionCheckError } = await supabase
     .from("analysis_artifacts")
     .select("version")
@@ -299,33 +644,32 @@ Deno.serve(async (req) => {
 
   const startedAt = Date.now();
 
-  const result = await callOpenAiJsonSchema(
+  const systemPrompt = `${ENVELOPE_SYSTEM_PROMPT_BASE}\n\n${authoritativeMeasurementsText}`;
+  const userMessageContent = [
+    {
+      type: "text",
+      text: "זהה/י את המעטפת החיצונית של הבניין בתמונה החתוכה הזו, לפי הכללים שקיבלת ולפי המידות הסמכותיות.",
+    },
+    { type: "image_url", image_url: { url: signedUrlData.signedUrl, detail: "high" } },
+  ];
+
+  const firstResult = await callOpenAiJsonSchema(
     [
-      { role: "system", content: ENVELOPE_SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: "זהה/י את המעטפת החיצונית של הבניין בתמונה החתוכה הזו, לפי הכללים שקיבלת.",
-          },
-          { type: "image_url", image_url: { url: signedUrlData.signedUrl, detail: "high" } },
-        ],
-      },
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessageContent },
     ],
     "floor_plan_analysis_v2",
     FLOOR_PLAN_JSON_SCHEMA_V2,
   );
 
-  const durationMs = Date.now() - startedAt;
-
-  if (!result.ok) {
-    await failJob(result.detail);
-    return jsonResponse({ error: "internal_error", detail: result.detail, jobId }, 500);
+  if (!firstResult.ok) {
+    await failJob(firstResult.detail);
+    return jsonResponse({ error: "internal_error", detail: firstResult.detail, jobId }, 500);
   }
 
-  const analysis = result.parsed as FloorPlanAnalysisV2;
-  const envelope = analysis.buildingEnvelope;
+  let analysis = firstResult.parsed as FloorPlanAnalysisV2;
+  let envelope = analysis.buildingEnvelope;
+  let usage = firstResult.usage;
 
   if (envelope !== null) {
     const vertices = Array.isArray(envelope?.vertices) ? envelope.vertices : [];
@@ -342,6 +686,110 @@ Deno.serve(async (req) => {
     }
   }
 
+  // --- validate against authoritative measurements, one corrective retry --
+
+  let firstValidation: ValidationOutcome | null = null;
+  let finalValidation: ValidationOutcome | null = null;
+  let retried = false;
+
+  if (envelope !== null && (horizontalExtent !== null || verticalExtent !== null)) {
+    firstValidation = validateAgainstMeasurements(envelope.vertices, horizontalExtent, verticalExtent);
+    finalValidation = firstValidation;
+
+    if (firstValidation.mismatchDetected) {
+      retried = true;
+      const extent = bboxExtent(envelope.vertices);
+      const mismatchLines: string[] = [
+        "התוצאה הקודמת שלך לא תאמה את המידות הסמכותיות:",
+      ];
+      if (horizontalExtent && firstValidation.horizontalErrorPct !== null && firstValidation.horizontalErrorPct > MEASUREMENT_MISMATCH_THRESHOLD_PCT) {
+        mismatchLines.push(
+          `- רוחב (ציר אופקי): החזרת צורה שרוחבה בפועל ${extent.widthM.toFixed(2)} מ', אבל המידה הסמכותית היא ${horizontalExtent.valueM.toFixed(2)} מ' (סטייה ${firstValidation.horizontalErrorPct.toFixed(1)}%).`,
+        );
+      }
+      if (verticalExtent && firstValidation.verticalErrorPct !== null && firstValidation.verticalErrorPct > MEASUREMENT_MISMATCH_THRESHOLD_PCT) {
+        mismatchLines.push(
+          `- גובה (ציר אנכי): החזרת צורה שגובהה בפועל ${extent.heightM.toFixed(2)} מ', אבל המידה הסמכותית היא ${verticalExtent.valueM.toFixed(2)} מ' (סטייה ${firstValidation.verticalErrorPct.toFixed(1)}%).`,
+        );
+      }
+      mismatchLines.push(
+        "בנה/י מחדש את buildingEnvelope כך שה-bounding box שלו (ההיקף הכולל שלו) יתאים בדיוק למידות הסמכותיות שקיבלת, תוך שמירה על אותה טופולוגיה/צורה כללית שזיהית (אותו מספר קודקודים ואותן פינות/זוויות יחסית). החזר/י שוב אובייקט מלא באותה סכמה.",
+      );
+
+      const retryResult = await callOpenAiJsonSchema(
+        [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessageContent },
+          { role: "assistant", content: JSON.stringify(analysis) },
+          { role: "user", content: mismatchLines.join("\n") },
+        ],
+        "floor_plan_analysis_v2",
+        FLOOR_PLAN_JSON_SCHEMA_V2,
+      );
+
+      if (retryResult.ok) {
+        const retryAnalysis = retryResult.parsed as FloorPlanAnalysisV2;
+        const retryEnvelope = retryAnalysis.buildingEnvelope;
+        const retryVerticesValid =
+          retryEnvelope !== null &&
+          Array.isArray(retryEnvelope.vertices) &&
+          retryEnvelope.vertices.length >= 3 &&
+          retryEnvelope.vertices.every((v) => isValidPoint(v));
+
+        if (retryVerticesValid) {
+          analysis = retryAnalysis;
+          envelope = retryEnvelope;
+          usage = { firstAttempt: usage, retryAttempt: retryResult.usage };
+          finalValidation = validateAgainstMeasurements(envelope!.vertices, horizontalExtent, verticalExtent);
+        }
+        // if the retry came back invalid, we simply keep the first (already
+        // validated, even if mismatched) result rather than discarding a
+        // usable polygon for a broken one.
+      }
+      // if the retry call itself failed (network/API error), we likewise
+      // keep the first result — a corrective retry is a best-effort
+      // improvement, not a hard requirement for this stage to succeed.
+    }
+  }
+
+  // --- deterministic rectangle override (CODE wins over model arithmetic) -
+
+  let codeOverrodeGeometry = false;
+  if (
+    envelope !== null &&
+    isAxisAlignedRectangle(envelope.vertices) &&
+    horizontalExtent !== null &&
+    verticalExtent !== null &&
+    horizontalExtent.confidence !== "low" &&
+    verticalExtent.confidence !== "low"
+  ) {
+    envelope = { vertices: buildDeterministicRectangle(horizontalExtent.valueM, verticalExtent.valueM) };
+    codeOverrodeGeometry = true;
+    finalValidation = { horizontalErrorPct: 0, verticalErrorPct: 0, mismatchDetected: false };
+  }
+
+  const durationMs = Date.now() - startedAt;
+
+  const finalConfidence = computeFinalConfidence({
+    envelopeIsNull: envelope === null,
+    horizontal: horizontalExtent,
+    vertical: verticalExtent,
+    finalValidation,
+    codeOverrodeGeometry,
+  });
+
+  const diagnosticsNoteHe = buildDiagnosticsNoteHe({
+    horizontal: horizontalExtent,
+    vertical: verticalExtent,
+    firstValidation,
+    retried,
+    finalValidation,
+    codeOverrodeGeometry,
+    envelopeIsNull: envelope === null,
+  });
+
+  const combinedNotes = analysis.notes ? `${diagnosticsNoteHe}\n\nהערות ה-AI (מעבר הגיאומטריה): ${analysis.notes}` : diagnosticsNoteHe;
+
   const { data: artifactRow, error: artifactError } = await supabase
     .from("analysis_artifacts")
     .insert({
@@ -351,12 +799,26 @@ Deno.serve(async (req) => {
       version: attempt,
       payload: {
         buildingEnvelope: envelope,
-        confidence: analysis.confidence,
-        notes: analysis.notes,
+        confidence: finalConfidence,
+        modelReportedConfidence: analysis.confidence,
+        notes: combinedNotes,
+        measurementsUsed: {
+          horizontalM: horizontalExtent?.valueM ?? null,
+          horizontalConfidence: horizontalExtent?.confidence ?? null,
+          verticalM: verticalExtent?.valueM ?? null,
+          verticalConfidence: verticalExtent?.confidence ?? null,
+          chainsCount: chains.length,
+        },
+        validation: {
+          retried,
+          codeOverrodeGeometry,
+          horizontalErrorPct: finalValidation?.horizontalErrorPct ?? null,
+          verticalErrorPct: finalValidation?.verticalErrorPct ?? null,
+        },
         model: OPENAI_MODEL,
         durationMs,
         attempt,
-        usage: result.usage,
+        usage,
       },
     })
     .select("id")
@@ -383,8 +845,22 @@ Deno.serve(async (req) => {
     jobId,
     artifactId: (artifactRow as { id: string }).id,
     buildingEnvelope: envelope,
-    confidence: analysis.confidence,
-    notes: analysis.notes,
+    confidence: finalConfidence,
+    modelReportedConfidence: analysis.confidence,
+    notes: combinedNotes,
+    measurementsUsed: {
+      horizontalM: horizontalExtent?.valueM ?? null,
+      horizontalConfidence: horizontalExtent?.confidence ?? null,
+      verticalM: verticalExtent?.valueM ?? null,
+      verticalConfidence: verticalExtent?.confidence ?? null,
+      chainsCount: chains.length,
+    },
+    validation: {
+      retried,
+      codeOverrodeGeometry,
+      horizontalErrorPct: finalValidation?.horizontalErrorPct ?? null,
+      verticalErrorPct: finalValidation?.verticalErrorPct ?? null,
+    },
     durationMs,
     attempt,
   });
