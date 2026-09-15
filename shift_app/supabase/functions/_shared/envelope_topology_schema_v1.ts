@@ -161,7 +161,6 @@ export interface EnvelopeTopologyPerceptionNoteV1 {
 }
 
 export interface EnvelopeTopologyV1 {
-  jobId: string;
   schemaVersion: "envelope_topology_v1";
   vertices: EnvelopeTopologyVertexV1[];
   edges: EnvelopeTopologyEdgeV1[];

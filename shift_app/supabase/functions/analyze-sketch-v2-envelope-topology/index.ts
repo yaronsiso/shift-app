@@ -424,7 +424,6 @@ Deno.serve(async (req) => {
     // reintroduces those keys.
     const topology = parseEnvelopeTopologyV1({
       ...(aiResult.parsed as Record<string, unknown>),
-      jobId,
       schemaVersion: "envelope_topology_v1",
     });
 
