@@ -38,6 +38,15 @@
 // follows that pattern now. TypeScript types below allow `| null` on those
 // same fields to match; downstream code should treat `null` and `undefined`
 // the same way for these fields.
+//
+// jobId is NOT part of this schema at all (session 24 fix): it is not an
+// AI-owned field — the caller already knows the real jobId from the
+// request, and the model has no legitimate reason to generate or return
+// one. The first real run showed the model inventing its own value
+// ("envelope-1") because the schema previously required it to return
+// something. jobId is now injected server-side, in
+// analyze-sketch-v2-envelope-topology/index.ts, after parsing — never
+// read from the model's output.
 
 export const ENVELOPE_TOPOLOGY_V1_JSON_SCHEMA = {
   name: "envelope_topology_v1",
@@ -45,9 +54,8 @@ export const ENVELOPE_TOPOLOGY_V1_JSON_SCHEMA = {
   schema: {
     type: "object",
     additionalProperties: false,
-    required: ["jobId", "schemaVersion", "vertices", "edges", "polygonOrder", "perceptionNotes"],
+    required: ["schemaVersion", "vertices", "edges", "polygonOrder", "perceptionNotes"],
     properties: {
-      jobId: { type: "string" },
       schemaVersion: { type: "string", enum: ["envelope_topology_v1"] },
 
       vertices: {

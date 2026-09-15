@@ -58,6 +58,7 @@ import {
   validateEnvelopeTopologyV1,
   type ValidationResult,
 } from "../_shared/envelope_topology_validators_v1.ts";
+import { computeTopologyCoverageDebug, type TopologyCoverageDebug } from "../_shared/envelope_topology_debug_metrics_v1.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -67,18 +68,29 @@ const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") ?? "gpt-5.6-luna";
 const ENVELOPE_TOPOLOGY_SYSTEM_PROMPT = `
 את/ה מערכת לזיהוי **צורה בלבד** (topology) של מעטפת בניין מתוך תמונה של
 שרטוט קומה - את/ה **לא** מודד/ת שום דבר, ואסור לך להחזיר שום מטר, ס"מ,
-מ"מ, שטח, קנה-מידה, או "מספר מידה" מכל סוג. תפקידך היחיד: לזהות את קווי
-המתאר החיצוניים (המעטפת) של גוף הבניין, כפוליגון סגור, במונחי אחוזים
-ביחס לתמונה עצמה (0-100), ולתאר את הצלעות שלו.
+מ"מ, שטח, קנה-מידה, או "מספר מידה" מכל סוג. תפקידך היחיד: לעקוב אחרי קו
+הקיר החיצוני **הפיזי** של גוף הבניין - הקו המצויר שמייצג בפועל את הקיר
+עצמו - **לאורך כל ההיקף ברציפות**, ולתעד אותו כפוליגון סגור, במונחי
+אחוזים ביחס לתמונה עצמה (0-100).
 
-1. vertices: כל פינה של המעטפת החיצונית (לא קירות פנימיים, לא ריהוט, לא
-   טקסט/מידות שכתובות בשרטוט) - נקודה אחת לכל פינה, עם imagePct.xPct/yPct
-   (0-100 ביחס לתמונה הזו בלבד). תן/י לכל פינה מזהה ייחודי (v1, v2, ...).
+**העיקרון המרכזי**: את/ה עוקב/ת אחרי הקיר עצמו, לא אחרי הצללית/המלבן
+הכולל של הבניין. בכל מקום שבו קו הקיר החיצוני **משנה כיוון בפועל** - גם
+אם זה שינוי קטן, גם אם זו רק קפיצה (jog) קצרה, גם אם זו כניסה (recess)
+פנימה ואז החוצה שוב - **חובה** ליצור שם פינה (vertex) נפרדת. אסור לדלג
+על שינוי כיוון אמיתי כדי "לקצר" צלע אחת ארוכה.
 
-2. edges: כל צלע שמחברת שתי פינות עוקבות במעטפת - עם fromVertexId/
-   toVertexId, ו:
-   - axisHint: "horizontal" אם הצלע נראית אופקית בתמונה, "vertical" אם
-     אנכית, "diagonal_or_unknown" אם היא באלכסון או שלא ברור.
+1. vertices: כל נקודה שבה קו הקיר החיצוני משנה כיוון (לא קירות פנימיים,
+   לא ריהוט, לא טקסט/מידות שכתובות בשרטוט) - נקודה אחת לכל שינוי כיוון
+   כזה, עם imagePct.xPct/yPct (0-100 ביחס לתמונה הזו בלבד). תן/י לכל
+   פינה מזהה ייחודי (v1, v2, ...).
+
+2. edges: כל צלע שמחברת שתי פינות עוקבות לאורך קו הקיר החיצוני - עם
+   fromVertexId/toVertexId, ו:
+   - axisHint: "horizontal" אם הצלע אופקית, "vertical" אם אנכית,
+     "diagonal_or_unknown" אם הצלע **אלכסונית בפועל** בשרטוט (קיר
+     חיצוני שבאמת מצויר באלכסון, לא ניצב) - אל תכריח/י צלע אלכסונית
+     אמיתית להיראות אופקית/אנכית, וגם אל תיישר/י אותה - תעד/י אותה
+     כפי שהיא נראית.
    - roleHint: "exterior_wall" (קיר חיצוני רגיל), "opening" (פתח/כניסה
      בקו המעטפת עצמו, אם יש כזה), "uncertain" אם לא ברור.
 
@@ -97,9 +109,25 @@ const ENVELOPE_TOPOLOGY_SYSTEM_PROMPT = `
   בשלב נפרד לגמרי, לא על ידך.
 - לכלול קירות פנימיים/מחיצות בפוליגון החיצוני - רק את קו המתאר החיצוני
   של גוף הבניין כולו.
+- **לפשט את הבניין לצללית/למלבן הכולל שלו** - אם יש jog, זיז, שקע
+  (recess), או קיר חיצוני באלכסון - **חובה** לתעד אותם במדויק, לא
+  "לגשר" מעליהם בקו ישר אחד ארוך.
+- **לגשר מעל recess** - אם קו הקיר החיצוני נכנס פנימה ואז חוזר החוצה
+  (למשל סביב מדרגות, כניסה, או פינת מטבח), חובה לתעד את כל הפינות של
+  ה-recess הזה בנפרד - לא לחבר בין שתי הנקודות הרחוקות בקו ישר אחד.
+- **להתעלם מקטעי קיר חיצוני קצרים** - קטע קיר קצר הוא עדיין קטע קיר
+  אמיתי וצריך שתי פינות משלו, גם אם הוא נראה זניח ביחס לשאר הבניין.
+- **לעקוב אחרי קווי מידה (dimension lines) או קווי setback מקווקווים**
+  במקום אחרי קו הקיר האמיתי - קווי מידה וקווים מקווקווים הם עדות
+  למדידה או לגבולות תכנוניים, **לא** לקו הקיר הפיזי שנבנה בפועל. אם קו
+  מידה עובר במקביל לקיר אך לא צמוד אליו, עקוב/י אחרי הקיר עצמו, לא אחרי
+  קו המידה.
 
-אם המעטפת אינה פוליגון פשוט (יש למשל זיז/יציאה - צורת L או דומה) - תעד/י
-את כל הפינות שלה בסדר הנכון, לא רק מלבן מקורב.
+לפני שאת/ה מסיימ/ת, עבור/י שוב באופן שיטתי על כל ההיקף, צלע-צלע, ושאל/י
+את עצמך בכל קטע: "האם קו הקיר החיצוני ממשיך ישר כאן, או שהוא משנה כיוון
+בנקודה כלשהי שעדיין לא תיעדתי?" - במיוחד באזורים עם גיאומטריה לא-פשוטה
+(פינות מטבח, אזורי מדרגות, חיבורים בין אגפים) בהם קווי קיר חיצוניים
+נוטים להיות מורכבים יותר משורה ישרה אחת.
 `.trim();
 
 function jsonResponse(body: unknown, status = 200) {
@@ -161,6 +189,10 @@ interface EnvelopeTopologyArtifactPayload {
   status: "valid" | "invalid" | "forbidden_field_error";
   topology: EnvelopeTopologyV1 | null;
   validation: ValidationResult | null;
+  // Non-blocking, descriptive only — never affects `status` or
+  // `validation.valid`. See envelope_topology_debug_metrics_v1.ts's header
+  // for why this exists and why it deliberately has no pass/fail verdict.
+  topologyCoverageDebug: TopologyCoverageDebug | null;
   rawModelOutputOnError?: unknown;
   error?: string;
   model: string;
@@ -385,10 +417,15 @@ Deno.serve(async (req) => {
     // the model returned any metric/scale/area/dimensionRef field anywhere
     // in the tree — defense in depth on top of the schema's own
     // additionalProperties:false.
+    // jobId is injected here, server-side — it is NOT part of the AI
+    // schema anymore (see envelope_topology_schema_v1.ts's header). Spread
+    // the model's parsed content FIRST, then set jobId/schemaVersion after,
+    // so our values always win even if the model or a future schema change
+    // reintroduces those keys.
     const topology = parseEnvelopeTopologyV1({
+      ...(aiResult.parsed as Record<string, unknown>),
       jobId,
       schemaVersion: "envelope_topology_v1",
-      ...(aiResult.parsed as Record<string, unknown>),
     });
 
     console.log(
@@ -398,12 +435,21 @@ Deno.serve(async (req) => {
 
     const validation = validateEnvelopeTopologyV1(topology);
 
+    // Computed regardless of validation.valid — this is descriptive only,
+    // never a gate. See envelope_topology_debug_metrics_v1.ts's header.
+    const topologyCoverageDebug = computeTopologyCoverageDebug(topology);
+
     if (validation.valid) {
-      console.log(`[envelope_topology] job=${jobId} validation PASSED`);
+      console.log(
+        `[envelope_topology] job=${jobId} validation PASSED — ` +
+          `boundingBoxFillRatio=${topologyCoverageDebug.boundingBoxFillRatio} ` +
+          `longestEdgeShareOfPerimeter=${topologyCoverageDebug.longestEdgeShareOfPerimeter}`,
+      );
       payload = {
         status: "valid",
         topology,
         validation,
+        topologyCoverageDebug,
         model: OPENAI_MODEL,
         durationMs,
         attempt,
@@ -418,6 +464,7 @@ Deno.serve(async (req) => {
         status: "invalid",
         topology,
         validation,
+        topologyCoverageDebug,
         model: OPENAI_MODEL,
         durationMs,
         attempt,
@@ -434,6 +481,7 @@ Deno.serve(async (req) => {
         status: "forbidden_field_error",
         topology: null,
         validation: null,
+        topologyCoverageDebug: null,
         rawModelOutputOnError: aiResult.parsed,
         error: err.message,
         model: OPENAI_MODEL,
