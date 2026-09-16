@@ -271,6 +271,43 @@ function checkDualFaceFieldMatchesDisposition(proposal: SemanticPlanProposal): S
   };
 }
 
+/**
+ * KEEP_ENVELOPE_REQUIRES_VERIFICATION_SCOPE -- the existing constructor
+ * (phase1c-b, constructCanonicalTopology) requires semanticVerificationScope
+ * on every PRESERVE_CONFIRMED_TOPOLOGY operation and throws
+ * MISSING_SEMANTIC_VERIFICATION_SCOPE when it is absent. Part C did not
+ * previously enforce this, so a KEEP_ENVELOPE edgeProposal with
+ * verificationScope:null could reach executionReadyForPartD=true and then
+ * fail downstream at construction. This rule closes that narrow readiness
+ * hole, deterministically, at the Part C layer:
+ *
+ *   passed  <=>  for every edgeProposal: if disposition === 'KEEP_ENVELOPE'
+ *                then verificationScope !== null
+ *
+ * Only KEEP_ENVELOPE is constrained by this rule. Every other disposition
+ * (REJECT_NOT_ENVELOPE, REJECT_DUAL_FACE, SPLIT_REQUIRED, UNRESOLVED) may
+ * freely carry verificationScope:null -- this rule imposes no requirement
+ * on them at all, in either direction.
+ *
+ * This rule reads only `disposition` and `verificationScope`. Per
+ * REASON_IS_NOT_PROOF / PROPOSAL_CONFIDENCE_IS_NOT_AUTHORITY, `reason` and
+ * `confidence` have zero effect on its outcome.
+ */
+function checkKeepEnvelopeRequiresVerificationScope(proposal: SemanticPlanProposal): SemanticValidationRuleResult {
+  const violating = proposal.edgeProposals
+    .filter((p) => p.disposition === 'KEEP_ENVELOPE' && p.verificationScope === null)
+    .map((p) => p.rawEdgeId);
+  const passed = violating.length === 0;
+  return {
+    rule: 'KEEP_ENVELOPE_REQUIRES_VERIFICATION_SCOPE',
+    category: 'SEMANTIC_POLICY',
+    passed,
+    details: passed
+      ? 'Every KEEP_ENVELOPE edgeProposal carries a non-null verificationScope.'
+      : `KEEP_ENVELOPE edgeProposals with verificationScope=null (required by the existing constructor's semanticVerificationScope check): ${violating.join(', ')}`,
+  };
+}
+
 // ---------------------------------------------------------------------
 // Informational findings (no passed:boolean, by design)
 // ---------------------------------------------------------------------
@@ -424,7 +461,11 @@ export function validateSemanticPlan(
 
   // --- SEMANTIC_POLICY ---
   const dualFaceFieldMatchesDisposition = checkDualFaceFieldMatchesDisposition(proposal);
-  const semanticPolicyResults: SemanticValidationRuleResult[] = [dualFaceFieldMatchesDisposition];
+  const keepEnvelopeRequiresVerificationScope = checkKeepEnvelopeRequiresVerificationScope(proposal);
+  const semanticPolicyResults: SemanticValidationRuleResult[] = [
+    dualFaceFieldMatchesDisposition,
+    keepEnvelopeRequiresVerificationScope,
+  ];
 
   const contractValid = contractResults.every((r) => r.passed);
   const coverageValid = coverageResults.every((r) => r.passed);

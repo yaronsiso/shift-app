@@ -56,7 +56,7 @@ test('a fully valid, fully-covered, all-KEEP_ENVELOPE proposal is executionReady
   assert.deepEqual(result.informationalFindings, []);
 });
 
-test('ruleResults contains exactly the expected 12 rules (7 Part A + 2 new CONTRACT + 2 COVERAGE + 1 SEMANTIC_POLICY)', () => {
+test('ruleResults contains exactly the expected 13 rules (7 Part A + 2 new CONTRACT + 2 COVERAGE + 2 SEMANTIC_POLICY)', () => {
   const result = validateSemanticPlan(sampleEnvelope, raw, fullyCoveredKeepAllProposal());
   const ruleNames = result.ruleResults.map((r) => r.rule).sort();
   assert.deepEqual(ruleNames, [
@@ -68,12 +68,13 @@ test('ruleResults contains exactly the expected 12 rules (7 Part A + 2 new CONTR
     'EVERY_RAW_EDGE_HAS_PROPOSAL',
     'GAP_REF_MUST_EXIST',
     'GAP_REQUIRES_TOPOLOGY_CONTEXT',
+    'KEEP_ENVELOPE_REQUIRES_VERIFICATION_SCOPE',
     'NO_DUPLICATE_EDGE_PROPOSAL',
     'NO_DUPLICATE_GAP_PROPOSAL',
     'NO_DUPLICATE_VERTEX_PROPOSAL',
     'VERTEX_REF_MUST_EXIST',
   ]);
-  assert.equal(result.ruleResults.length, 12);
+  assert.equal(result.ruleResults.length, 13);
 });
 
 test('categories are correctly attributed to each rule', () => {
@@ -95,6 +96,7 @@ test('categories are correctly attributed to each rule', () => {
   assert.equal(byName.get('EVERY_RAW_EDGE_HAS_PROPOSAL'), 'COVERAGE');
   assert.equal(byName.get('GAP_REQUIRES_TOPOLOGY_CONTEXT'), 'COVERAGE');
   assert.equal(byName.get('DUAL_FACE_FIELD_MATCHES_DISPOSITION'), 'SEMANTIC_POLICY');
+  assert.equal(byName.get('KEEP_ENVELOPE_REQUIRES_VERIFICATION_SCOPE'), 'SEMANTIC_POLICY');
 });
 
 // =====================================================================
@@ -417,6 +419,139 @@ test('SEMANTIC_POLICY: DUAL_FACE_FIELD_MATCHES_DISPOSITION passes for REJECT_DUA
   };
   const result = validateSemanticPlan(sampleEnvelope, raw, ok);
   assert.equal(result.ruleResults.find((r) => r.rule === 'DUAL_FACE_FIELD_MATCHES_DISPOSITION')!.passed, true);
+});
+
+// =====================================================================
+// SEMANTIC_POLICY: KEEP_ENVELOPE_REQUIRES_VERIFICATION_SCOPE (new)
+//
+// Closes the empirically-found readiness hole: the existing constructor
+// (phase1c-b) requires semanticVerificationScope on every
+// PRESERVE_CONFIRMED_TOPOLOGY operation and throws
+// MISSING_SEMANTIC_VERIFICATION_SCOPE when absent, but Part C previously
+// allowed a KEEP_ENVELOPE + verificationScope:null proposal to reach
+// executionReadyForPartD=true. See section 15/16 of 00_HANDOFF.
+// =====================================================================
+
+test('SEMANTIC_POLICY: KEEP_ENVELOPE_REQUIRES_VERIFICATION_SCOPE fails when a KEEP_ENVELOPE edgeProposal has verificationScope=null', () => {
+  const proposal = fullyCoveredKeepAllProposal();
+  const bad: SemanticPlanProposal = {
+    ...proposal,
+    edgeProposals: [
+      edge({ rawEdgeId: 'e1', disposition: 'KEEP_ENVELOPE', verificationScope: null }),
+      ...proposal.edgeProposals.slice(1),
+    ],
+  };
+  const result = validateSemanticPlan(sampleEnvelope, raw, bad);
+  const rule = result.ruleResults.find((r) => r.rule === 'KEEP_ENVELOPE_REQUIRES_VERIFICATION_SCOPE')!;
+  assert.equal(rule.passed, false);
+  assert.ok(rule.details.includes('e1'));
+});
+
+test('SEMANTIC_POLICY: a KEEP_ENVELOPE edgeProposal with verificationScope=null makes semanticPolicyValid false', () => {
+  const proposal = fullyCoveredKeepAllProposal();
+  const bad: SemanticPlanProposal = {
+    ...proposal,
+    edgeProposals: [
+      edge({ rawEdgeId: 'e1', disposition: 'KEEP_ENVELOPE', verificationScope: null }),
+      ...proposal.edgeProposals.slice(1),
+    ],
+  };
+  const result = validateSemanticPlan(sampleEnvelope, raw, bad);
+  assert.equal(result.readiness.semanticPolicyValid, false);
+});
+
+test('SEMANTIC_POLICY: a KEEP_ENVELOPE edgeProposal with verificationScope=null makes executionReadyForPartD false', () => {
+  const proposal = fullyCoveredKeepAllProposal();
+  const bad: SemanticPlanProposal = {
+    ...proposal,
+    edgeProposals: [
+      edge({ rawEdgeId: 'e1', disposition: 'KEEP_ENVELOPE', verificationScope: null }),
+      ...proposal.edgeProposals.slice(1),
+    ],
+  };
+  const result = validateSemanticPlan(sampleEnvelope, raw, bad);
+  assert.equal(result.readiness.executionReadyForPartD, false);
+});
+
+test('SEMANTIC_POLICY: KEEP_ENVELOPE_REQUIRES_VERIFICATION_SCOPE passes for KEEP_ENVELOPE with each of the 3 valid verificationScope values', () => {
+  for (const scope of ['FULL_SPAN', 'VISIBLE_SPAN', 'LOCAL_ADJACENCY_CONFIRMED'] as const) {
+    const proposal = fullyCoveredKeepAllProposal();
+    const ok: SemanticPlanProposal = {
+      ...proposal,
+      edgeProposals: [
+        edge({ rawEdgeId: 'e1', disposition: 'KEEP_ENVELOPE', verificationScope: scope }),
+        ...proposal.edgeProposals.slice(1),
+      ],
+    };
+    const result = validateSemanticPlan(sampleEnvelope, raw, ok);
+    const rule = result.ruleResults.find((r) => r.rule === 'KEEP_ENVELOPE_REQUIRES_VERIFICATION_SCOPE')!;
+    assert.equal(rule.passed, true, `scope=${scope}: ${rule.details}`);
+  }
+});
+
+test('SEMANTIC_POLICY: KEEP_ENVELOPE_REQUIRES_VERIFICATION_SCOPE remains satisfied (verificationScope=null allowed by THIS rule) for all 4 non-KEEP_ENVELOPE dispositions', () => {
+  const cases: Array<Partial<EdgeSemanticProposal> & { rawEdgeId: string }> = [
+    { rawEdgeId: 'e1', disposition: 'REJECT_NOT_ENVELOPE', verificationScope: null },
+    { rawEdgeId: 'e1', disposition: 'REJECT_DUAL_FACE', dualFaceOf: 'e3', geometryAlignment: 'NOT_AUDITED', verificationScope: null },
+    { rawEdgeId: 'e1', disposition: 'SPLIT_REQUIRED', verificationScope: null },
+    { rawEdgeId: 'e1', disposition: 'UNRESOLVED', geometryAlignment: 'UNRESOLVED', verificationScope: null },
+  ];
+  for (const override of cases) {
+    const proposal = fullyCoveredKeepAllProposal();
+    const ok: SemanticPlanProposal = {
+      ...proposal,
+      edgeProposals: [edge(override), ...proposal.edgeProposals.slice(1)],
+    };
+    const result = validateSemanticPlan(sampleEnvelope, raw, ok);
+    const rule = result.ruleResults.find((r) => r.rule === 'KEEP_ENVELOPE_REQUIRES_VERIFICATION_SCOPE')!;
+    assert.equal(rule.passed, true, `disposition=${override.disposition}: ${rule.details}`);
+  }
+});
+
+test('SEMANTIC_POLICY: KEEP_ENVELOPE_REQUIRES_VERIFICATION_SCOPE is unaffected by reason/confidence changes', () => {
+  const base = fullyCoveredKeepAllProposal();
+  const terse: SemanticPlanProposal = {
+    ...base,
+    edgeProposals: [
+      edge({ rawEdgeId: 'e1', disposition: 'KEEP_ENVELOPE', verificationScope: null, confidence: 'LOW', reason: '' }),
+      ...base.edgeProposals.slice(1),
+    ],
+  };
+  const detailed: SemanticPlanProposal = {
+    ...base,
+    edgeProposals: [
+      edge({
+        rawEdgeId: 'e1',
+        disposition: 'KEEP_ENVELOPE',
+        verificationScope: null,
+        confidence: 'HIGH',
+        reason: 'Extremely thorough, well-argued, persuasive explanation with many supporting details and cross-references.',
+      }),
+      ...base.edgeProposals.slice(1),
+    ],
+  };
+  const rTerse = validateSemanticPlan(sampleEnvelope, raw, terse);
+  const rDetailed = validateSemanticPlan(sampleEnvelope, raw, detailed);
+  const ruleTerse = rTerse.ruleResults.find((r) => r.rule === 'KEEP_ENVELOPE_REQUIRES_VERIFICATION_SCOPE')!;
+  const ruleDetailed = rDetailed.ruleResults.find((r) => r.rule === 'KEEP_ENVELOPE_REQUIRES_VERIFICATION_SCOPE')!;
+  assert.equal(ruleTerse.passed, false);
+  assert.equal(ruleDetailed.passed, false);
+  assert.equal(ruleTerse.passed, ruleDetailed.passed);
+});
+
+test('a malformed KEEP_ENVELOPE edge (verificationScope=null) is never perEdgeReadiness=EXECUTION_READY', () => {
+  const proposal = fullyCoveredKeepAllProposal();
+  const bad: SemanticPlanProposal = {
+    ...proposal,
+    edgeProposals: [
+      edge({ rawEdgeId: 'e1', disposition: 'KEEP_ENVELOPE', verificationScope: null }),
+      ...proposal.edgeProposals.slice(1),
+    ],
+  };
+  const result = validateSemanticPlan(sampleEnvelope, raw, bad);
+  const e1Readiness = result.perEdgeReadiness.find((r) => r.rawEdgeId === 'e1')!;
+  assert.notEqual(e1Readiness.status, 'EXECUTION_READY');
+  assert.equal(result.readiness.executionReadyForPartD, false);
 });
 
 // =====================================================================

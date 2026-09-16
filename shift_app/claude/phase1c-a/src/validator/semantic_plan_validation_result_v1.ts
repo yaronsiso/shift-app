@@ -32,8 +32,8 @@ export type SemanticValidationRuleCategory = 'CONTRACT' | 'COVERAGE' | 'SEMANTIC
  * seven Part A referential-integrity rule names are re-exported verbatim
  * (see semantic_plan_validator_v1.ts -- they are imported and their results
  * are copied into this union's shape, never recomputed or reimplemented)
- * plus the two new CONTRACT rules, the two COVERAGE rules, and the one
- * SEMANTIC_POLICY rule approved for Part C.
+ * plus the two new CONTRACT rules, the two COVERAGE rules, and the two
+ * SEMANTIC_POLICY rules approved for Part C.
  */
 export type SemanticValidationRuleName =
   // --- CONTRACT: reused verbatim from Part A (referential_integrity.ts) ---
@@ -51,7 +51,8 @@ export type SemanticValidationRuleName =
   | 'EVERY_RAW_EDGE_HAS_PROPOSAL'
   | 'GAP_REQUIRES_TOPOLOGY_CONTEXT'
   // --- SEMANTIC_POLICY: new to Part C ---
-  | 'DUAL_FACE_FIELD_MATCHES_DISPOSITION';
+  | 'DUAL_FACE_FIELD_MATCHES_DISPOSITION'
+  | 'KEEP_ENVELOPE_REQUIRES_VERIFICATION_SCOPE';
 
 /**
  * One rule's outcome, uniform across all three categories -- this is the
