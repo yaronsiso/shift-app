@@ -1,0 +1,14 @@
+{
+  "name": "phase2b-part-a-deterministic",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "devDependencies": {
+    "typescript": "6.0.3"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "npm run build && node --test dist/__tests__/*.test.js",
+    "typecheck": "tsc --noEmit"
+  }
+}

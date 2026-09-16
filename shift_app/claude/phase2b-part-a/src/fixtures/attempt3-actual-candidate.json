@@ -1,0 +1,684 @@
+{
+  "candidateId": "attempt3-candidate",
+  "vertices": [
+    {
+      "canonicalVertexId": "v2",
+      "sourceRawVertexIds": [
+        "v2"
+      ],
+      "coordinate": {
+        "x": 83.4,
+        "y": 20.3
+      },
+      "coordinateStatus": "RAW_OBSERVATION",
+      "coordinateEvidenceRef": "1B e2 audit",
+      "provenanceNote": "Derived 1:1 from RAW vertex v2. No merge/snap has been approved for this vertex."
+    },
+    {
+      "canonicalVertexId": "v3",
+      "sourceRawVertexIds": [
+        "v3"
+      ],
+      "coordinate": {
+        "x": 83.4,
+        "y": 5.3
+      },
+      "coordinateStatus": "RAW_OBSERVATION",
+      "coordinateEvidenceRef": "1B e2 audit",
+      "provenanceNote": "Derived 1:1 from RAW vertex v3. No merge/snap has been approved for this vertex."
+    },
+    {
+      "canonicalVertexId": "v5",
+      "sourceRawVertexIds": [
+        "v5"
+      ],
+      "coordinate": {
+        "x": 96.2,
+        "y": 29.4
+      },
+      "coordinateStatus": "RAW_OBSERVATION",
+      "coordinateEvidenceRef": "1B e5 audit",
+      "provenanceNote": "Derived 1:1 from RAW vertex v5. No merge/snap has been approved for this vertex."
+    },
+    {
+      "canonicalVertexId": "v6",
+      "sourceRawVertexIds": [
+        "v6"
+      ],
+      "coordinate": {
+        "x": 83.4,
+        "y": 29.4
+      },
+      "coordinateStatus": "RAW_OBSERVATION",
+      "coordinateEvidenceRef": "1B e5 audit",
+      "provenanceNote": "Derived 1:1 from RAW vertex v6. No merge/snap has been approved for this vertex."
+    },
+    {
+      "canonicalVertexId": "v7",
+      "sourceRawVertexIds": [
+        "v7"
+      ],
+      "coordinate": {
+        "x": 83.4,
+        "y": 57.2
+      },
+      "coordinateStatus": "RAW_OBSERVATION",
+      "coordinateEvidenceRef": "1B e6 audit",
+      "provenanceNote": "Derived 1:1 from RAW vertex v7. No merge/snap has been approved for this vertex."
+    },
+    {
+      "canonicalVertexId": "v8",
+      "sourceRawVertexIds": [
+        "v8"
+      ],
+      "coordinate": {
+        "x": 96.2,
+        "y": 57.2
+      },
+      "coordinateStatus": "RAW_OBSERVATION",
+      "coordinateEvidenceRef": "1B e7 audit",
+      "provenanceNote": "Derived 1:1 from RAW vertex v8. No merge/snap has been approved for this vertex."
+    },
+    {
+      "canonicalVertexId": "v9",
+      "sourceRawVertexIds": [
+        "v9"
+      ],
+      "coordinate": {
+        "x": 96.2,
+        "y": 92.7
+      },
+      "coordinateStatus": "RAW_OBSERVATION",
+      "coordinateEvidenceRef": "1B e8 audit",
+      "provenanceNote": "Derived 1:1 from RAW vertex v9. No merge/snap has been approved for this vertex."
+    },
+    {
+      "canonicalVertexId": "v10",
+      "sourceRawVertexIds": [
+        "v10"
+      ],
+      "coordinate": {
+        "x": 65,
+        "y": 92.7
+      },
+      "coordinateStatus": "RAW_OBSERVATION",
+      "coordinateEvidenceRef": "1B e9 audit",
+      "provenanceNote": "Derived 1:1 from RAW vertex v10. No merge/snap has been approved for this vertex."
+    },
+    {
+      "canonicalVertexId": "v11",
+      "sourceRawVertexIds": [
+        "v11"
+      ],
+      "coordinate": {
+        "x": 65,
+        "y": 87.7
+      },
+      "coordinateStatus": "RAW_OBSERVATION",
+      "coordinateEvidenceRef": "1B e10 audit",
+      "provenanceNote": "Derived 1:1 from RAW vertex v11. No merge/snap has been approved for this vertex."
+    },
+    {
+      "canonicalVertexId": "v12",
+      "sourceRawVertexIds": [
+        "v12"
+      ],
+      "coordinate": {
+        "x": 50.6,
+        "y": 87.7
+      },
+      "coordinateStatus": "RAW_OBSERVATION",
+      "coordinateEvidenceRef": "1B e11 audit",
+      "provenanceNote": "Derived 1:1 from RAW vertex v12. No merge/snap has been approved for this vertex."
+    },
+    {
+      "canonicalVertexId": "v13",
+      "sourceRawVertexIds": [
+        "v13"
+      ],
+      "coordinate": {
+        "x": 50.6,
+        "y": 92.7
+      },
+      "coordinateStatus": "RAW_OBSERVATION",
+      "coordinateEvidenceRef": "1B e12 re-audit",
+      "provenanceNote": "Derived 1:1 from RAW vertex v13. No merge/snap has been approved for this vertex."
+    },
+    {
+      "canonicalVertexId": "v1",
+      "sourceRawVertexIds": [
+        "v1"
+      ],
+      "coordinate": {
+        "x": 35,
+        "y": 20.3
+      },
+      "coordinateStatus": "RAW_OBSERVATION",
+      "coordinateEvidenceRef": "1B e1 audit",
+      "provenanceNote": "Derived 1:1 from RAW vertex v1. No merge/snap has been approved for this vertex."
+    },
+    {
+      "canonicalVertexId": "v19",
+      "sourceRawVertexIds": [
+        "v19"
+      ],
+      "coordinate": {
+        "x": 45.2,
+        "y": 24.8
+      },
+      "coordinateStatus": "MISALIGNED",
+      "coordinateEvidenceRef": "1B geometry audit: v19 OFF_WALL, residual ~2.9%",
+      "provenanceNote": "Derived 1:1 from RAW vertex v19. No merge/snap has been approved for this vertex."
+    },
+    {
+      "canonicalVertexId": "v20",
+      "sourceRawVertexIds": [
+        "v20"
+      ],
+      "coordinate": {
+        "x": 33.7,
+        "y": 24.8
+      },
+      "coordinateStatus": "MISALIGNED",
+      "coordinateEvidenceRef": "1B geometry audit: v20 OFF_WALL, residual ~2.6-3.2%",
+      "provenanceNote": "Derived 1:1 from RAW vertex v20. No merge/snap has been approved for this vertex."
+    },
+    {
+      "canonicalVertexId": "v21",
+      "sourceRawVertexIds": [
+        "v21"
+      ],
+      "coordinate": {
+        "x": 33.7,
+        "y": 20.3
+      },
+      "coordinateStatus": "RAW_OBSERVATION",
+      "coordinateEvidenceRef": "1B e20 audit",
+      "provenanceNote": "Derived 1:1 from RAW vertex v21. No merge/snap has been approved for this vertex."
+    },
+    {
+      "canonicalVertexId": "v24",
+      "sourceRawVertexIds": [
+        "v24"
+      ],
+      "coordinate": {
+        "x": 9.4,
+        "y": 92.7
+      },
+      "coordinateStatus": "RAW_OBSERVATION",
+      "coordinateEvidenceRef": "1B e25 canonical inner-face confirmation",
+      "provenanceNote": "Derived 1:1 from RAW vertex v24. No merge/snap has been approved for this vertex."
+    },
+    {
+      "canonicalVertexId": "v25",
+      "sourceRawVertexIds": [
+        "v25"
+      ],
+      "coordinate": {
+        "x": 9.4,
+        "y": 24.8
+      },
+      "coordinateStatus": "RAW_OBSERVATION",
+      "coordinateEvidenceRef": "1B e25 canonical inner-face confirmation",
+      "provenanceNote": "Derived 1:1 from RAW vertex v25. No merge/snap has been approved for this vertex."
+    },
+    {
+      "canonicalVertexId": "v22",
+      "sourceRawVertexIds": [
+        "v22"
+      ],
+      "coordinate": {
+        "x": 7.1,
+        "y": 24.8
+      },
+      "coordinateStatus": "RAW_OBSERVATION",
+      "coordinateEvidenceRef": "1B e26 audit",
+      "provenanceNote": "Derived 1:1 from RAW vertex v22. No merge/snap has been approved for this vertex."
+    },
+    {
+      "canonicalVertexId": "v23",
+      "sourceRawVertexIds": [
+        "v23"
+      ],
+      "coordinate": {
+        "x": 7.1,
+        "y": 92.7
+      },
+      "coordinateStatus": "RAW_OBSERVATION",
+      "coordinateEvidenceRef": "e24 SOURCE_OCCLUSION_BY_LEGEND",
+      "provenanceNote": "Derived 1:1 from RAW vertex v23. No merge/snap has been approved for this vertex."
+    }
+  ],
+  "edges": [
+    {
+      "canonicalEdgeId": "canon-e2",
+      "sourceRawEdgeIds": [
+        "e2"
+      ],
+      "fromCanonicalVertexId": "v2",
+      "toCanonicalVertexId": "v3",
+      "originatingOperationId": "op-01",
+      "semanticStatus": "KEEP_ENVELOPE",
+      "semanticConfidence": "HIGH",
+      "semanticVerificationScope": "FULL_SPAN",
+      "geometryVerificationStatus": "NOT_AUDITED",
+      "unverifiedPortion": null,
+      "provenanceNote": "Preserved via op-01 (PRESERVE_CONFIRMED_TOPOLOGY). Semantic evidence: 1B e2 audit."
+    },
+    {
+      "canonicalEdgeId": "canon-e5",
+      "sourceRawEdgeIds": [
+        "e5"
+      ],
+      "fromCanonicalVertexId": "v5",
+      "toCanonicalVertexId": "v6",
+      "originatingOperationId": "op-01",
+      "semanticStatus": "KEEP_ENVELOPE",
+      "semanticConfidence": "HIGH",
+      "semanticVerificationScope": "FULL_SPAN",
+      "geometryVerificationStatus": "NOT_AUDITED",
+      "unverifiedPortion": null,
+      "provenanceNote": "Preserved via op-01 (PRESERVE_CONFIRMED_TOPOLOGY). Semantic evidence: 1B e5 audit."
+    },
+    {
+      "canonicalEdgeId": "canon-e6",
+      "sourceRawEdgeIds": [
+        "e6"
+      ],
+      "fromCanonicalVertexId": "v6",
+      "toCanonicalVertexId": "v7",
+      "originatingOperationId": "op-01",
+      "semanticStatus": "KEEP_ENVELOPE",
+      "semanticConfidence": "HIGH",
+      "semanticVerificationScope": "FULL_SPAN",
+      "geometryVerificationStatus": "NOT_AUDITED",
+      "unverifiedPortion": null,
+      "provenanceNote": "Preserved via op-01 (PRESERVE_CONFIRMED_TOPOLOGY). Semantic evidence: 1B e6 audit."
+    },
+    {
+      "canonicalEdgeId": "canon-e7",
+      "sourceRawEdgeIds": [
+        "e7"
+      ],
+      "fromCanonicalVertexId": "v7",
+      "toCanonicalVertexId": "v8",
+      "originatingOperationId": "op-01",
+      "semanticStatus": "KEEP_ENVELOPE",
+      "semanticConfidence": "HIGH",
+      "semanticVerificationScope": "FULL_SPAN",
+      "geometryVerificationStatus": "NOT_AUDITED",
+      "unverifiedPortion": null,
+      "provenanceNote": "Preserved via op-01 (PRESERVE_CONFIRMED_TOPOLOGY). Semantic evidence: 1B e7 audit."
+    },
+    {
+      "canonicalEdgeId": "canon-e8",
+      "sourceRawEdgeIds": [
+        "e8"
+      ],
+      "fromCanonicalVertexId": "v8",
+      "toCanonicalVertexId": "v9",
+      "originatingOperationId": "op-01",
+      "semanticStatus": "KEEP_ENVELOPE",
+      "semanticConfidence": "HIGH",
+      "semanticVerificationScope": "FULL_SPAN",
+      "geometryVerificationStatus": "NOT_AUDITED",
+      "unverifiedPortion": null,
+      "provenanceNote": "Preserved via op-01 (PRESERVE_CONFIRMED_TOPOLOGY). Semantic evidence: 1B e8 audit."
+    },
+    {
+      "canonicalEdgeId": "canon-e9",
+      "sourceRawEdgeIds": [
+        "e9"
+      ],
+      "fromCanonicalVertexId": "v9",
+      "toCanonicalVertexId": "v10",
+      "originatingOperationId": "op-01",
+      "semanticStatus": "KEEP_ENVELOPE",
+      "semanticConfidence": "HIGH",
+      "semanticVerificationScope": "FULL_SPAN",
+      "geometryVerificationStatus": "NOT_AUDITED",
+      "unverifiedPortion": null,
+      "provenanceNote": "Preserved via op-01 (PRESERVE_CONFIRMED_TOPOLOGY). Semantic evidence: 1B e9 audit."
+    },
+    {
+      "canonicalEdgeId": "canon-e10",
+      "sourceRawEdgeIds": [
+        "e10"
+      ],
+      "fromCanonicalVertexId": "v10",
+      "toCanonicalVertexId": "v11",
+      "originatingOperationId": "op-01",
+      "semanticStatus": "KEEP_ENVELOPE",
+      "semanticConfidence": "HIGH",
+      "semanticVerificationScope": "FULL_SPAN",
+      "geometryVerificationStatus": "NOT_AUDITED",
+      "unverifiedPortion": null,
+      "provenanceNote": "Preserved via op-01 (PRESERVE_CONFIRMED_TOPOLOGY). Semantic evidence: 1B e10 audit."
+    },
+    {
+      "canonicalEdgeId": "canon-e11",
+      "sourceRawEdgeIds": [
+        "e11"
+      ],
+      "fromCanonicalVertexId": "v11",
+      "toCanonicalVertexId": "v12",
+      "originatingOperationId": "op-01",
+      "semanticStatus": "KEEP_ENVELOPE",
+      "semanticConfidence": "HIGH",
+      "semanticVerificationScope": "FULL_SPAN",
+      "geometryVerificationStatus": "NOT_AUDITED",
+      "unverifiedPortion": null,
+      "provenanceNote": "Preserved via op-01 (PRESERVE_CONFIRMED_TOPOLOGY). Semantic evidence: 1B e11 audit."
+    },
+    {
+      "canonicalEdgeId": "canon-e12",
+      "sourceRawEdgeIds": [
+        "e12"
+      ],
+      "fromCanonicalVertexId": "v12",
+      "toCanonicalVertexId": "v13",
+      "originatingOperationId": "op-01",
+      "semanticStatus": "KEEP_ENVELOPE",
+      "semanticConfidence": "HIGH",
+      "semanticVerificationScope": "FULL_SPAN",
+      "geometryVerificationStatus": "NOT_AUDITED",
+      "unverifiedPortion": null,
+      "provenanceNote": "Preserved via op-01 (PRESERVE_CONFIRMED_TOPOLOGY). Semantic evidence: 1B e12 re-audit."
+    },
+    {
+      "canonicalEdgeId": "canon-e1",
+      "sourceRawEdgeIds": [
+        "e1"
+      ],
+      "fromCanonicalVertexId": "v1",
+      "toCanonicalVertexId": "v2",
+      "originatingOperationId": "op-01b",
+      "semanticStatus": "KEEP_ENVELOPE",
+      "semanticConfidence": "HIGH",
+      "semanticVerificationScope": "FULL_SPAN",
+      "geometryVerificationStatus": "NOT_AUDITED",
+      "unverifiedPortion": null,
+      "provenanceNote": "Preserved via op-01b (PRESERVE_CONFIRMED_TOPOLOGY). Semantic evidence: 1B e1 audit."
+    },
+    {
+      "canonicalEdgeId": "canon-e19",
+      "sourceRawEdgeIds": [
+        "e19"
+      ],
+      "fromCanonicalVertexId": "v19",
+      "toCanonicalVertexId": "v20",
+      "originatingOperationId": "op-01b",
+      "semanticStatus": "KEEP_ENVELOPE",
+      "semanticConfidence": "HIGH",
+      "semanticVerificationScope": "FULL_SPAN",
+      "geometryVerificationStatus": "MISALIGNED",
+      "unverifiedPortion": null,
+      "provenanceNote": "Preserved via op-01b (PRESERVE_CONFIRMED_TOPOLOGY). Semantic evidence: 1B e19 audit."
+    },
+    {
+      "canonicalEdgeId": "canon-e20",
+      "sourceRawEdgeIds": [
+        "e20"
+      ],
+      "fromCanonicalVertexId": "v20",
+      "toCanonicalVertexId": "v21",
+      "originatingOperationId": "op-01b",
+      "semanticStatus": "KEEP_ENVELOPE",
+      "semanticConfidence": "HIGH",
+      "semanticVerificationScope": "FULL_SPAN",
+      "geometryVerificationStatus": "UNRESOLVED",
+      "unverifiedPortion": null,
+      "provenanceNote": "Preserved via op-01b (PRESERVE_CONFIRMED_TOPOLOGY). Semantic evidence: 1B e20 audit."
+    },
+    {
+      "canonicalEdgeId": "canon-e25",
+      "sourceRawEdgeIds": [
+        "e25"
+      ],
+      "fromCanonicalVertexId": "v24",
+      "toCanonicalVertexId": "v25",
+      "originatingOperationId": "op-03",
+      "semanticStatus": "KEEP_ENVELOPE",
+      "semanticConfidence": "MEDIUM_HIGH",
+      "semanticVerificationScope": "VISIBLE_SPAN",
+      "geometryVerificationStatus": "NOT_AUDITED",
+      "unverifiedPortion": "South endpoint occluded by legend (see corresponding SOURCE_OCCLUDED_GAP).",
+      "provenanceNote": "Selected as canonical inner face via op-03. Rejected face(s) in same operation intentionally excluded, not constructed."
+    },
+    {
+      "canonicalEdgeId": "canon-e26",
+      "sourceRawEdgeIds": [
+        "e26"
+      ],
+      "fromCanonicalVertexId": "v25",
+      "toCanonicalVertexId": "v22",
+      "originatingOperationId": "op-03",
+      "semanticStatus": "KEEP_ENVELOPE",
+      "semanticConfidence": "MEDIUM",
+      "semanticVerificationScope": "VISIBLE_SPAN",
+      "geometryVerificationStatus": "NOT_AUDITED",
+      "unverifiedPortion": "South endpoint occluded by legend (see corresponding SOURCE_OCCLUDED_GAP).",
+      "provenanceNote": "Selected as canonical inner face via op-03. Rejected face(s) in same operation intentionally excluded, not constructed."
+    }
+  ],
+  "gaps": [
+    {
+      "gapId": "gap-op-06",
+      "gapType": "OPENING_CONTINUATION_UNKNOWN",
+      "knownEndpointVertexIds": [
+        "v13"
+      ],
+      "unknownEndpointCount": 1,
+      "reason": "e12 terminates at opening/hatching morphology at v13; canonical continuation through/around opening unresolved.",
+      "evidenceRefs": [
+        "v13 OPENING_TOPOLOGY_UNRESOLVED"
+      ],
+      "resolutionStatus": "UNRESOLVED",
+      "deferTo": "ADDITIONAL_PERCEPTION",
+      "originatingOperationId": "op-06"
+    },
+    {
+      "gapId": "gap-op-07",
+      "gapType": "SOURCE_OCCLUDED",
+      "knownEndpointVertexIds": [
+        "v23",
+        "v24"
+      ],
+      "unknownEndpointCount": 0,
+      "reason": "Pixels exist in source; content obscured by embedded legend box. Represented as explicit occluded gap, not an unsupported claim.",
+      "evidenceRefs": [
+        "e24 SOURCE_OCCLUSION_BY_LEGEND"
+      ],
+      "resolutionStatus": "UNRESOLVED",
+      "deferTo": "CLEAN_SOURCE_IMAGE",
+      "originatingOperationId": "op-07"
+    }
+  ],
+  "deferredIssues": [
+    {
+      "issueId": "deferred-op-02",
+      "relatedOperationId": "op-02",
+      "issueType": "TOPOLOGY_REPAIR_REQUIRED",
+      "affectedRawVertices": [
+        "v21",
+        "v1"
+      ],
+      "affectedRawEdges": [
+        "e20",
+        "e1"
+      ],
+      "evidenceRefs": [
+        "KEEP_TO_KEEP_ENDPOINT_DISCONTINUITY"
+      ],
+      "resolutionConfidence": "NONE",
+      "deferTo": "PATCHED_LAYER_DESIGN_DECISION",
+      "provenanceNote": "e20 terminates and e1 begins at the same physical corner region, 1.3% apart, with no supporting wall span between (e21 REJECT). Repair form not yet chosen."
+    },
+    {
+      "issueId": "deferred-op-05",
+      "relatedOperationId": "op-05",
+      "issueType": "UNCONFIRMED_BOUNDARY_CANDIDATE",
+      "affectedRawVertices": [
+        "v19",
+        "v20"
+      ],
+      "affectedRawEdges": [],
+      "evidenceRefs": [
+        "mw1 GEOMETRIC_RELATION_TO_EXISTING_RAW_UNRESOLVED"
+      ],
+      "resolutionConfidence": "NONE",
+      "deferTo": "ADDITIONAL_PERCEPTION",
+      "provenanceNote": "mw1 relationship to existing RAW geometry (e1/e19/e20) remains unresolved following RAW_VERTEX_PLACEMENT_ERROR finding. Must not become a canonical edge."
+    },
+    {
+      "issueId": "deferred-op-08",
+      "relatedOperationId": "op-08",
+      "issueType": "GEOMETRY_REALIGNMENT_REQUIRED",
+      "affectedRawVertices": [
+        "v19",
+        "v20"
+      ],
+      "affectedRawEdges": [
+        "e19",
+        "e20"
+      ],
+      "evidenceRefs": [
+        "RAW_VERTEX_PLACEMENT_ERROR v19/v20"
+      ],
+      "resolutionConfidence": "NONE",
+      "deferTo": "CONSTRAINT_SOLVER",
+      "provenanceNote": "v19/v20 confirmed OFF_WALL; semantic adjacency remains trustworthy, RAW coordinates do not. Does NOT alter connectivity."
+    }
+  ],
+  "connectedComponents": [
+    {
+      "componentId": "component-0",
+      "vertexIds": [
+        "v2",
+        "v1",
+        "v3"
+      ],
+      "edgeIds": [
+        "canon-e2",
+        "canon-e1"
+      ]
+    },
+    {
+      "componentId": "component-1",
+      "vertexIds": [
+        "v5",
+        "v6",
+        "v7",
+        "v8",
+        "v9",
+        "v10",
+        "v11",
+        "v12",
+        "v13"
+      ],
+      "edgeIds": [
+        "canon-e5",
+        "canon-e6",
+        "canon-e7",
+        "canon-e8",
+        "canon-e9",
+        "canon-e10",
+        "canon-e11",
+        "canon-e12"
+      ]
+    },
+    {
+      "componentId": "component-2",
+      "vertexIds": [
+        "v19",
+        "v20",
+        "v21"
+      ],
+      "edgeIds": [
+        "canon-e19",
+        "canon-e20"
+      ]
+    },
+    {
+      "componentId": "component-3",
+      "vertexIds": [
+        "v24",
+        "v25",
+        "v22"
+      ],
+      "edgeIds": [
+        "canon-e25",
+        "canon-e26"
+      ]
+    }
+  ],
+  "validationResults": [
+    {
+      "rule": "NO_UNPROVEN_EDGE",
+      "passed": true,
+      "details": "All canonical edges trace to a valid PLAN operation with at least one source RAW edge."
+    },
+    {
+      "rule": "NO_RAW_MUTATION",
+      "passed": true,
+      "details": "RAW topology intact: 25 vertices, 26 edges."
+    },
+    {
+      "rule": "NO_PROXIMITY_ONLY_REPAIR",
+      "passed": true,
+      "details": "No vertex merges present; construction performed no proximity-based repair."
+    },
+    {
+      "rule": "NO_FORCED_CLOSURE",
+      "passed": true,
+      "details": "Candidate closure flag is consistent with actual structure (isFullyClosed=false)."
+    },
+    {
+      "rule": "PROVENANCE_COMPLETE",
+      "passed": true,
+      "details": "All gaps and deferred issues carry evidence references and provenance notes."
+    },
+    {
+      "rule": "NO_REJECTED_EDGE_ACTIVE",
+      "passed": true,
+      "details": "No rejected RAW edge became canonical. Rejected set checked: e13, e14, e15, e16, e17, e18, e21, e22, e23, e3, e4"
+    },
+    {
+      "rule": "GAPS_EXPLICIT",
+      "passed": true,
+      "details": "All 2 gap-producing operations have a corresponding CanonicalGap."
+    },
+    {
+      "rule": "DEFERRED_ISSUES_PRESERVED",
+      "passed": true,
+      "details": "All 3 non-executable operations preserved as DeferredIssue."
+    },
+    {
+      "rule": "DEFERRED_DOES_NOT_IMPLY_EXCLUSION",
+      "passed": true,
+      "details": "No KEEP edge was excluded merely due to an attached DeferredIssue."
+    },
+    {
+      "rule": "CANONICAL_FACE_SELECTION_RESPECTED",
+      "passed": true,
+      "details": "Face selection correctly reflected."
+    },
+    {
+      "rule": "GRAPH_STRUCTURALLY_VALID",
+      "passed": true,
+      "details": "No duplicate ids, no dangling edge endpoints. (Closure not required.)"
+    },
+    {
+      "rule": "NO_ORPHAN_EDGE_ENDPOINTS",
+      "passed": true,
+      "details": "Every canonical edge endpoint references an existing canonical vertex."
+    }
+  ],
+  "stateFlags": {
+    "hasExplicitGaps": true,
+    "hasDeferredRepairs": true,
+    "hasUnverifiedPartialEdges": true,
+    "isFullyClosed": false
+  },
+  "candidateState": "OPEN_WITH_GAPS"
+}
