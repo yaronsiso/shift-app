@@ -11,7 +11,7 @@ import {
   CanonicalTopologyCandidate,
   canonicalVertexExists,
   canonicalEdgeExists,
-} from "./types/topology-input";
+} from "./types/canonical_topology_v1";
 import {
   WitnessPerceptionCandidate,
   WitnessPerceptionResponse,

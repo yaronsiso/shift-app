@@ -13,7 +13,7 @@ import { TopologyAnchor } from "../types/model";
 import {
   canonicalGapExists,
   canonicalDeferredIssueExists,
-} from "../types/topology-input";
+} from "../types/canonical_topology_v1";
 
 // ---- contextual gap/deferred refs cannot become anchors --------------------
 test("a CanonicalGap id is not a valid VERTEX or EDGE_POINT anchor target", () => {
@@ -51,7 +51,7 @@ test("TopologyAnchor union type structurally excludes gap/issue kinds", () => {
   const vertexAnchor: TopologyAnchor = { kind: "VERTEX", canonicalVertexId: "v9" };
   const edgeAnchor: TopologyAnchor = {
     kind: "EDGE_POINT",
-    canonicalEdgeId: "e9",
+    canonicalEdgeId: "canon-e9",
     paramT: 0.3,
   };
   assert.equal(topologyAnchorUnionExcludesGapsAndIssues(vertexAnchor), true);

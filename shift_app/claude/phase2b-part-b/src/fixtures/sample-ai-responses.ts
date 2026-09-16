@@ -52,7 +52,7 @@ export const SAMPLE_VALID_RESPONSE: WitnessPerceptionResponse = {
         // suggestedAnchor — this is a VALID, desired shape, not an error.
         candidateAnchors: [
           { kind: "VERTEX", canonicalVertexId: "v5" },
-          { kind: "EDGE_POINT", canonicalEdgeId: "e5", paramT: 0.05 },
+          { kind: "EDGE_POINT", canonicalEdgeId: "canon-e5", paramT: 0.05 },
         ],
         suggestedAnchor: null,
         proposedProofRelationType: "OTHER_SPATIAL_INFERENCE",
@@ -139,7 +139,7 @@ export const RESPONSE_WITH_REJECTED_EDGE: WitnessPerceptionResponse = {
       measurementId: "top_m1",
       startEndpointProposal: {
         // e3 is REJECT_NOT_ENVELOPE in Phase 1B/1C — never a CanonicalEdge.
-        candidateAnchors: [{ kind: "EDGE_POINT", canonicalEdgeId: "e3", paramT: 0.5 }],
+        candidateAnchors: [{ kind: "EDGE_POINT", canonicalEdgeId: "canon-e3", paramT: 0.5 }],
         suggestedAnchor: null,
         proposedProofRelationType: null,
         imageGeometryEvidence: null,
@@ -197,7 +197,7 @@ export const RESPONSE_WITH_PARAM_T_NEGATIVE: WitnessPerceptionResponse = {
     {
       measurementId: "top_m1",
       startEndpointProposal: {
-        candidateAnchors: [{ kind: "EDGE_POINT", canonicalEdgeId: "e2", paramT: -0.1 }],
+        candidateAnchors: [{ kind: "EDGE_POINT", canonicalEdgeId: "canon-e2", paramT: -0.1 }],
         suggestedAnchor: null,
         proposedProofRelationType: null,
         imageGeometryEvidence: null,
@@ -224,7 +224,7 @@ export const RESPONSE_WITH_PARAM_T_ABOVE_ONE: WitnessPerceptionResponse = {
     {
       measurementId: "top_m1",
       startEndpointProposal: {
-        candidateAnchors: [{ kind: "EDGE_POINT", canonicalEdgeId: "e2", paramT: 1.2 }],
+        candidateAnchors: [{ kind: "EDGE_POINT", canonicalEdgeId: "canon-e2", paramT: 1.2 }],
         suggestedAnchor: null,
         proposedProofRelationType: null,
         imageGeometryEvidence: null,

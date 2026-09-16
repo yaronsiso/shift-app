@@ -92,7 +92,7 @@ test("vertex coordinates (xPct/yPct) are included in the user message text sent 
   // snapshot (coordinate: {x: 83.4, y: 20.3}) — not a placeholder, not
   // recomputed. If this specific value appears, the real coordinate made
   // it into the prompt text unmodified.
-  const v2 = attempt3Canonical.vertices.find((v) => v.id === "v2")!;
+  const v2 = attempt3Canonical.vertices.find((v) => v.canonicalVertexId === "v2")!;
   assert.ok(v2.coordinate.x === 83.4 && v2.coordinate.y === 20.3);
   assert.ok(
     textBlock.text.includes("VERTEX v2") && textBlock.text.includes("xPct=83.4") && textBlock.text.includes("yPct=20.3"),
@@ -106,7 +106,7 @@ test("Attempt3 canonical vertex coordinates match the real Phase 1C-B snapshot e
   // attempt3-actual-candidate.json (the unmodified runtime snapshot) —
   // proves the fixture loader did not recompute, round, or otherwise alter
   // any coordinate value while adding the new field.
-  const byId = new Map(attempt3Canonical.vertices.map((v) => [v.id, v.coordinate]));
+  const byId = new Map(attempt3Canonical.vertices.map((v) => [v.canonicalVertexId, v.coordinate]));
   assert.deepEqual(byId.get("v2"), { x: 83.4, y: 20.3 });
   assert.deepEqual(byId.get("v1"), { x: 35, y: 20.3 });
   assert.deepEqual(byId.get("v13"), { x: 50.6, y: 92.7 });
@@ -123,8 +123,8 @@ test("edge descriptions reference only canonical fromVertexId/toVertexId, no inv
   const textBlock = userMessage.content.find((b: any) => b.type === "text") as { text: string };
   // e2's real canonical endpoints (v2 -> v3), and no separate coordinate
   // pair invented for the edge itself (no "EDGE e2: xPct=" anywhere).
-  assert.ok(textBlock.text.includes("EDGE e2 (v2 -> v3)"));
-  assert.equal(/EDGE e2:\s*xPct=/.test(textBlock.text), false);
+  assert.ok(textBlock.text.includes("EDGE canon-e2 (v2 -> v3)"));
+  assert.equal(/EDGE canon-e2:\s*xPct=/.test(textBlock.text), false);
 });
 
 // ---- gaps/deferred issues are never sent as anchor targets ------------------

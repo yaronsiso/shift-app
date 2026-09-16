@@ -11,7 +11,7 @@
 
 import { WITNESS_PERCEPTION_SYSTEM_PROMPT } from "./witness-perception-prompt";
 import { WITNESS_PERCEPTION_RESPONSE_JSON_SCHEMA } from "./witness-perception-schema";
-import { CanonicalTopologyCandidate } from "./types/topology-input";
+import { CanonicalTopologyCandidate } from "./types/canonical_topology_v1";
 
 // Minimal shape of a persisted DimensionEvidence measurement, as consumed
 // here — mirrors dimension_evidence_schema_v3.ts's DimensionEvidence
@@ -55,11 +55,11 @@ function describeCanonicalTopologyForPrompt(candidate: CanonicalTopologyCandidat
   const vertexLines = candidate.vertices
     .map(
       (v) =>
-        `- VERTEX ${v.id}: xPct=${v.coordinate.x}, yPct=${v.coordinate.y}`
+        `- VERTEX ${v.canonicalVertexId}: xPct=${v.coordinate.x}, yPct=${v.coordinate.y}`
     )
     .join("\n");
   const edgeLines = candidate.edges
-    .map((e) => `- EDGE ${e.id} (${e.fromVertexId} -> ${e.toVertexId})`)
+    .map((e) => `- EDGE ${e.canonicalEdgeId} (${e.fromCanonicalVertexId} -> ${e.toCanonicalVertexId})`)
     .join("\n");
   return [
     "Canonical vertices (valid VERTEX anchor targets; xPct/yPct are 0-100 image-percent coordinates relative to the SAME cropped.jpg image attached below):",

@@ -1,0 +1,10 @@
+{
+  "name": "envelope-topology-phase1c",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc && npm run copy-fixtures",
+    "copy-fixtures": "mkdir -p dist/fixtures && cp src/fixtures/attempt3-actual-candidate.json dist/fixtures/attempt3-actual-candidate.json",
+    "test": "node --test dist/__tests__/*.test.js"
+  }
+}

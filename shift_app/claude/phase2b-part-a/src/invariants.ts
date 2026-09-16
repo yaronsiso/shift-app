@@ -5,7 +5,7 @@
 // unambiguous, named, testable home rather than being scattered as implicit
 // behavior across anchor.ts/binding.ts/span.ts/promotion.ts.
 
-import { CanonicalTopologyCandidate } from "./types/topology-input";
+import { CanonicalTopologyCandidate } from "./types/canonical_topology_v1";
 import {
   TopologyAnchor,
   MeasurementWitnessBinding,

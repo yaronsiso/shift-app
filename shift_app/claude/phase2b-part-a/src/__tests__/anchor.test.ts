@@ -40,7 +40,7 @@ test("structural validity fails for RAW-only v4 even though it is a plausible-lo
 test("EDGE_POINT with paramT in [0,1] on a real edge is valid", () => {
   const anchor: TopologyAnchor = {
     kind: "EDGE_POINT",
-    canonicalEdgeId: "e12",
+    canonicalEdgeId: "canon-e12",
     paramT: 0.5,
   };
   assert.equal(edgePointParamValid(anchor), true);
@@ -50,12 +50,12 @@ test("EDGE_POINT with paramT in [0,1] on a real edge is valid", () => {
 test("EDGE_POINT with paramT out of [0,1] is invalid", () => {
   const anchorTooHigh: TopologyAnchor = {
     kind: "EDGE_POINT",
-    canonicalEdgeId: "e12",
+    canonicalEdgeId: "canon-e12",
     paramT: 1.5,
   };
   const anchorNegative: TopologyAnchor = {
     kind: "EDGE_POINT",
-    canonicalEdgeId: "e12",
+    canonicalEdgeId: "canon-e12",
     paramT: -0.1,
   };
   assert.equal(edgePointParamValid(anchorTooHigh), false);
@@ -67,7 +67,7 @@ test("EDGE_POINT with paramT out of [0,1] is invalid", () => {
 test("EDGE_POINT on a nonexistent edge fails existence even with valid paramT", () => {
   const anchor: TopologyAnchor = {
     kind: "EDGE_POINT",
-    canonicalEdgeId: "e3", // REJECT_NOT_ENVELOPE in Phase 1B, never canonical
+    canonicalEdgeId: "canon-e3", // REJECT_NOT_ENVELOPE in Phase 1B, never canonical
     paramT: 0.5,
   };
   assert.equal(anchorExistsInCanonicalTopology(attempt3Canonical, anchor), false);

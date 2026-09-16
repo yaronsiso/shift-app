@@ -2,7 +2,7 @@ import {
   CanonicalTopologyCandidate,
   canonicalVertexExists,
   findCanonicalEdge,
-} from "./types/topology-input";
+} from "./types/canonical_topology_v1";
 import {
   TopologyAnchor,
   ProofStatus,
