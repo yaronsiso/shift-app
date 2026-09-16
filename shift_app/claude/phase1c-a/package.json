@@ -1,0 +1,10 @@
+{
+  "name": "envelope-topology-phase1c-a",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "npm run build && node --test dist/__tests__/*.test.js",
+    "typecheck": "tsc --noEmit"
+  }
+}
