@@ -63,6 +63,8 @@ import '../data/sketch_measurements_service.dart';
 // same-named class here is what lets both imports coexist unaliased.
 import '../data/sketch_page_dimensions_service.dart' hide BboxPct;
 import '../data/sketch_scope_service.dart';
+import '../data/sketch_envelope_topology_service.dart';
+import '../data/sketch_canonical_topology_service.dart';
 import 'envelope_overlay_painter.dart';
 
 class SketchScopeDebugScreen extends StatefulWidget {
@@ -82,6 +84,10 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
       SketchEnvelopeService(Supabase.instance.client);
   late final SketchPageDimensionsService _pageDimensionsService =
       SketchPageDimensionsService(Supabase.instance.client);
+  late final SketchEnvelopeTopologyService _envelopeTopologyService =
+      SketchEnvelopeTopologyService(Supabase.instance.client);
+  late final SketchCanonicalTopologyService _canonicalTopologyService =
+      SketchCanonicalTopologyService(Supabase.instance.client);
 
   File? _originalFile;
   File? _croppedFile;
@@ -132,6 +138,26 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
   // rebuild of this screen.
   Size? _croppedImageSize;
 
+  // EnvelopeTopology V2 stage state — independent of Stage 1 (envelope):
+  // the backend only requires Stage 0's crop to exist (see
+  // SketchEnvelopeTopologyService's own doc comment), not Stage 1's or
+  // Pass 0.5's output. Positioned in the UI right after Stage 1 purely to
+  // read as "the next stage in the pipeline", not because the backend
+  // enforces that ordering as a hard dependency.
+  EnvelopeTopologyResult? _envelopeTopologyResult;
+  String? _envelopeTopologyError;
+  bool _envelopeTopologyBusy = false;
+
+  // CanonicalTopology stage state — hard-gated on
+  // `_envelopeTopologyResult?.isValid == true` (see _runCanonicalTopology
+  // and the button's `onPressed` below). `_canonicalTopologyBusy` is this
+  // screen's only duplicate-invocation guard, same mechanism already used
+  // for every other stage here (disables the button while a call is in
+  // flight; no separate debounce/request-id exists anywhere in this file).
+  CanonicalTopologyResult? _canonicalTopologyResult;
+  String? _canonicalTopologyError;
+  bool _canonicalTopologyBusy = false;
+
   Future<void> _pickAndRun() async {
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (picked == null) return;
@@ -151,6 +177,10 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
       _pageDimensionsResult = null;
       _pageDimensionsError = null;
       _uploadedStripBboxes = {};
+      _envelopeTopologyResult = null;
+      _envelopeTopologyError = null;
+      _canonicalTopologyResult = null;
+      _canonicalTopologyError = null;
     });
 
     // Fire-and-forget: the display preview must never block or fail the
@@ -173,6 +203,10 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
       _pageDimensionsResult = null;
       _pageDimensionsError = null;
       _uploadedStripBboxes = {};
+      _envelopeTopologyResult = null;
+      _envelopeTopologyError = null;
+      _canonicalTopologyResult = null;
+      _canonicalTopologyError = null;
     });
     await _runAndCrop(() => _service.retryScope(jobId));
   }
@@ -295,6 +329,67 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
       setState(() {
         _envelopeError = e.toString();
         _envelopeBusy = false;
+      });
+    }
+  }
+
+  Future<void> _runEnvelopeTopology() async {
+    final jobId = _result?.jobId;
+    if (jobId == null) return;
+    setState(() {
+      _envelopeTopologyBusy = true;
+      _envelopeTopologyError = null;
+      // A new envelope_topology attempt supersedes any canonical_topology
+      // previously built from an older attempt — clear it, same pattern as
+      // _runMeasurements clearing _envelopeResult above.
+      _canonicalTopologyResult = null;
+      _canonicalTopologyError = null;
+    });
+    try {
+      final result = await _envelopeTopologyService.runEnvelopeTopology(jobId);
+      if (!mounted) return;
+      setState(() {
+        _envelopeTopologyResult = result;
+        _envelopeTopologyBusy = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _envelopeTopologyError = e.toString();
+        _envelopeTopologyBusy = false;
+      });
+    }
+  }
+
+  Future<void> _runCanonicalTopology() async {
+    final jobId = _result?.jobId;
+    if (jobId == null) return;
+    // Hard gate, mirrors the server's own authority: canonical-topology
+    // must never be invoked against a source that isn't
+    // status:"valid" — the backend would itself refuse (bad_request, no
+    // supported valid source) for "invalid"/"forbidden_field_error", so
+    // this is enforcement of an already-real precondition, not an
+    // invented one. This function's own onPressed guard already prevents
+    // reaching here otherwise (see build() below); this check is a second,
+    // explicit line of defense against calling it from anywhere else by
+    // mistake.
+    if (_envelopeTopologyResult?.isValid != true) return;
+    setState(() {
+      _canonicalTopologyBusy = true;
+      _canonicalTopologyError = null;
+    });
+    try {
+      final result = await _canonicalTopologyService.runCanonicalTopology(jobId);
+      if (!mounted) return;
+      setState(() {
+        _canonicalTopologyResult = result;
+        _canonicalTopologyBusy = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _canonicalTopologyError = e.toString();
+        _canonicalTopologyBusy = false;
       });
     }
   }
@@ -433,6 +528,8 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
     final measurementsResult = _measurementsResult;
     final envelopeResult = _envelopeResult;
     final pageDimensionsResult = _pageDimensionsResult;
+    final envelopeTopologyResult = _envelopeTopologyResult;
+    final canonicalTopologyResult = _canonicalTopologyResult;
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -831,6 +928,153 @@ class _SketchScopeDebugScreenState extends State<SketchScopeDebugScreen> {
                         ],
                       ),
                     ),
+                ],
+              ],
+            ],
+
+            // --- EnvelopeTopology V2 ------------------------------------
+            //
+            // Gated on Stage 0's crop only (`_croppedFile != null`) — this
+            // is the backend's actual, real precondition (see
+            // SketchEnvelopeTopologyService's own doc comment): the Edge
+            // Function does not require Pass 0.5/Stage 1 to have run. It
+            // is positioned here, after Stage 1, purely so it reads as
+            // "the next stage" in this debug screen's pipeline narrative.
+            if (_croppedFile != null) ...[
+              const Divider(height: 32),
+              const Text(
+                'EnvelopeTopology V2',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: _envelopeTopologyBusy ? null : _runEnvelopeTopology,
+                child: Text(
+                  _envelopeTopologyBusy ? 'Running...' : 'Run EnvelopeTopology V2',
+                ),
+              ),
+              if (_envelopeTopologyError != null) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'Error: $_envelopeTopologyError',
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ],
+              if (envelopeTopologyResult != null) ...[
+                const SizedBox(height: 16),
+                Text('attempt: ${envelopeTopologyResult.attempt}'),
+                Text('durationMs: ${envelopeTopologyResult.durationMs}'),
+                Text(
+                  'status: ${envelopeTopologyResult.status}'
+                  '${envelopeTopologyResult.isValid ? "  ✓ (canonical-topology can run)" : "  — canonical-topology will NOT be enabled"}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: envelopeTopologyResult.isValid ? Colors.green : Colors.red,
+                  ),
+                ),
+                if (envelopeTopologyResult.error != null)
+                  Text(
+                    'error: ${envelopeTopologyResult.error}',
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                if (envelopeTopologyResult.topology != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'vertices: ${envelopeTopologyResult.topology!.vertices.length}   '
+                    'edges: ${envelopeTopologyResult.topology!.edges.length}   '
+                    'perceptionNotes: ${envelopeTopologyResult.topology!.perceptionNotes.length}',
+                  ),
+                ],
+                if (envelopeTopologyResult.validation != null) ...[
+                  const SizedBox(height: 8),
+                  if (envelopeTopologyResult.validation!.errors.isNotEmpty) ...[
+                    const Text(
+                      'fatal errors:',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                    ),
+                    for (final err in envelopeTopologyResult.validation!.errors)
+                      Text('  • ${err.code}: ${err.message}',
+                          style: const TextStyle(fontSize: 12, color: Colors.red)),
+                  ],
+                  if (envelopeTopologyResult.validation!.diagnostics.isNotEmpty) ...[
+                    const Text(
+                      'diagnostics (non-fatal, allowed by design):',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
+                    ),
+                    for (final diag in envelopeTopologyResult.validation!.diagnostics)
+                      Text('  • ${diag.code}: ${diag.message}',
+                          style: const TextStyle(fontSize: 12, color: Colors.orange)),
+                  ],
+                ],
+              ],
+            ],
+
+            // --- CanonicalTopology ---------------------------------------
+            //
+            // Hard-gated on envelopeTopologyResult.isValid — mirrors the
+            // backend's own precondition exactly (see
+            // SketchCanonicalTopologyService's file header). Never invoked
+            // against an "invalid"/"forbidden_field_error" source.
+            if (envelopeTopologyResult != null) ...[
+              const Divider(height: 32),
+              const Text(
+                'CanonicalTopology',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              if (!envelopeTopologyResult.isValid)
+                const Text(
+                  'EnvelopeTopology V2 must return status:"valid" before '
+                  'canonical-topology can run — the backend itself refuses '
+                  'otherwise.',
+                  style: TextStyle(fontSize: 12, color: Colors.orange),
+                ),
+              const SizedBox(height: 4),
+              ElevatedButton(
+                onPressed: (_canonicalTopologyBusy || !envelopeTopologyResult.isValid)
+                    ? null
+                    : _runCanonicalTopology,
+                child: Text(
+                  _canonicalTopologyBusy ? 'Running...' : 'Run CanonicalTopology',
+                ),
+              ),
+              if (_canonicalTopologyError != null) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'Error (technical failure): $_canonicalTopologyError',
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ],
+              if (canonicalTopologyResult != null) ...[
+                const SizedBox(height: 16),
+                Text('attempt: ${canonicalTopologyResult.attempt}'),
+                Text('durationMs: ${canonicalTopologyResult.durationMs}'),
+                Text(
+                  'sourceEnvelopeTopologyArtifactVersion: '
+                  '${canonicalTopologyResult.sourceEnvelopeTopologyArtifactVersion} '
+                  '(schemaVersion: ${canonicalTopologyResult.sourceEnvelopeTopologyArtifactSchemaVersion})',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                if (canonicalTopologyResult.isSuccess) ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    '✓ status: success — canonical_topology artifact built '
+                    'and persisted.',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                  ),
+                  Text('candidateState: ${canonicalTopologyResult.candidateState}'),
+                  Text('canonicalTopologyArtifactId: '
+                      '${canonicalTopologyResult.canonicalTopologyArtifactId}'),
+                ] else if (canonicalTopologyResult.isBlocked) ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    '⏸ status: blocked — the backend intentionally could '
+                    'not build canonical topology yet (semantic gate, not '
+                    'a failure):',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
+                  ),
+                  for (final reason in canonicalTopologyResult.blockedReasons)
+                    Text('  • $reason', style: const TextStyle(fontSize: 12, color: Colors.orange)),
                 ],
               ],
             ],
