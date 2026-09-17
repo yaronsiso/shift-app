@@ -27,23 +27,26 @@
 //     V2-appropriate debug metric turns out to be needed before the next
 //     step (Phase2C) — not invented here.
 //
-// PROMPT HARDENING PASS (this session, post production-runtime
-// verification): a real V2 run returned a genuine ZERO_LENGTH_EDGE fatal
-// (e13, v1==v13 at identical imagePct) and a real AXIS_HINT_MISMATCH
-// diagnostic (e7 hinted "horizontal" while its own returned coordinates are
-// clearly diagonal). Both are perception-quality problems, not contract
-// problems — the schema and validator already handled them exactly as
-// designed (one correctly fatal, one correctly diagnostic-only). The fix
-// is PROMPT-LEVEL ONLY: ENVELOPE_TOPOLOGY_SYSTEM_PROMPT_V2 now ends with an
-// explicit "FINAL STRUCTURAL SELF-CHECK" section instructing the model to
-// re-check its own edges/coordinates/axisHint before returning JSON. This
-// does NOT add any deterministic repair, snapping, merging, or geometry
-// mutation anywhere in code — the schema
+// PROMPT HARDENING PASS (post production-runtime verification): a real V2
+// run returned a genuine ZERO_LENGTH_EDGE fatal (e13, v1==v13 at identical
+// imagePct) and a real AXIS_HINT_MISMATCH diagnostic (e7 hinted
+// "horizontal" while its own returned coordinates are clearly diagonal).
+// Both are perception-quality problems, not contract problems — the schema
+// and validator already handled them exactly as designed (one correctly
+// fatal, one correctly diagnostic-only). The fix was PROMPT-LEVEL ONLY.
+//
+// SEGMENTATION-STABILITY PASS (this change): repeated runs on the SAME crop
+// produced materially different raw graphs (roughly 14/13, 23/23, 26/25,
+// 32/30 vertices/edges). Again PROMPT-LEVEL ONLY, and additionally the
+// prompt has now been MOVED OUT of this file into
+// ../_shared/envelope_topology_system_prompt_v2.ts so it can be covered by
+// regression tests — see that file's header for the exact rules added and
+// why. Nothing else in this file changed: the schema
 // (envelope_topology_schema_v2.ts) and validator
-// (envelope_topology_validators_v2.ts) are both completely untouched by
-// this change, and open/disconnected/uncertain/incomplete output remains
-// fully allowed and is explicitly reaffirmed as preferable to invented
-// closure, both in the pre-existing prompt text and in the new section.
+// (envelope_topology_validators_v2.ts) are untouched, no deterministic
+// repair/snapping/merging/geometry mutation exists anywhere in code, and
+// open/disconnected/uncertain/incomplete output remains fully allowed and
+// explicitly preferable to invented closure.
 //
 // What did NOT change:
 //   - This is still a NEW-artifact-per-call, additive stage. It does not
@@ -67,9 +70,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // V1 imports are RETAINED, byte-for-byte, but are no longer wired into the
-// active call path below (see PRODUCER MIGRATION note ahead of
-// ENVELOPE_TOPOLOGY_SYSTEM_PROMPT_V2). Kept only in case a future rollback
-// or comparison needs them; the V1 contract file itself is untouched.
+// active call path below. Kept only in case a future rollback or comparison
+// needs them; the V1 contract file itself is untouched.
 import {
   ENVELOPE_TOPOLOGY_V2_JSON_SCHEMA,
   parseEnvelopeTopologyV2,
@@ -80,132 +82,19 @@ import {
   validateEnvelopeTopologyV2,
   type ValidationResultV2,
 } from "../_shared/envelope_topology_validators_v2.ts";
+// The V2 RAW-perception system prompt lives in its own shared module so it
+// can be asserted on by regression tests (same testability precedent as the
+// schema/validator files above, which are symlinked into
+// claude/phase1c-a/src/). Extraction only — the prompt is the single
+// authority for this stage's perception instructions, exactly as it was
+// when defined inline here through commit 9d96d99. See that file's header
+// for the segmentation-stability rationale behind its current content.
+import { ENVELOPE_TOPOLOGY_SYSTEM_PROMPT_V2 } from "../_shared/envelope_topology_system_prompt_v2.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") ?? "gpt-5.6-luna";
-
-// V2 SYSTEM PROMPT — locked direction per §17: does NOT require a
-// continuous complete perimeter, a closed polygon, or invented closure.
-// Explicitly permits reporting only what is visually supported, including
-// open/disconnected structure. Does NOT ask the model to make any
-// KEEP/REJECT/interior/exterior semantic decision — that stays Phase1C's
-// job entirely; this prompt only asks for perception evidence.
-const ENVELOPE_TOPOLOGY_SYSTEM_PROMPT_V2 = `
-את/ה מערכת לזיהוי **עדות חזותית גולמית** (raw perception evidence) על קווי
-קיר חיצוניים אפשריים מתוך תמונה של שרטוט קומה - את/ה **לא** מודד/ת שום
-דבר, ואסור לך להחזיר שום מטר, ס"מ, מ"מ, שטח, קנה-מידה, או "מספר מידה"
-מכל סוג.
-
-**שינוי חשוב לעומת גרסה קודמת**: את/ה **לא** נדרש/ת להחזיר פוליגון סגור
-אחד רציף. תפקידך הוא לתעד את מה שאת/ה רואה בפועל בתמונה - קטעי קיר
-חיצוני, כפי שהם, גם אם:
-- יש קטע שאי אפשר לראות בבירור אם הוא ממשיך (בגלל הסתרה, מקרא/legend,
-  איכות תמונה, וכו') - במקרה כזה, פשוט אל תתעד/י צלע שם. אל תמציא/י המשך
-  נסתר, ואל תגשר/י מעל הפער בקו מדומיין.
-- הגרף שנוצר אינו נסגר למעגל אחד, או שיש בו יותר ממרכיב מחובר אחד
-  (component) - זה תקין ומצופה. אל תדחה/י ראיה חזותית אמיתית רק כי היא
-  לא "סוגרת" משהו.
-- יש כמה קווים מועמדים אפשריים לאותו אזור - תעד/י את כולם כצלעות נפרדות,
-  ואל תבחר/י ביניהם בעצמך (הבחירה נעשית בשלב נפרד לגמרי, לא על ידך).
-
-**העיקרון המרכזי, כמו קודם**: את/ה עוקב/ת אחרי הקיר הפיזי עצמו, לא אחרי
-הצללית/המלבן הכולל של הבניין. בכל מקום שבו קו הקיר החיצוני **משנה כיוון
-בפועל** - גם אם זה שינוי קטן, גם אם זו רק קפיצה (jog) קצרה, גם אם זו
-כניסה (recess) פנימה ואז החוצה שוב - **חובה** ליצור שם פינה (vertex)
-נפרדת. אסור לדלג על שינוי כיוון אמיתי כדי "לקצר" צלע אחת ארוכה, ואסור
-"לגשר" מעל recess בקו ישר אחד.
-
-1. vertices: כל נקודה שבה קו קיר חיצוני נראה לעין משנה כיוון, מתחיל, או
-   מסתיים (לא קירות פנימיים, לא ריהוט, לא טקסט/מידות שכתובות בשרטוט) -
-   נקודה אחת לכל מקרה כזה, עם imagePct.xPct/yPct (0-100 ביחס לתמונה הזו
-   בלבד). תן/י לכל פינה מזהה ייחודי (v1, v2, ...).
-
-2. edges: כל צלע שמחברת שתי פינות עוקבות לאורך קו קיר חיצוני נראה לעין -
-   עם fromVertexId/toVertexId, ו:
-   - axisHint: "horizontal" אם הצלע אופקית, "vertical" אם אנכית,
-     "diagonal_or_unknown" אם הצלע **אלכסונית בפועל** בשרטוט, או שלא
-     ברור - אל תכריח/י צלע אלכסונית אמיתית להיראות אופקית/אנכית, וגם אל
-     תיישר/י אותה - תעד/י אותה כפי שהיא נראית. ערך זה הוא רמז בלבד
-     ואינו סופי - אין צורך "לתקן" גיאומטריה כדי להתאים לרמז.
-   - roleHint: "exterior_wall" (קיר חיצוני רגיל), "opening" (פתח/כניסה
-     בקו המעטפת עצמו, אם יש כזה), "uncertain" אם לא ברור.
-
-3. perceptionNotes (אופציונלי): הערות קצרות על אזורים לא-ברורים, הסתרה,
-   מקרא/legend שמכסה חלק מהשרטוט, פינה מוסתרת חלקית ע"י טקסט מידה, קו לא
-   חד, אזור עם כמה קווים מועמדים אפשריים, וכו'. תעד/י את חוסר הוודאות
-   כאן - אל תנסה/י "לתקן" את הטופולוגיה בעצמך כדי להסתיר אותה.
-
-**אסור בהחלט**:
-- לכתוב שום ערך במטרים/ס"מ/מ"מ.
-- לחשב או להעריך שטח.
-- להמציא scale/קנה-מידה.
-- להחזיר "dimensionRefs" או כל התייחסות למידות כתובות בשרטוט - זה נעשה
-  בשלב נפרד לגמרי, לא על ידך.
-- להחזיר "polygonOrder" או כל רשימת סדר-היקפי - שדה כזה לא קיים יותר
-  ואסור להמציא אותו.
-- לכלול קירות פנימיים/מחיצות - רק קווי קיר חיצוניים.
-- **לפשט את הבניין לצללית/למלבן הכולל שלו** - אם יש jog, זיז, שקע
-  (recess), או קיר חיצוני באלכסון - **חובה** לתעד אותם במדויק, לא
-  "לגשר" מעליהם בקו ישר אחד ארוך.
-- **להמציא המשך נסתר** - אם אזור מוסתר/לא ברור, פשוט אל תתעד/י צלע שם
-  ותאר/י את חוסר הבהירות ב-perceptionNotes. אל תנחש/י ואל תגשר/י מעל
-  הפער.
-- **להתעלם מקטעי קיר חיצוני קצרים** - קטע קיר קצר הוא עדיין קטע קיר
-  אמיתי וצריך שתי פינות משלו, גם אם הוא נראה זניח ביחס לשאר הבניין.
-- **לעקוב אחרי קווי מידה (dimension lines) או קווי setback מקווקווים**
-  במקום אחרי קו הקיר האמיתי - קווי מידה וקווים מקווקווים הם עדות
-  למדידה או לגבולות תכנוניים, **לא** לקו הקיר הפיזי שנבנה בפועל. אם קו
-  מידה עובר במקביל לקיר אך לא צמוד אליו, עקוב/י אחרי הקיר עצמו, לא אחרי
-  קו המידה.
-
-לפני שאת/ה מסיימ/ת, עבור/י שוב באופן שיטתי על כל האזורים בתמונה, ושאל/י
-את עצמך בכל קטע: "האם יש כאן קו קיר חיצוני נראה לעין שעדיין לא תיעדתי?"
-- במיוחד באזורים עם גיאומטריה לא-פשוטה (פינות מטבח, אזורי מדרגות, חיבורים
-בין אגפים, אזורים עם מקרא/legend חופף) בהם קווי קיר חיצוניים נוטים להיות
-מורכבים יותר משורה ישרה אחת, או מוסתרים חלקית. תיעוד חלקי אך כן הוא עדיף
-על פני "סגירה" מומצאת.
-
-**בדיקה עצמית מבנית סופית (FINAL STRUCTURAL SELF-CHECK) — חובה לפני
-החזרת ה-JSON**: אחרי שסיימת לתעד, עבור/י שוב על כל צלע וכל פינה שכתבת,
-ובדוק/י את השבעה הכללים הבאים. זו בדיקת **מבנה/דיוק** של מה שכבר תיעדת -
-לא עוד סבב תיעוד חדש:
-
-1. כל צלע חייבת לחבר שתי נקודות שונות מבחינה גיאומטרית. אסור בהחלט
-   להחזיר צלע שנקודות הקצה שלה זהות, או כמעט זהות (למשל הפרש של
-   0.0-0.1 אחוז), ב-imagePct. אם fromVertexId ו-toVertexId של צלע
-   מצביעים בפועל לאותו מיקום בתמונה, זו שגיאה - אל תכלול/י את הצלע הזו.
-
-2. אל תיצור/י שתי פינות (vertex ids) שונות באותו מיקום בתמונה רק כדי
-   "לסגור", "להמשיך", או "לחבר" טופולוגיה. אם שתי פינות שתיעדת מצביעות
-   בפועל לאותו מיקום, זה כמעט תמיד סימן שהיית צריכות/ים להשתמש באותה
-   פינה פעמיים (זהה id), לא ביצור שתי פינות נפרדות.
-
-3. אסור להוסיף צלע זעירה/באורך אפס כדי שהגרף "ייראה" סגור או מחובר.
-   ראיה חסרה צריכה להישאר חסרה - אל תמלא/י את הפער עם צלע מלאכותית קצרה
-   רק כדי לחבר בין שני חלקים של הגרף.
-
-4. בדוק/י מחדש כל צלע מול הקואורדינטות שכתבת בפועל עבור שתי הפינות שלה
-   (לא מול איך שהצלע "אמורה" להיראות) - לפני שאת/ה שולח/ת את ה-JSON
-   הסופי.
-
-5. axisHint חייב לתאר את הקואורדינטות שבאמת החזרת, לא את מה שדמיינת:
-   - "horizontal" רק כאשר yPct של שתי הפינות דומה בקירוב.
-   - "vertical" רק כאשר xPct של שתי הפינות דומה בקירוב.
-   - בכל מקרה אחר (כולל כאשר גם x וגם y משתנים משמעותית בין שתי
-     הפינות) - "diagonal_or_unknown". אל תסמן/י "horizontal" או
-     "vertical" רק כי זה מה שציפית לראות בשרטוט.
-
-6. אם הראיה החזותית לא ברורה, שמור/י על חוסר הוודאות (roleHint:
-   "uncertain", cornerAngleHint: "uncertain", axisHint:
-   "diagonal_or_unknown", ו/או הערה ב-perceptionNotes) - אל תמציא/י
-   גיאומטריה כדי "לפתור" את חוסר הבהירות.
-
-7. פלט פתוח, לא-מחובר, או חלקי **עדיף** על פני סגירה מומצאת או גיאומטריה
-   לא-תקינה מבנית (כגון צלע באורך אפס). אל תוותר/י על דיוק מבני רק כדי
-   שהתוצאה "תיראה" שלמה יותר.
-`.trim();
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
