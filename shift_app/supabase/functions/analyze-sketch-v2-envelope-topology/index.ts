@@ -27,6 +27,24 @@
 //     V2-appropriate debug metric turns out to be needed before the next
 //     step (Phase2C) — not invented here.
 //
+// PROMPT HARDENING PASS (this session, post production-runtime
+// verification): a real V2 run returned a genuine ZERO_LENGTH_EDGE fatal
+// (e13, v1==v13 at identical imagePct) and a real AXIS_HINT_MISMATCH
+// diagnostic (e7 hinted "horizontal" while its own returned coordinates are
+// clearly diagonal). Both are perception-quality problems, not contract
+// problems — the schema and validator already handled them exactly as
+// designed (one correctly fatal, one correctly diagnostic-only). The fix
+// is PROMPT-LEVEL ONLY: ENVELOPE_TOPOLOGY_SYSTEM_PROMPT_V2 now ends with an
+// explicit "FINAL STRUCTURAL SELF-CHECK" section instructing the model to
+// re-check its own edges/coordinates/axisHint before returning JSON. This
+// does NOT add any deterministic repair, snapping, merging, or geometry
+// mutation anywhere in code — the schema
+// (envelope_topology_schema_v2.ts) and validator
+// (envelope_topology_validators_v2.ts) are both completely untouched by
+// this change, and open/disconnected/uncertain/incomplete output remains
+// fully allowed and is explicitly reaffirmed as preferable to invented
+// closure, both in the pre-existing prompt text and in the new section.
+//
 // What did NOT change:
 //   - This is still a NEW-artifact-per-call, additive stage. It does not
 //     read from, write to, or otherwise touch analyze-sketch-v2-envelope,
@@ -148,6 +166,45 @@ const ENVELOPE_TOPOLOGY_SYSTEM_PROMPT_V2 = `
 בין אגפים, אזורים עם מקרא/legend חופף) בהם קווי קיר חיצוניים נוטים להיות
 מורכבים יותר משורה ישרה אחת, או מוסתרים חלקית. תיעוד חלקי אך כן הוא עדיף
 על פני "סגירה" מומצאת.
+
+**בדיקה עצמית מבנית סופית (FINAL STRUCTURAL SELF-CHECK) — חובה לפני
+החזרת ה-JSON**: אחרי שסיימת לתעד, עבור/י שוב על כל צלע וכל פינה שכתבת,
+ובדוק/י את השבעה הכללים הבאים. זו בדיקת **מבנה/דיוק** של מה שכבר תיעדת -
+לא עוד סבב תיעוד חדש:
+
+1. כל צלע חייבת לחבר שתי נקודות שונות מבחינה גיאומטרית. אסור בהחלט
+   להחזיר צלע שנקודות הקצה שלה זהות, או כמעט זהות (למשל הפרש של
+   0.0-0.1 אחוז), ב-imagePct. אם fromVertexId ו-toVertexId של צלע
+   מצביעים בפועל לאותו מיקום בתמונה, זו שגיאה - אל תכלול/י את הצלע הזו.
+
+2. אל תיצור/י שתי פינות (vertex ids) שונות באותו מיקום בתמונה רק כדי
+   "לסגור", "להמשיך", או "לחבר" טופולוגיה. אם שתי פינות שתיעדת מצביעות
+   בפועל לאותו מיקום, זה כמעט תמיד סימן שהיית צריכות/ים להשתמש באותה
+   פינה פעמיים (זהה id), לא ביצור שתי פינות נפרדות.
+
+3. אסור להוסיף צלע זעירה/באורך אפס כדי שהגרף "ייראה" סגור או מחובר.
+   ראיה חסרה צריכה להישאר חסרה - אל תמלא/י את הפער עם צלע מלאכותית קצרה
+   רק כדי לחבר בין שני חלקים של הגרף.
+
+4. בדוק/י מחדש כל צלע מול הקואורדינטות שכתבת בפועל עבור שתי הפינות שלה
+   (לא מול איך שהצלע "אמורה" להיראות) - לפני שאת/ה שולח/ת את ה-JSON
+   הסופי.
+
+5. axisHint חייב לתאר את הקואורדינטות שבאמת החזרת, לא את מה שדמיינת:
+   - "horizontal" רק כאשר yPct של שתי הפינות דומה בקירוב.
+   - "vertical" רק כאשר xPct של שתי הפינות דומה בקירוב.
+   - בכל מקרה אחר (כולל כאשר גם x וגם y משתנים משמעותית בין שתי
+     הפינות) - "diagonal_or_unknown". אל תסמן/י "horizontal" או
+     "vertical" רק כי זה מה שציפית לראות בשרטוט.
+
+6. אם הראיה החזותית לא ברורה, שמור/י על חוסר הוודאות (roleHint:
+   "uncertain", cornerAngleHint: "uncertain", axisHint:
+   "diagonal_or_unknown", ו/או הערה ב-perceptionNotes) - אל תמציא/י
+   גיאומטריה כדי "לפתור" את חוסר הבהירות.
+
+7. פלט פתוח, לא-מחובר, או חלקי **עדיף** על פני סגירה מומצאת או גיאומטריה
+   לא-תקינה מבנית (כגון צלע באורך אפס). אל תוותר/י על דיוק מבני רק כדי
+   שהתוצאה "תיראה" שלמה יותר.
 `.trim();
 
 function jsonResponse(body: unknown, status = 200) {
