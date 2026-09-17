@@ -8,13 +8,15 @@
 //
 // What this function does, and nothing more:
 //   1. Given a jobId whose "envelope_topology" stage has already produced
-//      at least one artifact with payload.status==="valid", take the
-//      NEWEST such valid artifact as input authority (a newer invalid /
-//      forbidden_field_error attempt for the same job does NOT invalidate
-//      an older valid one — see POLICY 1 below).
+//      at least one artifact with payload.status==="valid" AND a
+//      recognized schemaVersion (V1 or V2), take the NEWEST such artifact
+//      as input authority (a newer invalid / forbidden_field_error /
+//      unsupported-schema attempt for the same job does NOT invalidate an
+//      older valid, supported one — see POLICY 1/1B/1C below).
 //   2. Runs the existing, closed, already-tested Phase1C-A/Phase1C-B
 //      pipeline against it, ONE OpenAI Structured Outputs call, no retry:
-//        envelopeTopologyV1ToRawTopology
+//        envelopeTopologyV1ToRawTopology / envelopeTopologyV2ToRawTopology
+//          (dispatched by schemaVersion, never guessed)
 //          -> buildSemanticPlanProposalRequest -> (one OpenAI call)
 //          -> parseAndCheckSemanticPlanProposalResponse
 //          -> validateSemanticPlan
@@ -34,20 +36,56 @@
 //                                  passed.
 //
 // ==========================================================================
-// POLICY 1 — ENVELOPE TOPOLOGY AUTHORITY (locked, this session)
+// POLICY 1 — ENVELOPE TOPOLOGY AUTHORITY (locked, this session; extended
+// this session for schema-aware V1/V2 dispatch — see POLICY 1B below)
 // ==========================================================================
-// Input authority = FILTER valid -> THEN select latest. Concretely: fetch
-// every "envelope_topology" artifact for this job ordered by version desc,
-// take the newest one whose payload.status==="valid", and record every
-// higher-versioned artifact skipped over (invalid / forbidden_field_error)
-// as `skippedNewerInvalidVersions` for full traceability in the persisted
-// `semantic_plan` artifact. A newer failed attempt never invalidates an
-// older valid one — envelope_topology's own design deliberately never
-// touches analysis_jobs.status/current_stage on invalid/forbidden_field_error,
-// treating each attempt as independent (see that function's file header).
-// This must never be silent: `sourceEnvelopeTopologyArtifactVersion` and
-// `skippedNewerInvalidVersions` are always persisted in `semantic_plan`,
-// whether or not anything was actually skipped.
+// Input authority = FILTER valid -> THEN select latest SUPPORTED-SCHEMA
+// artifact. Concretely: fetch every "envelope_topology" artifact for this
+// job ordered by version desc, walk newest-to-oldest, and take the first
+// one whose payload.status==="valid" AND whose payload.topology.schemaVersion
+// is one this function recognizes AND whose corresponding parser succeeds.
+// Every artifact skipped along the way (invalid / forbidden_field_error /
+// unsupported schema) is recorded for full traceability in the persisted
+// `semantic_plan` artifact. A newer failed or unsupported attempt never
+// invalidates an older valid, supported one.
+//
+// ==========================================================================
+// POLICY 1B — SCHEMA-AWARE DISPATCH (locked this session)
+// ==========================================================================
+// For each candidate row with payload.status==="valid", inspect
+// payload.topology.schemaVersion (never inferred, never defaulted from an
+// absent value — envelope_topology's own producer has always injected this
+// field server-side, for both V1 and V2, so "missing" is treated as
+// unsupported, not as an implicit V1):
+//   - "envelope_topology_v2" -> parseEnvelopeTopologyV2 -> on success,
+//     SELECT this row; on failure, this is a STORED_ARTIFACT_INTEGRITY
+//     TECHNICAL_FAILURE (see POLICY 1C) — never silently fall back to an
+//     older row.
+//   - "envelope_topology_v1" -> parseEnvelopeTopologyV1 -> on success,
+//     SELECT this row (backward compatibility for historical V1 artifacts);
+//     on failure, same TECHNICAL_FAILURE treatment as V2.
+//   - anything else (absent, malformed, or a schemaVersion string this
+//     function doesn't recognize) -> SKIP_UNSUPPORTED_SCHEMA: record it in
+//     `skippedUnsupportedSchemaVersions` and continue to the next
+//     older row, exactly like an invalid attempt.
+// If no row is ever selected (every valid row was unsupported, or there
+// were no valid rows at all), the existing no-source 400 bad_request
+// response is preserved unchanged — this is a caller/sequencing
+// precondition failure, never a job failure.
+//
+// ==========================================================================
+// POLICY 1C — SUPPORTED-SCHEMA PARSE/INTEGRITY FAILURE (locked this session)
+// ==========================================================================
+// A row that declares status:"valid" and a schemaVersion this function
+// explicitly supports, but whose stored payload.topology fails that
+// schema's own parser, is a genuine data-integrity inconsistency — not a
+// compatibility question (that's what an unsupported schemaVersion is for).
+// This is classified as TECHNICAL_FAILURE immediately: failJob + 500,
+// exactly like the pre-existing "stored envelope_topology artifact failed
+// re-validation" branch this replaces. It is never treated as
+// SKIP_UNSUPPORTED_SCHEMA, and there is no fallback to an older row — an
+// artifact that lies about its own validity is not something an older row
+// can silently paper over.
 //
 // ==========================================================================
 // POLICY 2 — CANONICAL VALIDATION FAILURE (locked, this session)
@@ -103,11 +141,18 @@ import {
   parseEnvelopeTopologyV1,
   type EnvelopeTopologyV1,
 } from "../_shared/envelope_topology_schema_v1.ts";
+import {
+  parseEnvelopeTopologyV2,
+  type EnvelopeTopologyV2,
+} from "../_shared/envelope_topology_schema_v2.ts";
 import type {
   CanonicalTopologyCandidate,
   ValidationResult,
 } from "../_shared/canonical_topology_v1.ts";
-import { envelopeTopologyV1ToRawTopology } from "../_shared/phase1c/adapter.ts";
+import {
+  envelopeTopologyV1ToRawTopology,
+  envelopeTopologyV2ToRawTopology,
+} from "../_shared/phase1c/adapter.ts";
 import type { RawTopology, ApprovedPlan } from "../_shared/phase1c/model.ts";
 import { buildSemanticPlanProposalRequest } from "../_shared/phase1c/build_semantic_plan_request.ts";
 import { parseAndCheckSemanticPlanProposalResponse } from "../_shared/phase1c/parse_semantic_plan_proposal_response.ts";
@@ -185,9 +230,19 @@ interface EnvelopeTopologyArtifactRow {
   version: number;
   payload: {
     status: "valid" | "invalid" | "forbidden_field_error";
-    topology: EnvelopeTopologyV1 | null;
+    // Deliberately `unknown`-shaped here at the row-fetch level (not
+    // narrowed to EnvelopeTopologyV1 | EnvelopeTopologyV2 | null) because
+    // this is a raw DB read: the schema-aware dispatch loop below is
+    // exactly what determines which parser, if any, can turn this into a
+    // real typed topology. Narrowing here would require deciding the
+    // schema before checking it.
+    topology: { schemaVersion?: unknown } | null;
   };
 }
+
+type SelectedEnvelope =
+  | { kind: "v1"; envelope: EnvelopeTopologyV1 }
+  | { kind: "v2"; envelope: EnvelopeTopologyV2 };
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") {
@@ -281,26 +336,45 @@ Deno.serve(async (req) => {
 
   const rows = envelopeTopologyArtifacts as unknown as EnvelopeTopologyArtifactRow[];
   const skippedNewerInvalidVersions: number[] = [];
+  const skippedUnsupportedSchemaVersions: Array<{ version: number; schemaVersion: unknown }> = [];
   let selectedRow: EnvelopeTopologyArtifactRow | null = null;
+  let selectedSchemaVersion: "envelope_topology_v1" | "envelope_topology_v2" | null = null;
+
   for (const row of rows) {
-    if (row.payload?.status === "valid" && row.payload.topology) {
+    if (row.payload?.status !== "valid" || !row.payload.topology) {
+      skippedNewerInvalidVersions.push(row.version);
+      continue;
+    }
+
+    const schemaVersion = row.payload.topology.schemaVersion;
+    if (schemaVersion === "envelope_topology_v2" || schemaVersion === "envelope_topology_v1") {
       selectedRow = row;
+      selectedSchemaVersion = schemaVersion;
       break;
     }
-    skippedNewerInvalidVersions.push(row.version);
+
+    // POLICY 1B: an unrecognized/absent schemaVersion on an otherwise-valid
+    // row is a compatibility skip, not a hard failure — continue searching
+    // older rows exactly like an invalid attempt.
+    skippedUnsupportedSchemaVersions.push({ version: row.version, schemaVersion });
   }
 
-  if (!selectedRow) {
-    // No valid envelope_topology artifact exists at any version for this
-    // job — a caller/sequencing precondition failure (mirrors
+  if (!selectedRow || !selectedSchemaVersion) {
+    // No supported, valid envelope_topology artifact exists at any version
+    // for this job — a caller/sequencing precondition failure (mirrors
     // page-dimensions' "stage 0 must complete" 400, not a job failure).
+    // Preserved unchanged from before schema-aware dispatch was added,
+    // per POLICY 1B.
     return jsonResponse(
       {
         error: "bad_request",
         detail:
-          "no valid envelope_topology artifact exists for this job (all attempts are invalid/forbidden_field_error) — re-run analyze-sketch-v2-envelope-topology until it succeeds",
+          "no valid, schema-supported envelope_topology artifact exists for this job " +
+          "(all attempts are invalid/forbidden_field_error, or declare an unsupported " +
+          "schemaVersion) — re-run analyze-sketch-v2-envelope-topology until it succeeds",
         jobId,
         skippedNewerInvalidVersions,
+        skippedUnsupportedSchemaVersions,
       },
       400,
     );
@@ -308,41 +382,59 @@ Deno.serve(async (req) => {
 
   const sourceEnvelopeTopologyArtifactVersion = selectedRow.version;
 
-  // Defensive re-validation of the stored topology, exactly as the shared
-  // parser is meant to be used on a value read back from storage.
-  let envelope: EnvelopeTopologyV1;
+  // POLICY 1C: defensive re-validation of the stored topology against its
+  // OWN declared schema's parser. A row that claimed status:"valid" and a
+  // SUPPORTED schemaVersion, but fails that schema's parser, is a genuine
+  // stored-artifact integrity failure — TECHNICAL_FAILURE immediately, no
+  // fallback to an older row (see POLICY 1C comment above).
+  let selected: SelectedEnvelope;
   try {
-    envelope = parseEnvelopeTopologyV1(selectedRow.payload.topology);
+    if (selectedSchemaVersion === "envelope_topology_v2") {
+      selected = { kind: "v2", envelope: parseEnvelopeTopologyV2(selectedRow.payload.topology) };
+    } else {
+      selected = { kind: "v1", envelope: parseEnvelopeTopologyV1(selectedRow.payload.topology) };
+    }
   } catch (err) {
-    await failJob(`stored envelope_topology artifact failed re-validation: ${String(err)}`);
+    await failJob(
+      `stored envelope_topology artifact (version ${sourceEnvelopeTopologyArtifactVersion}, ` +
+        `schemaVersion=${selectedSchemaVersion}) declared status:"valid" but failed its own ` +
+        `schema's re-validation — STORED_ARTIFACT_INTEGRITY_FAILURE: ${String(err)}`,
+    );
     return jsonResponse(
       {
         error: "internal_error",
-        detail: `stored envelope_topology artifact failed re-validation: ${String(err)}`,
+        detail:
+          `stored envelope_topology artifact failed re-validation against its declared ` +
+          `schemaVersion (${selectedSchemaVersion}): ${String(err)}`,
         jobId,
       },
       500,
     );
   }
 
-  // FIX 2 (code-audit correction): parseEnvelopeTopologyV1 only performs a
-  // shallow forbidden-field-name check (see envelope_topology_schema_v1.ts's
-  // own doc comment) — it does NOT validate structural shape. A malformed
-  // stored payload that passes that shallow check (e.g. missing/non-array
-  // vertices/edges) would otherwise crash envelopeTopologyV1ToRawTopology's
-  // unguarded .map() calls with an uncaught TypeError. Classified as
-  // TECHNICAL_FAILURE, exactly like every other unexpected-shape failure in
-  // this file — no OpenAI call, no semantic_plan, no canonical_topology are
-  // ever reached from this branch.
+  const envelope: EnvelopeTopologyV1 | EnvelopeTopologyV2 = selected.envelope;
+
+  // FIX 2 (code-audit correction, carried over unchanged): the parser only
+  // performs a shallow forbidden-field-name check — it does NOT validate
+  // structural shape. A malformed stored payload that passes that shallow
+  // check (e.g. missing/non-array vertices/edges) would otherwise crash the
+  // adapter's unguarded .map() calls with an uncaught TypeError. Classified
+  // as TECHNICAL_FAILURE, exactly like every other unexpected-shape failure
+  // in this file — no OpenAI call, no semantic_plan, no canonical_topology
+  // are ever reached from this branch. Adapter selection dispatches on
+  // `selected.kind`, never guessed from shape.
   let raw: RawTopology;
   try {
-    raw = envelopeTopologyV1ToRawTopology(envelope);
+    raw =
+      selected.kind === "v2"
+        ? envelopeTopologyV2ToRawTopology(selected.envelope)
+        : envelopeTopologyV1ToRawTopology(selected.envelope);
   } catch (err) {
-    await failJob(`envelopeTopologyV1ToRawTopology threw on stored topology: ${String(err)}`);
+    await failJob(`envelope-to-RawTopology adapter threw on stored topology: ${String(err)}`);
     return jsonResponse(
       {
         error: "internal_error",
-        detail: `envelopeTopologyV1ToRawTopology threw on stored topology: ${String(err)}`,
+        detail: `envelope-to-RawTopology adapter threw on stored topology: ${String(err)}`,
         jobId,
       },
       500,
@@ -489,7 +581,9 @@ Deno.serve(async (req) => {
     referentialIntegrity: structural.referentialIntegrity,
     validation,
     sourceEnvelopeTopologyArtifactVersion,
+    sourceEnvelopeTopologyArtifactSchemaVersion: selectedSchemaVersion,
     skippedNewerInvalidVersions,
+    skippedUnsupportedSchemaVersions,
     model: OPENAI_MODEL,
     durationMs,
     attempt,
@@ -539,7 +633,9 @@ Deno.serve(async (req) => {
       status: "blocked",
       blockedReasons: blockedReasons.map((r) => `${r.key}: ${r.details}`),
       sourceEnvelopeTopologyArtifactVersion,
+      sourceEnvelopeTopologyArtifactSchemaVersion: selectedSchemaVersion,
       skippedNewerInvalidVersions,
+      skippedUnsupportedSchemaVersions,
       durationMs,
       attempt,
     });
@@ -688,7 +784,9 @@ Deno.serve(async (req) => {
     status: "success",
     candidateState: candidate.candidateState,
     sourceEnvelopeTopologyArtifactVersion,
+    sourceEnvelopeTopologyArtifactSchemaVersion: selectedSchemaVersion,
     skippedNewerInvalidVersions,
+    skippedUnsupportedSchemaVersions,
     durationMs,
     attempt,
   });

@@ -35,8 +35,9 @@
 
 import type { RawTopology } from './model.ts';
 import type { EnvelopeTopologyV1 } from '../envelope_topology_schema_v1.ts';
+import type { EnvelopeTopologyV2 } from '../envelope_topology_schema_v2.ts';
 import type { SemanticPlanProposal } from './semantic_plan_proposal_v1.ts';
-import { envelopeTopologyV1ToRawTopology } from './adapter.ts';
+import { envelopeTopologyV1ToRawTopology, envelopeTopologyV2ToRawTopology } from './adapter.ts';
 
 export type ReferentialIntegrityRuleName =
   | 'EDGE_REF_MUST_EXIST'
@@ -183,17 +184,29 @@ export function checkReferentialIntegrity(
 }
 
 /**
- * Convenience wrapper for callers that only have the full EnvelopeTopologyV1
- * on hand (e.g. immediately after the future Part B AI call, before any
- * adapter step). Internally reuses the same pure adapter used to build
+ * Convenience wrapper for callers that only have the full envelope object
+ * on hand (e.g. immediately after the Part B AI call, before any adapter
+ * step). Internally reuses the same pure adapter used to build
  * constructCanonicalTopology's input, which the adapter tests prove
  * preserves every vertex/edge id verbatim -- so checking against the
- * adapted RawTopology here is equivalent to checking directly against
- * EnvelopeTopologyV1's own ids.
+ * adapted RawTopology here is equivalent to checking directly against the
+ * envelope's own ids.
+ *
+ * V1/V2 NOTE: `envelope` may be either shape. The correct adapter is
+ * selected by `envelope.schemaVersion`, never guessed. This function
+ * itself never reads `polygonOrder` or any other envelope field directly --
+ * it only ever forwards to `checkReferentialIntegrity`, which operates
+ * purely on RawTopology (vertex/edge id sets and dualFaceOf references).
+ * Confirmed by reading this file in full: no closed-polygon or
+ * V1-only-field dependency exists anywhere in it.
  */
 export function checkReferentialIntegrityAgainstEnvelope(
   proposal: SemanticPlanProposal,
-  envelope: EnvelopeTopologyV1,
+  envelope: EnvelopeTopologyV1 | EnvelopeTopologyV2,
 ): ReferentialIntegrityResult[] {
-  return checkReferentialIntegrity(proposal, envelopeTopologyV1ToRawTopology(envelope));
+  const raw =
+    envelope.schemaVersion === 'envelope_topology_v2'
+      ? envelopeTopologyV2ToRawTopology(envelope)
+      : envelopeTopologyV1ToRawTopology(envelope);
+  return checkReferentialIntegrity(proposal, raw);
 }

@@ -1,105 +1,123 @@
 // supabase/functions/analyze-sketch-v2-envelope-topology/index.ts
 //
-// Phase 1 of the Envelope Constraint Solver v1 migration (see handoff /
-// design-review conversation, session 24). This is a NEW, PARALLEL,
-// ADDITIVE function. It does not read from, write to, or otherwise touch
-// analyze-sketch-v2-envelope, analysis_jobs.current_stage="envelope", or
-// `buildingEnvelope` in any downstream response. Nothing today's app reads
-// depends on this function's output yet — that's Phase 4, and only after
-// Phase 1, 2, and 3 have each been reviewed separately against a real
-// drawing, per Yaron's explicit phased-rollout instruction.
+// PRODUCER MIGRATION TO EnvelopeTopologyV2 (locked, per
+// SHIFT_AGENT_HANDOFF_CURRENT.md §19.B and this session's approval): this
+// function is the SAME Edge Function that used to produce
+// EnvelopeTopologyV1 rows. Per the locked decision, it now produces V2 rows
+// going forward. It does NOT become a new/second function — the file path,
+// route, and `stage = "envelope_topology"` value are all unchanged.
 //
-// What this function does, and ONLY this:
-//   1. Takes the SAME cropped floor-plan image Stage 1 (envelope) and Pass 1
-//      (page-dimensions) already use (`${userId}/analysis/${jobId}/cropped.jpg`,
-//      produced by Stage 0/scope).
-//   2. Calls OpenAI with a strict JSON Schema
-//      (../_shared/envelope_topology_schema_v1.ts) that can ONLY return
-//      image-space topology: vertex positions as image percentages, an
-//      ordered closed polygon, edge ids, and axis/role hints. There is no
-//      field in that schema for meters, scale, area, or dimensionRefs — the
-//      AI is not asked to measure anything, only to perceive shape.
-//   3. Runs that raw output through
-//      ../_shared/envelope_topology_schema_v1.ts's forbidden-field firewall
-//      (defense in depth against a provider that doesn't honor
-//      additionalProperties:false) and then through all 9 structural
-//      validators in ../_shared/envelope_topology_validators_v1.ts.
-//   4. Persists the result as a NEW artifact stage, "envelope_topology" —
-//      never overwriting or superseding the existing "page_dimensions" or
-//      any "envelope"-stage artifact.
+// What changed vs. the V1 version of this file:
+//   - The OpenAI call now uses ENVELOPE_TOPOLOGY_V2_JSON_SCHEMA (no
+//     polygonOrder field at all — see envelope_topology_schema_v2.ts) and a
+//     new Hebrew system prompt that does NOT ask for a closed polygon.
+//   - Parsing/validation now goes through parseEnvelopeTopologyV2 /
+//     validateEnvelopeTopologyV2 (fatal/diagnostic split, not V1's
+//     all-fatal validator — see envelope_topology_validators_v2.ts).
+//   - `payload.topology.schemaVersion` is now "envelope_topology_v2".
+//     Downstream (H-B) dispatches on this field to select the correct
+//     parser/adapter — see analyze-sketch-v2-canonical-topology/index.ts.
+//   - `topologyCoverageDebug` (shoelace-area / polygonOrder-dependent debug
+//     metrics) is DROPPED, not ported. V1's debug-metrics module depends
+//     structurally on `polygonOrder`, which V2 does not have, and per the
+//     handoff (§18) whether V2 needs an equivalent at all was explicitly
+//     left undecided. Building a new debug-metrics module was out of scope
+//     for this narrow implementation slice; the field is omitted from the
+//     V2 payload rather than filled with a placeholder. Flag to Yaron if a
+//     V2-appropriate debug metric turns out to be needed before the next
+//     step (Phase2C) — not invented here.
 //
-// Deliberately NOT done here (Phase 2/3/4, not this file):
-//   - No witness promotion (matching measurements/builtChains to topology).
-//   - No constraint graph, no solving, no world coordinates, no meters
-//     anywhere in this file's own logic.
-//   - No mutation of analysis_jobs.status/current_stage. This is
-//     intentional, not an oversight: Phase 1 is a validation-only path run
-//     alongside the existing pipeline, and touching the job's status/stage
-//     fields could interfere with whatever today's app already gates on
-//     those fields for the real "envelope" stage. If/when Phase 4 makes
-//     this function's output authoritative, that's the point to revisit
-//     whether/how job status should reflect it.
+// What did NOT change:
+//   - This is still a NEW-artifact-per-call, additive stage. It does not
+//     read from, write to, or otherwise touch analyze-sketch-v2-envelope,
+//     analysis_jobs.current_stage="envelope", or `buildingEnvelope` in any
+//     downstream response.
+//   - No mutation of analysis_jobs.status/current_stage here (unchanged
+//     from the V1 version of this file — this stage still runs
+//     validation-only, parallel to whatever today's app already gates on).
+//   - `_shared/envelope_topology_schema_v1.ts`,
+//     `_shared/envelope_topology_validators_v1.ts`, and
+//     `_shared/envelope_topology_debug_metrics_v1.ts` are all completely
+//     untouched by this change. Historical V1 artifacts already persisted
+//     by earlier runs of this same function remain exactly as they are —
+//     nothing here reads, rewrites, or reinterprets them.
 //
 // This file duplicates callOpenAiJsonSchema()'s shape from
 // analyze-sketch-v2-page-dimensions/index.ts rather than importing it,
-// because that helper isn't currently exported from a shared module.
-// Worth extracting to _shared once there are 3+ call sites — not done here
-// to keep this change minimal and reviewable on its own, per the phased
-// rollout.
+// because that helper isn't currently exported from a shared module. Same
+// as before this change — not modified here.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// V1 imports are RETAINED, byte-for-byte, but are no longer wired into the
+// active call path below (see PRODUCER MIGRATION note ahead of
+// ENVELOPE_TOPOLOGY_SYSTEM_PROMPT_V2). Kept only in case a future rollback
+// or comparison needs them; the V1 contract file itself is untouched.
 import {
-  ENVELOPE_TOPOLOGY_V1_JSON_SCHEMA,
-  parseEnvelopeTopologyV1,
-  EnvelopeTopologyForbiddenFieldError,
-  type EnvelopeTopologyV1,
-} from "../_shared/envelope_topology_schema_v1.ts";
+  ENVELOPE_TOPOLOGY_V2_JSON_SCHEMA,
+  parseEnvelopeTopologyV2,
+  EnvelopeTopologyV2ForbiddenFieldError,
+  type EnvelopeTopologyV2,
+} from "../_shared/envelope_topology_schema_v2.ts";
 import {
-  validateEnvelopeTopologyV1,
-  type ValidationResult,
-} from "../_shared/envelope_topology_validators_v1.ts";
-import { computeTopologyCoverageDebug, type TopologyCoverageDebug } from "../_shared/envelope_topology_debug_metrics_v1.ts";
+  validateEnvelopeTopologyV2,
+  type ValidationResultV2,
+} from "../_shared/envelope_topology_validators_v2.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") ?? "gpt-5.6-luna";
 
-const ENVELOPE_TOPOLOGY_SYSTEM_PROMPT = `
-את/ה מערכת לזיהוי **צורה בלבד** (topology) של מעטפת בניין מתוך תמונה של
-שרטוט קומה - את/ה **לא** מודד/ת שום דבר, ואסור לך להחזיר שום מטר, ס"מ,
-מ"מ, שטח, קנה-מידה, או "מספר מידה" מכל סוג. תפקידך היחיד: לעקוב אחרי קו
-הקיר החיצוני **הפיזי** של גוף הבניין - הקו המצויר שמייצג בפועל את הקיר
-עצמו - **לאורך כל ההיקף ברציפות**, ולתעד אותו כפוליגון סגור, במונחי
-אחוזים ביחס לתמונה עצמה (0-100).
+// V2 SYSTEM PROMPT — locked direction per §17: does NOT require a
+// continuous complete perimeter, a closed polygon, or invented closure.
+// Explicitly permits reporting only what is visually supported, including
+// open/disconnected structure. Does NOT ask the model to make any
+// KEEP/REJECT/interior/exterior semantic decision — that stays Phase1C's
+// job entirely; this prompt only asks for perception evidence.
+const ENVELOPE_TOPOLOGY_SYSTEM_PROMPT_V2 = `
+את/ה מערכת לזיהוי **עדות חזותית גולמית** (raw perception evidence) על קווי
+קיר חיצוניים אפשריים מתוך תמונה של שרטוט קומה - את/ה **לא** מודד/ת שום
+דבר, ואסור לך להחזיר שום מטר, ס"מ, מ"מ, שטח, קנה-מידה, או "מספר מידה"
+מכל סוג.
 
-**העיקרון המרכזי**: את/ה עוקב/ת אחרי הקיר עצמו, לא אחרי הצללית/המלבן
-הכולל של הבניין. בכל מקום שבו קו הקיר החיצוני **משנה כיוון בפועל** - גם
-אם זה שינוי קטן, גם אם זו רק קפיצה (jog) קצרה, גם אם זו כניסה (recess)
-פנימה ואז החוצה שוב - **חובה** ליצור שם פינה (vertex) נפרדת. אסור לדלג
-על שינוי כיוון אמיתי כדי "לקצר" צלע אחת ארוכה.
+**שינוי חשוב לעומת גרסה קודמת**: את/ה **לא** נדרש/ת להחזיר פוליגון סגור
+אחד רציף. תפקידך הוא לתעד את מה שאת/ה רואה בפועל בתמונה - קטעי קיר
+חיצוני, כפי שהם, גם אם:
+- יש קטע שאי אפשר לראות בבירור אם הוא ממשיך (בגלל הסתרה, מקרא/legend,
+  איכות תמונה, וכו') - במקרה כזה, פשוט אל תתעד/י צלע שם. אל תמציא/י המשך
+  נסתר, ואל תגשר/י מעל הפער בקו מדומיין.
+- הגרף שנוצר אינו נסגר למעגל אחד, או שיש בו יותר ממרכיב מחובר אחד
+  (component) - זה תקין ומצופה. אל תדחה/י ראיה חזותית אמיתית רק כי היא
+  לא "סוגרת" משהו.
+- יש כמה קווים מועמדים אפשריים לאותו אזור - תעד/י את כולם כצלעות נפרדות,
+  ואל תבחר/י ביניהם בעצמך (הבחירה נעשית בשלב נפרד לגמרי, לא על ידך).
 
-1. vertices: כל נקודה שבה קו הקיר החיצוני משנה כיוון (לא קירות פנימיים,
-   לא ריהוט, לא טקסט/מידות שכתובות בשרטוט) - נקודה אחת לכל שינוי כיוון
-   כזה, עם imagePct.xPct/yPct (0-100 ביחס לתמונה הזו בלבד). תן/י לכל
-   פינה מזהה ייחודי (v1, v2, ...).
+**העיקרון המרכזי, כמו קודם**: את/ה עוקב/ת אחרי הקיר הפיזי עצמו, לא אחרי
+הצללית/המלבן הכולל של הבניין. בכל מקום שבו קו הקיר החיצוני **משנה כיוון
+בפועל** - גם אם זה שינוי קטן, גם אם זו רק קפיצה (jog) קצרה, גם אם זו
+כניסה (recess) פנימה ואז החוצה שוב - **חובה** ליצור שם פינה (vertex)
+נפרדת. אסור לדלג על שינוי כיוון אמיתי כדי "לקצר" צלע אחת ארוכה, ואסור
+"לגשר" מעל recess בקו ישר אחד.
 
-2. edges: כל צלע שמחברת שתי פינות עוקבות לאורך קו הקיר החיצוני - עם
-   fromVertexId/toVertexId, ו:
+1. vertices: כל נקודה שבה קו קיר חיצוני נראה לעין משנה כיוון, מתחיל, או
+   מסתיים (לא קירות פנימיים, לא ריהוט, לא טקסט/מידות שכתובות בשרטוט) -
+   נקודה אחת לכל מקרה כזה, עם imagePct.xPct/yPct (0-100 ביחס לתמונה הזו
+   בלבד). תן/י לכל פינה מזהה ייחודי (v1, v2, ...).
+
+2. edges: כל צלע שמחברת שתי פינות עוקבות לאורך קו קיר חיצוני נראה לעין -
+   עם fromVertexId/toVertexId, ו:
    - axisHint: "horizontal" אם הצלע אופקית, "vertical" אם אנכית,
-     "diagonal_or_unknown" אם הצלע **אלכסונית בפועל** בשרטוט (קיר
-     חיצוני שבאמת מצויר באלכסון, לא ניצב) - אל תכריח/י צלע אלכסונית
-     אמיתית להיראות אופקית/אנכית, וגם אל תיישר/י אותה - תעד/י אותה
-     כפי שהיא נראית.
+     "diagonal_or_unknown" אם הצלע **אלכסונית בפועל** בשרטוט, או שלא
+     ברור - אל תכריח/י צלע אלכסונית אמיתית להיראות אופקית/אנכית, וגם אל
+     תיישר/י אותה - תעד/י אותה כפי שהיא נראית. ערך זה הוא רמז בלבד
+     ואינו סופי - אין צורך "לתקן" גיאומטריה כדי להתאים לרמז.
    - roleHint: "exterior_wall" (קיר חיצוני רגיל), "opening" (פתח/כניסה
      בקו המעטפת עצמו, אם יש כזה), "uncertain" אם לא ברור.
 
-3. polygonOrder: רשימת מזהי הפינות (vertices) לפי הסדר החזותי שבו הן
-   מסתובבות סביב המעטפת (בכיוון כלשהו, עקבי) - כל פינה פעם אחת, פוליגון
-   סגור (הפינה האחרונה מתחברת חזרה לראשונה).
-
-4. perceptionNotes (אופציונלי): הערות קצרות על אזורים לא-ברורים - פינה
-   מוסתרת חלקית ע"י טקסט מידה, קו לא חד, וכו'.
+3. perceptionNotes (אופציונלי): הערות קצרות על אזורים לא-ברורים, הסתרה,
+   מקרא/legend שמכסה חלק מהשרטוט, פינה מוסתרת חלקית ע"י טקסט מידה, קו לא
+   חד, אזור עם כמה קווים מועמדים אפשריים, וכו'. תעד/י את חוסר הוודאות
+   כאן - אל תנסה/י "לתקן" את הטופולוגיה בעצמך כדי להסתיר אותה.
 
 **אסור בהחלט**:
 - לכתוב שום ערך במטרים/ס"מ/מ"מ.
@@ -107,14 +125,15 @@ const ENVELOPE_TOPOLOGY_SYSTEM_PROMPT = `
 - להמציא scale/קנה-מידה.
 - להחזיר "dimensionRefs" או כל התייחסות למידות כתובות בשרטוט - זה נעשה
   בשלב נפרד לגמרי, לא על ידך.
-- לכלול קירות פנימיים/מחיצות בפוליגון החיצוני - רק את קו המתאר החיצוני
-  של גוף הבניין כולו.
+- להחזיר "polygonOrder" או כל רשימת סדר-היקפי - שדה כזה לא קיים יותר
+  ואסור להמציא אותו.
+- לכלול קירות פנימיים/מחיצות - רק קווי קיר חיצוניים.
 - **לפשט את הבניין לצללית/למלבן הכולל שלו** - אם יש jog, זיז, שקע
   (recess), או קיר חיצוני באלכסון - **חובה** לתעד אותם במדויק, לא
   "לגשר" מעליהם בקו ישר אחד ארוך.
-- **לגשר מעל recess** - אם קו הקיר החיצוני נכנס פנימה ואז חוזר החוצה
-  (למשל סביב מדרגות, כניסה, או פינת מטבח), חובה לתעד את כל הפינות של
-  ה-recess הזה בנפרד - לא לחבר בין שתי הנקודות הרחוקות בקו ישר אחד.
+- **להמציא המשך נסתר** - אם אזור מוסתר/לא ברור, פשוט אל תתעד/י צלע שם
+  ותאר/י את חוסר הבהירות ב-perceptionNotes. אל תנחש/י ואל תגשר/י מעל
+  הפער.
 - **להתעלם מקטעי קיר חיצוני קצרים** - קטע קיר קצר הוא עדיין קטע קיר
   אמיתי וצריך שתי פינות משלו, גם אם הוא נראה זניח ביחס לשאר הבניין.
 - **לעקוב אחרי קווי מידה (dimension lines) או קווי setback מקווקווים**
@@ -123,11 +142,12 @@ const ENVELOPE_TOPOLOGY_SYSTEM_PROMPT = `
   מידה עובר במקביל לקיר אך לא צמוד אליו, עקוב/י אחרי הקיר עצמו, לא אחרי
   קו המידה.
 
-לפני שאת/ה מסיימ/ת, עבור/י שוב באופן שיטתי על כל ההיקף, צלע-צלע, ושאל/י
-את עצמך בכל קטע: "האם קו הקיר החיצוני ממשיך ישר כאן, או שהוא משנה כיוון
-בנקודה כלשהי שעדיין לא תיעדתי?" - במיוחד באזורים עם גיאומטריה לא-פשוטה
-(פינות מטבח, אזורי מדרגות, חיבורים בין אגפים) בהם קווי קיר חיצוניים
-נוטים להיות מורכבים יותר משורה ישרה אחת.
+לפני שאת/ה מסיימ/ת, עבור/י שוב באופן שיטתי על כל האזורים בתמונה, ושאל/י
+את עצמך בכל קטע: "האם יש כאן קו קיר חיצוני נראה לעין שעדיין לא תיעדתי?"
+- במיוחד באזורים עם גיאומטריה לא-פשוטה (פינות מטבח, אזורי מדרגות, חיבורים
+בין אגפים, אזורים עם מקרא/legend חופף) בהם קווי קיר חיצוניים נוטים להיות
+מורכבים יותר משורה ישרה אחת, או מוסתרים חלקית. תיעוד חלקי אך כן הוא עדיף
+על פני "סגירה" מומצאת.
 `.trim();
 
 function jsonResponse(body: unknown, status = 200) {
@@ -187,12 +207,13 @@ async function callOpenAiJsonSchema(
 
 interface EnvelopeTopologyArtifactPayload {
   status: "valid" | "invalid" | "forbidden_field_error";
-  topology: EnvelopeTopologyV1 | null;
-  validation: ValidationResult | null;
-  // Non-blocking, descriptive only — never affects `status` or
-  // `validation.valid`. See envelope_topology_debug_metrics_v1.ts's header
-  // for why this exists and why it deliberately has no pass/fail verdict.
-  topologyCoverageDebug: TopologyCoverageDebug | null;
+  topology: EnvelopeTopologyV2 | null;
+  validation: ValidationResultV2 | null;
+  // No topologyCoverageDebug field in the V2 payload shape — see the
+  // PRODUCER MIGRATION note at the top of this file for why it was dropped
+  // rather than ported (V1's debug-metrics module depends structurally on
+  // polygonOrder, which V2 does not have; a V2-equivalent was explicitly
+  // left undecided per the handoff and not invented here).
   rawModelOutputOnError?: unknown;
   error?: string;
   model: string;
@@ -384,23 +405,24 @@ Deno.serve(async (req) => {
 
   const aiResult = await callOpenAiJsonSchema(
     [
-      { role: "system", content: ENVELOPE_TOPOLOGY_SYSTEM_PROMPT },
+      { role: "system", content: ENVELOPE_TOPOLOGY_SYSTEM_PROMPT_V2 },
       {
         role: "user",
         content: [
           {
             type: "text",
             text:
-              "זהה/י את קו המתאר החיצוני (המעטפת) של גוף הבניין בתמונה הזו, " +
-              "כפוליגון סגור עם פינות וצלעות, לפי הכללים שקיבלת. אל תמדוד/י " +
-              "שום דבר, אל תכתוב/י שום מטר/ס\"מ/שטח.",
+              "זהה/י את כל קטעי קו הקיר החיצוני הנראים לעין בתמונה הזו, " +
+              "כפינות וצלעות, לפי הכללים שקיבלת. אין צורך בפוליגון סגור - " +
+              "תעד/י מה שרואים בפועל, כולל קטעים לא-מחוברים או אזורים לא-ברורים. " +
+              "אל תמדוד/י שום דבר, אל תכתוב/י שום מטר/ס\"מ/שטח.",
           },
           { type: "image_url", image_url: { url: signedUrlData.signedUrl, detail: "high" } },
         ],
       },
     ],
-    "envelope_topology_v1",
-    ENVELOPE_TOPOLOGY_V1_JSON_SCHEMA.schema,
+    "envelope_topology_v2",
+    ENVELOPE_TOPOLOGY_V2_JSON_SCHEMA.schema,
   );
 
   const durationMs = Date.now() - startedAt;
@@ -413,42 +435,36 @@ Deno.serve(async (req) => {
   let payload: EnvelopeTopologyArtifactPayload;
 
   try {
-    // parseEnvelopeTopologyV1 throws EnvelopeTopologyForbiddenFieldError if
-    // the model returned any metric/scale/area/dimensionRef field anywhere
-    // in the tree — defense in depth on top of the schema's own
-    // additionalProperties:false.
+    // parseEnvelopeTopologyV2 throws EnvelopeTopologyV2ForbiddenFieldError
+    // if the model returned any metric/scale/area/dimensionRef/polygonOrder
+    // field anywhere in the tree — defense in depth on top of the schema's
+    // own additionalProperties:false.
     // jobId is injected here, server-side — it is NOT part of the AI
-    // schema anymore (see envelope_topology_schema_v1.ts's header). Spread
-    // the model's parsed content FIRST, then set jobId/schemaVersion after,
-    // so our values always win even if the model or a future schema change
-    // reintroduces those keys.
-    const topology = parseEnvelopeTopologyV1({
+    // schema (same convention as V1). Spread the model's parsed content
+    // FIRST, then set schemaVersion after, so our value always wins even if
+    // the model or a future schema change reintroduces that key.
+    const topology = parseEnvelopeTopologyV2({
       ...(aiResult.parsed as Record<string, unknown>),
-      schemaVersion: "envelope_topology_v1",
+      schemaVersion: "envelope_topology_v2",
     });
 
     console.log(
-      `[envelope_topology] job=${jobId} parsed topology: ` +
+      `[envelope_topology] job=${jobId} parsed topology (v2): ` +
         `${topology.vertices?.length ?? 0} vertices, ${topology.edges?.length ?? 0} edges`,
     );
 
-    const validation = validateEnvelopeTopologyV1(topology);
-
-    // Computed regardless of validation.valid — this is descriptive only,
-    // never a gate. See envelope_topology_debug_metrics_v1.ts's header.
-    const topologyCoverageDebug = computeTopologyCoverageDebug(topology);
+    const validation = validateEnvelopeTopologyV2(topology);
 
     if (validation.valid) {
       console.log(
         `[envelope_topology] job=${jobId} validation PASSED — ` +
-          `boundingBoxFillRatio=${topologyCoverageDebug.boundingBoxFillRatio} ` +
-          `longestEdgeShareOfPerimeter=${topologyCoverageDebug.longestEdgeShareOfPerimeter}`,
+          `${validation.diagnostics.length} non-fatal diagnostic(s): ` +
+          validation.diagnostics.map((d) => d.code).join(", "),
       );
       payload = {
         status: "valid",
         topology,
         validation,
-        topologyCoverageDebug,
         model: OPENAI_MODEL,
         durationMs,
         attempt,
@@ -463,7 +479,6 @@ Deno.serve(async (req) => {
         status: "invalid",
         topology,
         validation,
-        topologyCoverageDebug,
         model: OPENAI_MODEL,
         durationMs,
         attempt,
@@ -471,16 +486,15 @@ Deno.serve(async (req) => {
       };
     }
   } catch (err) {
-    if (err instanceof EnvelopeTopologyForbiddenFieldError) {
+    if (err instanceof EnvelopeTopologyV2ForbiddenFieldError) {
       console.log(
         `[envelope_topology] job=${jobId} REJECTED — forbidden field "${err.field}" at ${err.path}. ` +
-          `The model returned metric/scale/area/dimensionRef data, which this stage must never accept.`,
+          `The model returned metric/scale/area/dimensionRef/polygonOrder data, which this stage must never accept.`,
       );
       payload = {
         status: "forbidden_field_error",
         topology: null,
         validation: null,
-        topologyCoverageDebug: null,
         rawModelOutputOnError: aiResult.parsed,
         error: err.message,
         model: OPENAI_MODEL,

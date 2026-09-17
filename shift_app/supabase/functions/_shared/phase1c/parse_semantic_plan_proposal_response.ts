@@ -17,6 +17,7 @@
 // about it" -- nothing is upgraded to an authoritative decision.
 
 import type { EnvelopeTopologyV1 } from '../envelope_topology_schema_v1.ts';
+import type { EnvelopeTopologyV2 } from '../envelope_topology_schema_v2.ts';
 import type { SemanticPlanProposal } from './semantic_plan_proposal_v1.ts';
 import {
   assertNoForbiddenSemanticPlanFields,
@@ -65,17 +66,30 @@ export interface SemanticPlanProposalStructuralCheckResult {
 
 /**
  * Full Part B structural pipeline: firewall (fields + enum values) -> basic
- * shape parse -> Part A referential integrity against the same
- * EnvelopeTopologyV1 that was sent to the model. Throws on firewall/shape
- * violations (those are hard failures -- something is structurally wrong
- * with the response). Referential-integrity failures are NOT thrown --
- * they are returned as data (same as Part A's own tests treat them),
- * because deciding what to do about a referential-integrity failure is a
- * policy question for Part C, not this module's job.
+ * shape parse -> Part A referential integrity against the same envelope
+ * that was sent to the model. Throws on firewall/shape violations (those
+ * are hard failures -- something is structurally wrong with the response).
+ * Referential-integrity failures are NOT thrown -- they are returned as
+ * data (same as Part A's own tests treat them), because deciding what to
+ * do about a referential-integrity failure is a policy question for Part
+ * C, not this module's job.
+ *
+ * V1/V2 NOTE (added when EnvelopeTopologyV2 was introduced): this
+ * function's own body never reads any field of `envelope` -- it passes the
+ * object straight through, unread, to checkReferentialIntegrityAgainstEnvelope.
+ * The parameter type is therefore widened to accept either shape for the
+ * same reason as buildSemanticPlanProposalRequest. This has NOT been
+ * independently verified against referential_integrity.ts's own internals
+ * (that file was out of scope for this check) -- if
+ * checkReferentialIntegrityAgainstEnvelope turns out to read
+ * envelope.polygonOrder specifically, that would surface as a runtime
+ * property-access on `undefined` for a V2 envelope, not a silent
+ * correctness bug, and should be treated as a genuine follow-up check
+ * before this path is exercised against production V2 data.
  */
 export function parseAndCheckSemanticPlanProposalResponse(
   raw: unknown,
-  envelope: EnvelopeTopologyV1,
+  envelope: EnvelopeTopologyV1 | EnvelopeTopologyV2,
 ): SemanticPlanProposalStructuralCheckResult {
   assertNoForbiddenSemanticPlanFields(raw);
   assertNoForbiddenSemanticPlanEnumValues(raw);

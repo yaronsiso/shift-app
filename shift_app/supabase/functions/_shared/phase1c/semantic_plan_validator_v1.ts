@@ -33,10 +33,11 @@
 // Flutter, Witness, or the solver. Those are all out of scope for Part C.
 
 import type { EnvelopeTopologyV1 } from '../envelope_topology_schema_v1.ts';
+import type { EnvelopeTopologyV2 } from '../envelope_topology_schema_v2.ts';
 import type { RawTopology } from './model.ts';
 import type { EdgeSemanticProposal, SemanticPlanProposal } from './semantic_plan_proposal_v1.ts';
 import { checkReferentialIntegrity, type ReferentialIntegrityResult } from './referential_integrity.ts';
-import { envelopeTopologyV1ToRawTopology } from './adapter.ts';
+import { envelopeTopologyV1ToRawTopology, envelopeTopologyV2ToRawTopology } from './adapter.ts';
 import type {
   PerEdgeReadiness,
   PerEdgeReadinessStatus,
@@ -89,17 +90,28 @@ function findDuplicates(ids: readonly string[]): string[] {
  * a narrowed/derived field (the adapter maps 'diagonal_or_unknown' to
  * undefined -- see adapter.ts), not a 1:1 passthrough value, so comparing
  * it would not be an "exact" comparison of the same underlying fact and is
- * out of scope for this rule. roleHint/cornerAngleHint/polygonOrder/
- * perceptionNotes are envelope-only fields that never exist on RawTopology
- * at all, so they play no part in this comparison either way.
+ * out of scope for this rule. roleHint/cornerAngleHint/perceptionNotes
+ * (both V1 and V2) and polygonOrder (V1 only -- absent from V2 entirely)
+ * are envelope-only fields that never exist on RawTopology at all, so they
+ * play no part in this comparison either way.
  * This does NOT recompute `raw` and substitute it (that would defeat the
  * point of taking it as a separate parameter) -- it only compares.
+ *
+ * V1/V2 NOTE: `envelope` may be either shape. The correct adapter
+ * (envelopeTopologyV1ToRawTopology / envelopeTopologyV2ToRawTopology) is
+ * selected by `envelope.schemaVersion` -- never guessed, never defaulted.
+ * Everything below this dispatch operates only on the resulting
+ * RawTopology (vertex/edge id sets, xPct/yPct, fromVertexId/toVertexId),
+ * which is identically shaped regardless of source schema version.
  */
 function checkEnvelopeRawConsistency(
-  envelope: EnvelopeTopologyV1,
+  envelope: EnvelopeTopologyV1 | EnvelopeTopologyV2,
   raw: RawTopology,
 ): SemanticValidationRuleResult {
-  const derived = envelopeTopologyV1ToRawTopology(envelope);
+  const derived =
+    envelope.schemaVersion === 'envelope_topology_v2'
+      ? envelopeTopologyV2ToRawTopology(envelope)
+      : envelopeTopologyV1ToRawTopology(envelope);
 
   const derivedVertexIds = new Set(derived.vertices.map((v) => v.id));
   const rawVertexIds = new Set(raw.vertices.map((v) => v.id));
@@ -150,8 +162,8 @@ function checkEnvelopeRawConsistency(
     category: 'CONTRACT',
     passed,
     details: passed
-      ? 'The supplied RawTopology has exactly the same vertex/edge id sets (order-independent) as the RawTopology derived from the supplied EnvelopeTopologyV1, with exact xPct/yPct and fromVertexId/toVertexId matches per id.'
-      : `The supplied RawTopology is not consistent with the RawTopology derived from the supplied EnvelopeTopologyV1 -- ${problems.join('; ')}.`,
+      ? 'The supplied RawTopology has exactly the same vertex/edge id sets (order-independent) as the RawTopology derived from the supplied envelope, with exact xPct/yPct and fromVertexId/toVertexId matches per id.'
+      : `The supplied RawTopology is not consistent with the RawTopology derived from the supplied envelope -- ${problems.join('; ')}.`,
   };
 }
 
@@ -432,7 +444,7 @@ function computePerEdgeReadiness(
  * file). Identical input -> byte-identical output.
  */
 export function validateSemanticPlan(
-  envelope: EnvelopeTopologyV1,
+  envelope: EnvelopeTopologyV1 | EnvelopeTopologyV2,
   raw: RawTopology,
   proposal: SemanticPlanProposal,
 ): SemanticPlanValidationResultV1 {
@@ -511,8 +523,12 @@ export function validateSemanticPlan(
  * directly with their own independently-obtained RawTopology.
  */
 export function validateSemanticPlanAgainstEnvelope(
-  envelope: EnvelopeTopologyV1,
+  envelope: EnvelopeTopologyV1 | EnvelopeTopologyV2,
   proposal: SemanticPlanProposal,
 ): SemanticPlanValidationResultV1 {
-  return validateSemanticPlan(envelope, envelopeTopologyV1ToRawTopology(envelope), proposal);
+  const raw =
+    envelope.schemaVersion === 'envelope_topology_v2'
+      ? envelopeTopologyV2ToRawTopology(envelope)
+      : envelopeTopologyV1ToRawTopology(envelope);
+  return validateSemanticPlan(envelope, raw, proposal);
 }

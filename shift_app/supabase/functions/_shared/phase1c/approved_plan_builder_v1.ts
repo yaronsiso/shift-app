@@ -52,6 +52,7 @@
 // (phase1c-b) or the canonical_topology_v1 contract in any way.
 
 import type { EnvelopeTopologyV1 } from '../envelope_topology_schema_v1.ts';
+import type { EnvelopeTopologyV2 } from '../envelope_topology_schema_v2.ts';
 import type {
   RawTopology,
   ApprovedPlan,
@@ -105,7 +106,7 @@ function blocked(reasons: readonly ApprovedPlanBlockingReason[]): ApprovedPlanBu
  * proceed at all.
  */
 export function buildApprovedPlan(
-  envelope: EnvelopeTopologyV1,
+  envelope: EnvelopeTopologyV1 | EnvelopeTopologyV2,
   raw: RawTopology,
   proposal: SemanticPlanProposal,
   validation: SemanticPlanValidationResultV1,
