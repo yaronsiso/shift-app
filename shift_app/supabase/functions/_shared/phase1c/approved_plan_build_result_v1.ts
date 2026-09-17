@@ -21,8 +21,9 @@
 import type { ApprovedPlan } from './model.ts';
 
 /**
- * Blocking reason keys Part D can report. Exactly the three approved for
- * Part D v1 -- no others exist yet:
+ * Blocking reason keys Part D can report. Five approved for Part D v1.1
+ * (the original three, plus two added for the approved Gap Proposal
+ * Translation design -- see approved_plan_builder_v1.ts):
  *   - VALIDATION_NOT_EXECUTION_READY: validation.readiness.executionReadyForPartD
  *     was not true. Part D never re-runs Part C -- this is Part C's
  *     readiness verdict, taken as authoritative.
@@ -30,14 +31,27 @@ import type { ApprovedPlan } from './model.ts';
  *     KEEP_ENVELOPE_REQUIRES_VERIFICATION_SCOPE rule should already prevent
  *     this from ever reaching Part D with executionReadyForPartD=true, but
  *     Part D independently re-checks it rather than trusting that alone.
- *   - GAP_PROPOSAL_TRANSLATION_NOT_IN_SCOPE_V1: proposal.gapProposals is
- *     non-empty. Part D v1 has no gap-translation authority at all -- no
- *     CanonicalGap creation, no endpoint inference, no silent discard.
+ *   - GAP_PROPOSAL_TRANSLATION_NOT_IN_SCOPE_V1: a gapProposal that is not
+ *     safely covered by the approved deterministic gap-translation policy:
+ *     gapType === 'UNSUPPORTED_BOUNDARY_RELATION' (approved architectural
+ *     decision: always blocks, no executable UNSUPPORTED_GAP authority is
+ *     ever added), OR relatedRawEdgeIds is empty (vertex-only grounding --
+ *     schema-valid per GAP_REQUIRES_TOPOLOGY_CONTEXT, but outside the
+ *     approved Category A/B/C policy, which classifies strictly by
+ *     relatedRawEdgeIds disposition), OR a relatedRawEdgeIds entry could
+ *     not be resolved to a KEEP_ENVELOPE/REJECT_NOT_ENVELOPE disposition.
+ *     Never a guess -- blocks instead.
+ *   - GAP_PROPOSAL_MIXED_DISPOSITION_NOT_SUPPORTED: a gapProposal whose
+ *     relatedRawEdgeIds resolve to more than one distinct edge disposition
+ *     (both KEEP_ENVELOPE and REJECT_NOT_ENVELOPE present). Deterministic
+ *     translation would require choosing which disposition "owns" the gap
+ *     -- an inference Part D is never authorized to make.
  */
 export type ApprovedPlanBlockingReasonKey =
   | 'VALIDATION_NOT_EXECUTION_READY'
   | 'KEEP_EDGE_MISSING_VERIFICATION_SCOPE'
-  | 'GAP_PROPOSAL_TRANSLATION_NOT_IN_SCOPE_V1';
+  | 'GAP_PROPOSAL_TRANSLATION_NOT_IN_SCOPE_V1'
+  | 'GAP_PROPOSAL_MIXED_DISPOSITION_NOT_SUPPORTED';
 
 /**
  * One blocking reason. `details` carries the specifics (which edges, which

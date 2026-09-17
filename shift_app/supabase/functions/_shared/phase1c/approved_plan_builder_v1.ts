@@ -22,10 +22,38 @@
 //     block Part D, never mutate a coordinate, never affect operation
 //     construction. Changing them leaves the built ApprovedPlan byte-for-byte
 //     identical.
-//   - does NOT translate proposal.gapProposals. A non-empty gapProposals
-//     list always blocks (GAP_PROPOSAL_TRANSLATION_NOT_IN_SCOPE_V1) -- no
-//     CanonicalGap is ever created here, no endpoint is ever invented, no
-//     gap is ever silently discarded.
+//   - translates proposal.gapProposals ONLY under the approved v1.1 Gap
+//     Proposal Translation policy, classified strictly by each gap's own
+//     `relatedRawEdgeIds` disposition -- NEVER expanded by graph adjacency
+//     or by finding other edges touching known vertices:
+//       * KEEP_GROUNDED (every relatedRawEdgeIds entry is KEEP_ENVELOPE):
+//         translated into exactly one executable SOURCE_OCCLUDED_GAP or
+//         OPENING_GAP PlanOperation (per gapType), preserving
+//         knownEndpointRawVertexIds verbatim. No endpoint is ever inferred;
+//         the existing (untouched) phase1c-b constructor creates the
+//         CanonicalGap from this operation exactly as it already does for
+//         the Attempt #3 golden fixture.
+//       * REJECT_GROUNDED (every relatedRawEdgeIds entry is
+//         REJECT_NOT_ENVELOPE): translated into NOTHING. No PlanOperation,
+//         no CanonicalGap, no CanonicalVertex, no DeferredIssue, no
+//         modification to that edge's own DROP_REJECTED_EDGE operation, and
+//         never a blocking reason. Traceability for these already lives in
+//         the persisted semantic_plan.proposal.gapProposals -- Part D adds
+//         nothing further for them by design (approved architectural
+//         decision: CanonicalTopology remains geometry authority only).
+//       * MIXED (relatedRawEdgeIds resolve to both KEEP_ENVELOPE and
+//         REJECT_NOT_ENVELOPE) always blocks
+//         (GAP_PROPOSAL_MIXED_DISPOSITION_NOT_SUPPORTED) -- choosing which
+//         disposition "owns" the gap is an inference Part D is never
+//         authorized to make.
+//       * NOT_COVERED (gapType === 'UNSUPPORTED_BOUNDARY_RELATION', OR
+//         relatedRawEdgeIds is empty, OR any relatedRawEdgeIds entry does
+//         not resolve to an execution-ready KEEP_ENVELOPE/REJECT_NOT_ENVELOPE
+//         disposition) always blocks (GAP_PROPOSAL_TRANSLATION_NOT_IN_SCOPE_V1).
+//         UNSUPPORTED_BOUNDARY_RELATION in particular is a fixed, permanent
+//         policy: no executable UNSUPPORTED_GAP authority is ever added.
+//     Never a guess -- any case not safely covered by this policy blocks
+//     rather than translating.
 //   - does NOT invent canon-* canonical ids. Those remain the existing
 //     constructor's responsibility (canon-${rawEdgeId}); Part D only ever
 //     emits PlanOperation.affectedRawEdges containing RAW edge ids.
@@ -59,7 +87,12 @@ import type {
   PlanOperation,
   PerEntityEvidence,
 } from './model.ts';
-import type { SemanticPlanProposal, EdgeSemanticProposal, ProposedVerificationScope } from './semantic_plan_proposal_v1.ts';
+import type {
+  SemanticPlanProposal,
+  EdgeSemanticProposal,
+  GapSemanticProposal,
+  ProposedVerificationScope,
+} from './semantic_plan_proposal_v1.ts';
 import type { SemanticPlanValidationResultV1 } from './semantic_plan_validation_result_v1.ts';
 import type { ApprovedPlanBlockingReason, ApprovedPlanBuildResultV1 } from './approved_plan_build_result_v1.ts';
 
@@ -84,6 +117,15 @@ function evidenceRefForEdge(rawEdgeId: string): string {
   return `semantic_plan_proposal_v1:edgeProposals:${rawEdgeId}`;
 }
 
+/**
+ * Deterministic, gap-id-based evidence reference -- same convention as
+ * evidenceRefForEdge above, a constant path back to the exact field this
+ * evidence came from, never a free-form/derived string.
+ */
+function evidenceRefForGap(gapId: string): string {
+  return `semantic_plan_proposal_v1:gapProposals:${gapId}`;
+}
+
 function blocked(reasons: readonly ApprovedPlanBlockingReason[]): ApprovedPlanBuildResultV1 {
   return {
     schemaVersion: 'approved_plan_build_result_v1',
@@ -91,6 +133,55 @@ function blocked(reasons: readonly ApprovedPlanBlockingReason[]): ApprovedPlanBu
     plan: null,
     blockingReasons: reasons,
   };
+}
+
+/**
+ * Gap Proposal Translation classification (approved v1.1 policy). Uses
+ * ONLY `gap.gapType` and `gap.relatedRawEdgeIds` resolved against the
+ * execution-ready edge disposition map -- NEVER expanded by graph
+ * adjacency or by finding other edges touching known vertices.
+ *
+ *   - KEEP_GROUNDED: every relatedRawEdgeIds entry resolves to KEEP_ENVELOPE.
+ *   - REJECT_GROUNDED: every relatedRawEdgeIds entry resolves to
+ *     REJECT_NOT_ENVELOPE.
+ *   - MIXED: relatedRawEdgeIds resolve to both dispositions.
+ *   - NOT_COVERED: gapType is UNSUPPORTED_BOUNDARY_RELATION, OR
+ *     relatedRawEdgeIds is empty, OR any entry has no edgeProposal or a
+ *     disposition other than KEEP_ENVELOPE/REJECT_NOT_ENVELOPE.
+ */
+type GapProposalClassification = 'KEEP_GROUNDED' | 'REJECT_GROUNDED' | 'MIXED' | 'NOT_COVERED';
+
+function classifyGapProposal(
+  gap: GapSemanticProposal,
+  proposalByEdgeId: ReadonlyMap<string, EdgeSemanticProposal>,
+): GapProposalClassification {
+  if (gap.gapType === 'UNSUPPORTED_BOUNDARY_RELATION') {
+    return 'NOT_COVERED';
+  }
+  if (gap.relatedRawEdgeIds.length === 0) {
+    return 'NOT_COVERED';
+  }
+
+  let sawKeep = false;
+  let sawReject = false;
+  for (const rawEdgeId of gap.relatedRawEdgeIds) {
+    const edgeProposal = proposalByEdgeId.get(rawEdgeId);
+    if (!edgeProposal) {
+      return 'NOT_COVERED';
+    }
+    if (edgeProposal.disposition === 'KEEP_ENVELOPE') {
+      sawKeep = true;
+    } else if (edgeProposal.disposition === 'REJECT_NOT_ENVELOPE') {
+      sawReject = true;
+    } else {
+      // UNRESOLVED / SPLIT_REQUIRED / REJECT_DUAL_FACE: not a disposition
+      // Part D is ever authorized to translate a gap through.
+      return 'NOT_COVERED';
+    }
+  }
+
+  if (sawKeep && sawReject) return 'MIXED';
+  return sawKeep ? 'KEEP_GROUNDED' : 'REJECT_GROUNDED';
 }
 
 /**
@@ -112,6 +203,12 @@ export function buildApprovedPlan(
   validation: SemanticPlanValidationResultV1,
 ): ApprovedPlanBuildResultV1 {
   void envelope; // approved input signature; intentionally unused by v1 (see doc comment above)
+
+  // Built up front (not just in STEP 1 below) because gap-proposal
+  // classification in STEP 0 also needs it -- one map, one construction.
+  const proposalByEdgeId = new Map<string, EdgeSemanticProposal>(
+    proposal.edgeProposals.map((p) => [p.rawEdgeId, p]),
+  );
 
   // ---------------------------------------------------------------------
   // STEP 0 -- fail-closed guards. Accumulate every applicable reason before
@@ -137,10 +234,42 @@ export function buildApprovedPlan(
     });
   }
 
-  if (proposal.gapProposals.length > 0) {
+  // Gap Proposal Translation (approved v1.1 policy) -- classify strictly by
+  // each gap's own relatedRawEdgeIds disposition. KEEP_GROUNDED gaps are
+  // collected for STEP 4 below; REJECT_GROUNDED gaps are collected nowhere
+  // (Category B: no operation, no block -- see AUTHORITY BOUNDARY above).
+  const keepGroundedGaps: GapSemanticProposal[] = [];
+  const mixedDispositionGapIds: string[] = [];
+  const notCoveredGapIds: string[] = [];
+
+  for (const gap of proposal.gapProposals) {
+    const classification = classifyGapProposal(gap, proposalByEdgeId);
+    switch (classification) {
+      case 'KEEP_GROUNDED':
+        keepGroundedGaps.push(gap);
+        break;
+      case 'REJECT_GROUNDED':
+        break;
+      case 'MIXED':
+        mixedDispositionGapIds.push(gap.gapId);
+        break;
+      case 'NOT_COVERED':
+        notCoveredGapIds.push(gap.gapId);
+        break;
+    }
+  }
+
+  if (mixedDispositionGapIds.length > 0) {
+    blockingReasons.push({
+      key: 'GAP_PROPOSAL_MIXED_DISPOSITION_NOT_SUPPORTED',
+      details: `gapProposals whose relatedRawEdgeIds resolve to more than one distinct edge disposition (both KEEP_ENVELOPE and REJECT_NOT_ENVELOPE present) -- deterministic translation would require an unauthorized ownership inference: ${mixedDispositionGapIds.join(', ')}`,
+    });
+  }
+
+  if (notCoveredGapIds.length > 0) {
     blockingReasons.push({
       key: 'GAP_PROPOSAL_TRANSLATION_NOT_IN_SCOPE_V1',
-      details: `Part D v1 has no gap-translation authority (no CanonicalGap creation, no endpoint inference, no silent discard). gapProposals present: ${proposal.gapProposals.map((g) => g.gapId).join(', ')}`,
+      details: `gapProposals not safely covered by the approved deterministic gap-translation policy (gapType=UNSUPPORTED_BOUNDARY_RELATION, empty relatedRawEdgeIds, or a relatedRawEdgeIds entry that does not resolve to an execution-ready KEEP_ENVELOPE/REJECT_NOT_ENVELOPE disposition): ${notCoveredGapIds.join(', ')}`,
     });
   }
 
@@ -152,10 +281,6 @@ export function buildApprovedPlan(
   // STEP 1 -- partition edges by disposition, walking raw.edges (the only
   // ordering authority) rather than proposal.edgeProposals array order.
   // ---------------------------------------------------------------------
-  const proposalByEdgeId = new Map<string, EdgeSemanticProposal>(
-    proposal.edgeProposals.map((p) => [p.rawEdgeId, p]),
-  );
-
   const keepEdgesInRawOrder: EdgeSemanticProposal[] = [];
   const rejectEdgesInRawOrder: EdgeSemanticProposal[] = [];
 
@@ -258,6 +383,83 @@ export function buildApprovedPlan(
       executionAllowed: true,
       deferTo: null,
       provenanceNote: `Part D v1: deterministic, explicit translation of execution-ready REJECT_NOT_ENVELOPE edgeProposal for RAW edge ${p.rawEdgeId} into DROP_REJECTED_EDGE. Never represented by omission.`,
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // STEP 4 -- KEEP-grounded gapProposals -> executable gap PlanOperation
+  // (SOURCE_OCCLUDED_GAP or OPENING_GAP, per gapType), one operation per
+  // gap. Ordered deterministically by the minimum raw.edges index among
+  // each gap's own relatedRawEdgeIds -- never by proposal.gapProposals
+  // array order (same ORDERING AUTHORITY convention as STEP 1-3).
+  // knownEndpointRawVertexIds is preserved verbatim as affectedRawVertices;
+  // no endpoint is ever inferred. The existing (untouched) phase1c-b
+  // constructor creates the CanonicalGap from this operation exactly as it
+  // already does for the Attempt #3 golden fixture.
+  // ---------------------------------------------------------------------
+  const rawEdgeIndex = new Map<string, number>(raw.edges.map((e, i) => [e.id, i]));
+
+  const orderedKeepGroundedGaps = [...keepGroundedGaps].sort((a, b) => {
+    const aMin = Math.min(
+      ...a.relatedRawEdgeIds.map((id) => rawEdgeIndex.get(id) ?? Number.POSITIVE_INFINITY),
+    );
+    const bMin = Math.min(
+      ...b.relatedRawEdgeIds.map((id) => rawEdgeIndex.get(id) ?? Number.POSITIVE_INFINITY),
+    );
+    if (aMin !== bMin) return aMin - bMin;
+    // Tie-break only reachable if two gaps share the same minimum raw.edges
+    // index (e.g. both grounded in the same edge) -- gapId is a stable,
+    // proposal-supplied identifier, never a derived/invented value.
+    return a.gapId.localeCompare(b.gapId);
+  });
+
+  for (const gap of orderedKeepGroundedGaps) {
+    const isSourceOccluded = gap.gapType === 'SOURCE_OCCLUDED';
+    const operationType: 'SOURCE_OCCLUDED_GAP' | 'OPENING_GAP' = isSourceOccluded
+      ? 'SOURCE_OCCLUDED_GAP'
+      : 'OPENING_GAP';
+    // classifyGapProposal already excluded UNSUPPORTED_BOUNDARY_RELATION
+    // (NOT_COVERED) from keepGroundedGaps, so this is always one of the two
+    // gap types the existing constructor already knows how to execute.
+    const canonicalGapType: 'SOURCE_OCCLUDED' | 'OPENING_CONTINUATION_UNKNOWN' = isSourceOccluded
+      ? 'SOURCE_OCCLUDED'
+      : 'OPENING_CONTINUATION_UNKNOWN';
+
+    const perEntityEvidence: PerEntityEvidence[] = gap.relatedRawEdgeIds.map((rawEdgeId) => {
+      const edgeProposal = proposalByEdgeId.get(rawEdgeId);
+      // KEEP_GROUNDED classification already guarantees every
+      // relatedRawEdgeIds entry resolved to an existing KEEP_ENVELOPE
+      // edgeProposal -- this can never be undefined here.
+      if (!edgeProposal) {
+        throw new Error(
+          `IMPOSSIBLE_STATE: gapProposal "${gap.gapId}" classified KEEP_GROUNDED but relatedRawEdgeIds entry "${rawEdgeId}" has no edgeProposal.`,
+        );
+      }
+      return {
+        edgeId: edgeProposal.rawEdgeId,
+        semanticStatus: 'KEEP_ENVELOPE',
+        semanticConfidence: edgeProposal.confidence,
+        geometryAlignmentStatus: edgeProposal.geometryAlignment,
+        evidenceRef: evidenceRefForEdge(edgeProposal.rawEdgeId),
+      };
+    });
+
+    operations.push({
+      operationId: `partd-gap-${gap.gapId}`,
+      operationType,
+      affectedRawVertices: gap.knownEndpointRawVertexIds,
+      affectedRawEdges: gap.relatedRawEdgeIds,
+      evidenceRefs: [evidenceRefForGap(gap.gapId)],
+      perEntityEvidence,
+      confidence: 'LOW',
+      resolutionConfidence: 'NONE',
+      planningDecisionDeterministic: true,
+      executionDeterministic: true,
+      requiresAdditionalEvidence: true,
+      executionAllowed: true,
+      deferTo: null,
+      gapType: canonicalGapType,
+      provenanceNote: `Part D v1.1: deterministic translation of KEEP-grounded gapProposal ${gap.gapId} (gapType=${gap.gapType}) into ${operationType}. All relatedRawEdgeIds (${gap.relatedRawEdgeIds.join(', ')}) resolve to KEEP_ENVELOPE. knownEndpointRawVertexIds preserved exactly as proposed (${gap.knownEndpointRawVertexIds.join(', ') || 'none'}); no endpoint inferred. Source: SemanticPlanProposal.gapProposals.`,
     });
   }
 

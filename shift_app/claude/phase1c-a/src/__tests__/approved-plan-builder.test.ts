@@ -9,6 +9,7 @@ import type { RawTopology } from '../types/raw_audited_plan_model.js';
 import type {
   SemanticPlanProposal,
   EdgeSemanticProposal,
+  GapSemanticProposal,
 } from '../types/semantic_plan_proposal_v1.js';
 import type { SemanticPlanValidationResultV1 } from '../validator/semantic_plan_validation_result_v1.js';
 import type { ApprovedPlanBuildResultV1 } from '../builder/approved_plan_build_result_v1.js';
@@ -47,6 +48,34 @@ function edge(overrides: Partial<EdgeSemanticProposal> & { rawEdgeId: string }):
     reason: 'part d fixture',
     ...overrides,
   };
+}
+
+function gap(
+  overrides: Partial<GapSemanticProposal> & { gapId: string; gapType: GapSemanticProposal['gapType']; relatedRawEdgeIds: readonly string[] },
+): GapSemanticProposal {
+  return {
+    knownEndpointRawVertexIds: [],
+    confidence: 'LOW',
+    reason: 'part d gap fixture',
+    ...overrides,
+  };
+}
+
+/**
+ * Normalizes PlanOperations down to the semantically relevant fields for
+ * Category B equivalence comparisons (per approved design: compare the
+ * semantically relevant ApprovedPlan output deterministically -- never
+ * insist on byte-identity when it would be inappropriate). Not used for
+ * genuine purity assertions, which compare full results with deepEqual.
+ */
+function normalizeOps(
+  ops: readonly { operationType: string; affectedRawEdges: readonly string[]; affectedRawVertices: readonly string[] }[],
+) {
+  return ops.map((o) => ({
+    operationType: o.operationType,
+    affectedRawEdges: [...o.affectedRawEdges],
+    affectedRawVertices: [...o.affectedRawVertices],
+  }));
 }
 
 // --- F1/F2/F3 shared rectangle envelope: f1v1..f1v4 / f1e1..f1e4 ---
@@ -148,6 +177,44 @@ function f4Proposal(): SemanticPlanProposal {
     vertexProposals: [],
     gapProposals: [],
     notes: null,
+  };
+}
+
+/**
+ * F5: rectangle mirroring the real runtime job's gap disposition pattern
+ * (job d79acb5a-5f44-4ef3-a936-bb0dcecfcc21: e1/e11/e14 REJECT-grounded,
+ * e8 KEEP-grounded). f1e2 is the sole KEEP_ENVELOPE edge; f1e1/f1e3/f1e4
+ * are REJECT_NOT_ENVELOPE. One gap grounded on each edge.
+ */
+function f5Proposal(): SemanticPlanProposal {
+  return {
+    schemaVersion: 'semantic_plan_proposal_v1',
+    edgeProposals: [
+      edge({ rawEdgeId: 'f1e1', disposition: 'REJECT_NOT_ENVELOPE', verificationScope: null, geometryAlignment: 'NOT_AUDITED' }),
+      edge({ rawEdgeId: 'f1e2', disposition: 'KEEP_ENVELOPE', verificationScope: 'FULL_SPAN', geometryAlignment: 'ALIGNED' }),
+      edge({ rawEdgeId: 'f1e3', disposition: 'REJECT_NOT_ENVELOPE', verificationScope: null, geometryAlignment: 'NOT_AUDITED' }),
+      edge({ rawEdgeId: 'f1e4', disposition: 'REJECT_NOT_ENVELOPE', verificationScope: null, geometryAlignment: 'NOT_AUDITED' }),
+    ],
+    vertexProposals: [],
+    gapProposals: [
+      gap({ gapId: 'gap-e1', gapType: 'SOURCE_OCCLUDED', relatedRawEdgeIds: ['f1e1'] }), // REJECT-grounded -- Category B
+      gap({ gapId: 'gap-e8', gapType: 'SOURCE_OCCLUDED', relatedRawEdgeIds: ['f1e2'], knownEndpointRawVertexIds: ['f1v2'] }), // KEEP-grounded -- Category A
+      gap({ gapId: 'gap-e11', gapType: 'OPENING_CONTINUATION_UNKNOWN', relatedRawEdgeIds: ['f1e3'] }), // REJECT-grounded -- Category B
+      gap({ gapId: 'gap-e14', gapType: 'SOURCE_OCCLUDED', relatedRawEdgeIds: ['f1e4'] }), // REJECT-grounded -- Category B
+    ],
+    notes: null,
+  };
+}
+
+/** F6: F1 with two independent KEEP-grounded gaps, on the first and last raw.edges. */
+function f6TwoGapsProposal(): SemanticPlanProposal {
+  const base = f1Proposal();
+  return {
+    ...base,
+    gapProposals: [
+      gap({ gapId: 'gap-last', gapType: 'OPENING_CONTINUATION_UNKNOWN', relatedRawEdgeIds: ['f1e4'], knownEndpointRawVertexIds: ['f1v4'] }),
+      gap({ gapId: 'gap-first', gapType: 'SOURCE_OCCLUDED', relatedRawEdgeIds: ['f1e1'], knownEndpointRawVertexIds: ['f1v1'] }),
+    ],
   };
 }
 
@@ -365,24 +432,176 @@ test('BLOCKED (defense-in-depth): a KEEP_ENVELOPE edge with verificationScope=nu
   assert.ok(reason!.details.includes('f1e1'));
 });
 
-test('BLOCKED: a non-empty gapProposals list blocks with GAP_PROPOSAL_TRANSLATION_NOT_IN_SCOPE_V1, even when every edge is otherwise execution-ready', () => {
+// =====================================================================
+// Gap Proposal Translation (approved v1.1 policy) -- Category A/B/C
+// =====================================================================
+
+test('BUILT: a KEEP-grounded gapProposal (gapType=SOURCE_OCCLUDED) translates into exactly one executable SOURCE_OCCLUDED_GAP operation, preserving knownEndpointRawVertexIds verbatim', () => {
   const proposal: SemanticPlanProposal = {
     ...f1Proposal(),
-    gapProposals: [
-      { gapId: 'gap-1', gapType: 'SOURCE_OCCLUDED', relatedRawEdgeIds: ['f1e2'], knownEndpointRawVertexIds: [], confidence: 'LOW', reason: 'r' },
-    ],
+    gapProposals: [gap({ gapId: 'gap-1', gapType: 'SOURCE_OCCLUDED', relatedRawEdgeIds: ['f1e2'], knownEndpointRawVertexIds: ['f1v2'] })],
   };
   const validation = validateSemanticPlan(rectEnvelope, rectRaw, proposal);
-  // Empirically, a well-formed gap does not by itself fail Part C readiness.
+  assert.equal(validation.readiness.executionReadyForPartD, true, JSON.stringify(validation.readiness));
+  const result = buildApprovedPlan(rectEnvelope, rectRaw, proposal, validation);
+  assertBuilt(result);
+  assert.deepEqual(result.blockingReasons, []);
+
+  const gapOps = result.plan.operations.filter((o) => o.operationType === 'SOURCE_OCCLUDED_GAP');
+  assert.equal(gapOps.length, 1, JSON.stringify(result.plan.operations.map((o) => o.operationType)));
+  assert.deepEqual(gapOps[0]!.affectedRawVertices, ['f1v2']);
+  assert.deepEqual(gapOps[0]!.affectedRawEdges, ['f1e2']);
+  assert.equal(gapOps[0]!.gapType, 'SOURCE_OCCLUDED');
+  assert.equal(gapOps[0]!.executionAllowed, true);
+
+  const candidate = constructCanonicalTopology(rectRaw, result.plan, 'gap-source-occluded-candidate');
+  assert.equal(candidate.gaps.length, 1);
+  assert.equal(candidate.gaps[0]!.gapType, 'SOURCE_OCCLUDED');
+  assert.deepEqual(candidate.gaps[0]!.knownEndpointVertexIds, ['f1v2']);
+  assert.equal(candidate.gaps[0]!.unknownEndpointCount, 1);
+  assert.equal(candidate.gaps[0]!.resolutionStatus, 'UNRESOLVED');
+  assert.equal(candidate.candidateState, 'OPEN_WITH_GAPS');
+});
+
+test('BUILT: a KEEP-grounded gapProposal (gapType=OPENING_CONTINUATION_UNKNOWN) translates into exactly one executable OPENING_GAP operation', () => {
+  const proposal: SemanticPlanProposal = {
+    ...f1Proposal(),
+    gapProposals: [gap({ gapId: 'gap-opening', gapType: 'OPENING_CONTINUATION_UNKNOWN', relatedRawEdgeIds: ['f1e4'], knownEndpointRawVertexIds: ['f1v4'] })],
+  };
+  const validation = validateSemanticPlan(rectEnvelope, rectRaw, proposal);
+  assert.equal(validation.readiness.executionReadyForPartD, true, JSON.stringify(validation.readiness));
+  const result = buildApprovedPlan(rectEnvelope, rectRaw, proposal, validation);
+  assertBuilt(result);
+  assert.deepEqual(result.blockingReasons, []);
+
+  const gapOps = result.plan.operations.filter((o) => o.operationType === 'OPENING_GAP');
+  assert.equal(gapOps.length, 1);
+  assert.deepEqual(gapOps[0]!.affectedRawVertices, ['f1v4']);
+  assert.deepEqual(gapOps[0]!.affectedRawEdges, ['f1e4']);
+  assert.equal(gapOps[0]!.gapType, 'OPENING_CONTINUATION_UNKNOWN');
+
+  const candidate = constructCanonicalTopology(rectRaw, result.plan, 'gap-opening-candidate');
+  assert.equal(candidate.gaps.length, 1);
+  assert.equal(candidate.gaps[0]!.gapType, 'OPENING_CONTINUATION_UNKNOWN');
+  assert.deepEqual(candidate.gaps[0]!.knownEndpointVertexIds, ['f1v4']);
+  assert.equal(candidate.gaps[0]!.unknownEndpointCount, 1);
+});
+
+test('BUILT: a REJECT-grounded gapProposal produces no gap PlanOperation, no block, and does not modify the edge\'s own DROP_REJECTED_EDGE operation', () => {
+  const plain = f2Proposal(); // f1e3 = REJECT_NOT_ENVELOPE
+  const proposal: SemanticPlanProposal = {
+    ...plain,
+    gapProposals: [gap({ gapId: 'gap-reject', gapType: 'SOURCE_OCCLUDED', relatedRawEdgeIds: ['f1e3'] })],
+  };
+  const validation = validateSemanticPlan(rectEnvelope, rectRaw, proposal);
+  assert.equal(validation.readiness.executionReadyForPartD, true, JSON.stringify(validation.readiness));
+  const result = buildApprovedPlan(rectEnvelope, rectRaw, proposal, validation);
+  assertBuilt(result);
+  assert.deepEqual(result.blockingReasons, []);
+
+  const gapOps = result.plan.operations.filter((o) => o.operationType === 'SOURCE_OCCLUDED_GAP' || o.operationType === 'OPENING_GAP');
+  assert.equal(gapOps.length, 0);
+
+  const dropOps = result.plan.operations.filter((o) => o.operationType === 'DROP_REJECTED_EDGE');
+  assert.equal(dropOps.length, 1);
+  assert.deepEqual(dropOps[0]!.affectedRawEdges, ['f1e3']);
+
+  // Category B equivalence: the semantically relevant operations are the
+  // same as the plain (gap-free) F2 result -- compared deterministically,
+  // not required to be byte-identical (approved design caveat), though
+  // here they also happen to be, since Category B contributes nothing.
+  const plainValidation = validateSemanticPlan(rectEnvelope, rectRaw, plain);
+  const plainResult = buildApprovedPlan(rectEnvelope, rectRaw, plain, plainValidation);
+  assertBuilt(plainResult);
+  assert.deepEqual(normalizeOps(result.plan.operations), normalizeOps(plainResult.plan.operations));
+
+  const candidate = constructCanonicalTopology(rectRaw, result.plan, 'reject-gap-candidate');
+  assert.equal(candidate.gaps.length, 0);
+});
+
+test('BUILT: combined scenario mirroring real runtime job d79acb5a-5f44-4ef3-a936-bb0dcecfcc21 -- three REJECT-grounded gaps produce nothing, the one KEEP-grounded gap becomes exactly one executable gap operation and one CanonicalGap', () => {
+  const proposal = f5Proposal();
+  const validation = validateSemanticPlan(rectEnvelope, rectRaw, proposal);
+  assert.equal(validation.readiness.executionReadyForPartD, true, JSON.stringify(validation.readiness));
+  const result = buildApprovedPlan(rectEnvelope, rectRaw, proposal, validation);
+  assertBuilt(result);
+  assert.deepEqual(result.blockingReasons, []);
+
+  const gapOps = result.plan.operations.filter((o) => o.operationType === 'SOURCE_OCCLUDED_GAP' || o.operationType === 'OPENING_GAP');
+  assert.equal(gapOps.length, 1, JSON.stringify(result.plan.operations.map((o) => o.operationId)));
+  assert.equal(gapOps[0]!.operationId, 'partd-gap-gap-e8');
+  assert.deepEqual(gapOps[0]!.affectedRawEdges, ['f1e2']);
+
+  const dropOps = result.plan.operations.filter((o) => o.operationType === 'DROP_REJECTED_EDGE');
+  assert.equal(dropOps.length, 3);
+
+  const candidate = constructCanonicalTopology(rectRaw, result.plan, 'combined-candidate');
+  assert.equal(candidate.gaps.length, 1);
+  assert.equal(candidate.gaps[0]!.gapType, 'SOURCE_OCCLUDED');
+  assert.equal(candidate.stateFlags.hasExplicitGaps, true);
+  assert.equal(candidate.candidateState, 'OPEN_WITH_GAPS');
+});
+
+test('BUILT: two KEEP-grounded gapProposals are translated into gap operations ordered by raw.edges index, independent of gapProposals array order', () => {
+  const proposal = f6TwoGapsProposal();
+  const validation = validateSemanticPlan(rectEnvelope, rectRaw, proposal);
+  assert.equal(validation.readiness.executionReadyForPartD, true, JSON.stringify(validation.readiness));
+  const result = buildApprovedPlan(rectEnvelope, rectRaw, proposal, validation);
+  assertBuilt(result);
+
+  const gapOps = result.plan.operations.filter((o) => o.operationType === 'SOURCE_OCCLUDED_GAP' || o.operationType === 'OPENING_GAP');
+  assert.equal(gapOps.length, 2);
+  assert.deepEqual(gapOps.map((o) => o.affectedRawEdges[0]), ['f1e1', 'f1e4']);
+
+  const reordered: SemanticPlanProposal = { ...proposal, gapProposals: [...proposal.gapProposals].reverse() };
+  const validationReordered = validateSemanticPlan(rectEnvelope, rectRaw, reordered);
+  const resultReordered = buildApprovedPlan(rectEnvelope, rectRaw, reordered, validationReordered);
+  assert.deepEqual(result, resultReordered);
+});
+
+test('BLOCKED: a gapProposal whose relatedRawEdgeIds resolve to both KEEP_ENVELOPE and REJECT_NOT_ENVELOPE blocks with GAP_PROPOSAL_MIXED_DISPOSITION_NOT_SUPPORTED', () => {
+  const proposal: SemanticPlanProposal = {
+    ...f2Proposal(), // f1e3 = REJECT_NOT_ENVELOPE, f1e1/f1e2/f1e4 = KEEP_ENVELOPE
+    gapProposals: [gap({ gapId: 'gap-mixed', gapType: 'SOURCE_OCCLUDED', relatedRawEdgeIds: ['f1e2', 'f1e3'] })],
+  };
+  const validation = validateSemanticPlan(rectEnvelope, rectRaw, proposal);
+  assert.equal(validation.readiness.executionReadyForPartD, true, JSON.stringify(validation.readiness));
+  const result = buildApprovedPlan(rectEnvelope, rectRaw, proposal, validation);
+  assert.equal(result.outcome, 'BLOCKED');
+  assert.equal(result.plan, null);
+  const reason = result.blockingReasons.find((r) => r.key === 'GAP_PROPOSAL_MIXED_DISPOSITION_NOT_SUPPORTED');
+  assert.ok(reason, JSON.stringify(result.blockingReasons));
+  assert.ok(reason!.details.includes('gap-mixed'));
+});
+
+test('BLOCKED: gapType=UNSUPPORTED_BOUNDARY_RELATION always blocks with GAP_PROPOSAL_TRANSLATION_NOT_IN_SCOPE_V1, even when relatedRawEdgeIds is entirely KEEP-grounded', () => {
+  const proposal: SemanticPlanProposal = {
+    ...f1Proposal(),
+    gapProposals: [gap({ gapId: 'gap-unsupported', gapType: 'UNSUPPORTED_BOUNDARY_RELATION', relatedRawEdgeIds: ['f1e2'] })],
+  };
+  const validation = validateSemanticPlan(rectEnvelope, rectRaw, proposal);
   assert.equal(validation.readiness.executionReadyForPartD, true, JSON.stringify(validation.readiness));
   const result = buildApprovedPlan(rectEnvelope, rectRaw, proposal, validation);
   assert.equal(result.outcome, 'BLOCKED');
   assert.equal(result.plan, null);
   const reason = result.blockingReasons.find((r) => r.key === 'GAP_PROPOSAL_TRANSLATION_NOT_IN_SCOPE_V1');
   assert.ok(reason, JSON.stringify(result.blockingReasons));
-  assert.ok(reason!.details.includes('gap-1'));
-  // No CanonicalGap was invented, no gap was silently discarded -- it is
-  // reported as an explicit blocking reason instead.
+  assert.ok(reason!.details.includes('gap-unsupported'));
+});
+
+test('BLOCKED: a gapProposal grounded only in knownEndpointRawVertexIds (empty relatedRawEdgeIds) is NOT_COVERED and blocks with GAP_PROPOSAL_TRANSLATION_NOT_IN_SCOPE_V1', () => {
+  const proposal: SemanticPlanProposal = {
+    ...f1Proposal(),
+    gapProposals: [gap({ gapId: 'gap-vertex-only', gapType: 'SOURCE_OCCLUDED', relatedRawEdgeIds: [], knownEndpointRawVertexIds: ['f1v2'] })],
+  };
+  const validation = validateSemanticPlan(rectEnvelope, rectRaw, proposal);
+  assert.equal(validation.readiness.executionReadyForPartD, true, JSON.stringify(validation.readiness));
+  const result = buildApprovedPlan(rectEnvelope, rectRaw, proposal, validation);
+  assert.equal(result.outcome, 'BLOCKED');
+  assert.equal(result.plan, null);
+  const reason = result.blockingReasons.find((r) => r.key === 'GAP_PROPOSAL_TRANSLATION_NOT_IN_SCOPE_V1');
+  assert.ok(reason, JSON.stringify(result.blockingReasons));
+  assert.ok(reason!.details.includes('gap-vertex-only'));
 });
 
 test('BLOCKED: multiple applicable blocking reasons are all accumulated in one result, not just the first one found', () => {
@@ -395,9 +614,10 @@ test('BLOCKED: multiple applicable blocking reasons are all accumulated in one r
       edge({ rawEdgeId: 'f1e3', disposition: 'UNRESOLVED', geometryAlignment: 'UNRESOLVED', verificationScope: null }),
       proposal.edgeProposals[3]!,
     ],
-    gapProposals: [
-      { gapId: 'gap-x', gapType: 'SOURCE_OCCLUDED', relatedRawEdgeIds: ['f1e2'], knownEndpointRawVertexIds: [], confidence: 'LOW', reason: 'r' },
-    ],
+    // gapType=UNSUPPORTED_BOUNDARY_RELATION is NOT_COVERED unconditionally
+    // (regardless of f1e2's own disposition) -- this keeps the test's two
+    // blocking reasons independent of one another, as intended.
+    gapProposals: [gap({ gapId: 'gap-x', gapType: 'UNSUPPORTED_BOUNDARY_RELATION', relatedRawEdgeIds: ['f1e2'] })],
   };
   const validation = validateSemanticPlan(rectEnvelope, rectRaw, notReadyWithGap);
   assert.equal(validation.readiness.executionReadyForPartD, false);
@@ -538,4 +758,35 @@ test('AUTHORITY: no PlanOperation coordinate is ever set -- Part D reads/writes 
   assertBuilt(result);
   const serialized = JSON.stringify(result.plan);
   assert.ok(!/"x"\s*:/.test(serialized) && !/"xPct"/.test(serialized) && !/"yPct"/.test(serialized));
+});
+
+test('AUTHORITY: gap PlanOperations introduce no coordinate fields and no canon-* id either', () => {
+  const proposal = f5Proposal();
+  const validation = validateSemanticPlan(rectEnvelope, rectRaw, proposal);
+  const result = buildApprovedPlan(rectEnvelope, rectRaw, proposal, validation);
+  assertBuilt(result);
+  const serialized = JSON.stringify(result.plan);
+  assert.ok(!/"x"\s*:/.test(serialized) && !/"xPct"/.test(serialized) && !/"yPct"/.test(serialized));
+  for (const op of result.plan.operations) {
+    for (const id of [...op.affectedRawEdges, ...op.affectedRawVertices]) {
+      assert.ok(!id.startsWith('canon-'), `Part D must never emit a canon-* id itself: found "${id}"`);
+    }
+  }
+});
+
+test('PURITY: adding a REJECT-grounded gapProposal leaves the built ApprovedPlan operations byte-for-byte identical (Category B contributes nothing)', () => {
+  const withoutGap = f2Proposal();
+  const validationA = validateSemanticPlan(rectEnvelope, rectRaw, withoutGap);
+  const resultA = buildApprovedPlan(rectEnvelope, rectRaw, withoutGap, validationA);
+  assertBuilt(resultA);
+
+  const withGap: SemanticPlanProposal = {
+    ...withoutGap,
+    gapProposals: [gap({ gapId: 'gap-extra', gapType: 'OPENING_CONTINUATION_UNKNOWN', relatedRawEdgeIds: ['f1e3'] })],
+  };
+  const validationB = validateSemanticPlan(rectEnvelope, rectRaw, withGap);
+  const resultB = buildApprovedPlan(rectEnvelope, rectRaw, withGap, validationB);
+  assertBuilt(resultB);
+
+  assert.deepEqual(resultA.plan.operations, resultB.plan.operations);
 });
