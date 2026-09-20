@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmitOnError": true,
+    "rootDir": "supabase/functions/_shared",
+    "outDir": "build",
+    "rewriteRelativeImportExtensions": true
+  },
+  "files": [
+    "supabase/functions/_shared/evidence_observation_prompt_vnext.ts",
+    "supabase/functions/_shared/evidence_observation_schema_vnext.ts",
+    "supabase/functions/_shared/evidence_observation_validators_vnext.ts",
+    "supabase/functions/_shared/geometry_observation_prompt_vnext.ts",
+    "supabase/functions/_shared/geometry_observation_schema_vnext.ts",
+    "supabase/functions/_shared/geometry_observation_validators_vnext.ts",
+    "supabase/functions/_shared/vnext_checkpoint1_orchestrator.ts",
+    "supabase/functions/_shared/vnext_checkpoint1_outcomes.ts",
+    "supabase/functions/_shared/vnext_checkpoint1_payload.ts",
+    "supabase/functions/_shared/vnext_checkpoint1_stability.ts",
+    "supabase/functions/_shared/vnext_openai_json_schema_client.ts",
+    "supabase/functions/_shared/vnext_persistence_failure.ts",
+    "supabase/functions/_shared/vnext_runtime_schema_validator.ts",
+    "supabase/functions/_shared/vnext_safe_errors.ts"
+  ]
+}
