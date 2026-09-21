@@ -207,7 +207,12 @@ check(
   check("Edge Function default model is gpt-5.6-luna", source.includes('?? "gpt-5.6-luna"'));
   check("Edge Function contains no temperature request field", !/^\s*temperature\s*:/m.test(source));
   check("Edge Function contains no seed request field", !/^\s*seed\s*:/m.test(source));
-  check("Persistence targets analysis_artifacts only", source.includes('.from("analysis_artifacts")') && !source.includes('.from("analysis_jobs").update'));
+  check(
+    "Persistence uses only the atomic analysis_artifacts RPC",
+    source.includes('.rpc("insert_analysis_artifact_atomic"') &&
+      !source.includes('.from("analysis_artifacts")') &&
+      !source.includes('.from("analysis_jobs").update'),
+  );
   check("No current_stage assignment/update exists", !/current_stage\s*:/.test(source));
 }
 // NOTE: the geometry prompt DOES mention "rawText" and "כללית"/"מקומית"

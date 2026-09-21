@@ -205,9 +205,9 @@ function checkSecretAbsent(label, secret, resolved, payload) {
 }
 
 // ---------------------------------------------------------------------
-// Test 3: attempt is an explicit input, never derived/guessed inside the
-// payload builder itself (that's the Edge Function's job, from the
-// existing artifact-versioning query pattern).
+// Test 3: the compatibility payload builder accepts an explicit attempt.
+// Production persistence uses buildVnextCheckpoint1PayloadInput instead, and
+// migration 0008 assigns attempt atomically from the inserted version.
 // ---------------------------------------------------------------------
 {
   const payload = buildVnextCheckpoint1Payload({
@@ -278,7 +278,7 @@ function checkSecretAbsent(label, secret, resolved, payload) {
     "utf8",
   );
   const failureBranch = handlerSource.slice(
-    handlerSource.indexOf("if (artifactError || !artifactRow)"),
+    handlerSource.indexOf("if (\n    artifactError ||"),
     handlerSource.indexOf("// Deliberately NOT touching analysis_jobs.status/current_stage"),
   );
   check(

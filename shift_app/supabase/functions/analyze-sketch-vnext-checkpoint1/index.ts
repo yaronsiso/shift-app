@@ -22,9 +22,9 @@
 // Persisted as a NEW additive artifact stage ("vnext_checkpoint1") in the
 // EXISTING analysis_artifacts table -- analysis_artifacts.stage is a plain
 // `text` column with no enum/check constraint (see
-// supabase/migrations/0007_analysis_jobs_v2.sql), so this requires NO
-// migration, per the "no migrations unless absolutely unavoidable"
-// instruction.
+// 0007_analysis_jobs_v2.sql). Atomic artifact version allocation is provided
+// by 0008_analysis_artifact_atomic_versioning.sql and must be applied before
+// deploying this function.
 //
 // Both OpenAI calls run via vnext_openai_json_schema_client.ts's shared
 // helper (see that file's header for why this one is shared rather than
@@ -50,8 +50,10 @@ import { EVIDENCE_OBSERVATION_SYSTEM_PROMPT_VNEXT } from "../_shared/evidence_ob
 import { callOpenAiJsonSchemaVNext } from "../_shared/vnext_openai_json_schema_client.ts";
 import { runParallelObservations, type ObservationCallOutcome } from "../_shared/vnext_checkpoint1_orchestrator.ts";
 import {
-  buildVnextCheckpoint1Payload,
+  buildVnextCheckpoint1PayloadInput,
   buildVnextCheckpoint1Response,
+  isCanonicalUuid,
+  withVnextCheckpoint1Attempt,
 } from "../_shared/vnext_checkpoint1_payload.ts";
 import {
   resolveEvidenceOutcome,
@@ -173,23 +175,6 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "forbidden", detail: "job does not belong to this user" }, 403);
   }
 
-  // next version number for this job's vnext_checkpoint1 stage.
-  const { data: existingArtifacts, error: versionCheckError } = await supabase
-    .from("analysis_artifacts")
-    .select("version")
-    .eq("job_id", jobId)
-    .eq("stage", "vnext_checkpoint1")
-    .order("version", { ascending: false })
-    .limit(1);
-
-  if (versionCheckError) {
-    return jsonResponse({ error: "internal_error", detail: "failed to check vnext_checkpoint1 version", jobId }, 500);
-  }
-  const attempt =
-    existingArtifacts && existingArtifacts.length > 0
-      ? ((existingArtifacts[0] as { version: number }).version + 1)
-      : 1;
-
   // --- same cropped image the rest of the v2 pipeline already uses -------
   // Same convention as analyze-sketch-v2-envelope-topology/index.ts: no
   // separate `stage="scope"` existence check — a signing failure below IS
@@ -229,9 +214,8 @@ Deno.serve(async (req) => {
       `evidence=${evidenceOutcome.status} (${evidenceDurationMs}ms) total=${totalWallClockMs}ms`,
   );
 
-  const payload = buildVnextCheckpoint1Payload({
+  const payloadInput = buildVnextCheckpoint1PayloadInput({
     model: OPENAI_MODEL,
-    attempt,
     geometry: geometryOutcome,
     evidence: evidenceOutcome,
     geometryDurationMs,
@@ -241,19 +225,28 @@ Deno.serve(async (req) => {
     evidenceUsage,
   });
 
+  // Version allocation and insertion are one database transaction. The RPC
+  // locks the parent job row, enforces Checkpoint 1-only uniqueness for
+  // (job_id, stage, version), injects the assigned version into payload.attempt,
+  // and returns only the allowlisted id/version pair.
+  // There is deliberately no direct-insert
+  // fallback: deploying this function requires migration 0008 first.
   const { data: artifactRow, error: artifactError } = await supabase
-    .from("analysis_artifacts")
-    .insert({
-      job_id: jobId,
-      user_id: userId,
-      stage: "vnext_checkpoint1",
-      version: attempt,
-      payload,
+    .rpc("insert_analysis_artifact_atomic", {
+      p_job_id: jobId,
+      p_user_id: userId,
+      p_stage: "vnext_checkpoint1",
+      p_payload: payloadInput,
     })
-    .select("id")
     .single();
 
-  if (artifactError || !artifactRow) {
+  if (
+    artifactError ||
+    !artifactRow ||
+    !isCanonicalUuid((artifactRow as { artifact_id?: unknown }).artifact_id) ||
+    !Number.isInteger((artifactRow as { artifact_version?: unknown }).artifact_version) ||
+    ((artifactRow as { artifact_version: number }).artifact_version < 1)
+  ) {
     const incidentId = crypto.randomUUID();
     const failure = buildVnextPersistenceFailure(jobId, incidentId);
     // Never pass the database error object (or any of its properties) to
@@ -262,11 +255,14 @@ Deno.serve(async (req) => {
     return jsonResponse(failure.responseBody, 500);
   }
 
+  const atomicArtifact = artifactRow as { artifact_id: string; artifact_version: number };
+  const payload = withVnextCheckpoint1Attempt(payloadInput, atomicArtifact.artifact_version);
+
   // Deliberately NOT touching analysis_jobs.status/current_stage — same
   // convention as EnvelopeTopology V2. This stage is additive/parallel;
   // nothing in the existing pipeline is gated on it.
 
   return jsonResponse(
-    buildVnextCheckpoint1Response(jobId, (artifactRow as { id: string }).id, payload),
+    buildVnextCheckpoint1Response(jobId, atomicArtifact.artifact_id, payload),
   );
 });

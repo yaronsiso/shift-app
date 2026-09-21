@@ -4,8 +4,9 @@
 // Checkpoint 1 (stage="vnext_checkpoint1"). Extracted so the payload
 // SHAPE itself is independently testable (per spec: "persistence payload
 // shape" is an explicit required test category) without touching
-// Supabase — the Edge Function only calls this function and inserts its
-// return value verbatim.
+// Supabase. The Edge Function builds an input without `attempt`; migration
+// 0008 assigns `version` and the matching payload `attempt` atomically. The
+// finalizer below reconstructs the response-safe payload from that DB version.
 
 import type { GeometryObservationVNext } from "./geometry_observation_schema_vnext.ts";
 import type { ValidationResultGeometryVNext } from "./geometry_observation_validators_vnext.ts";
@@ -47,9 +48,17 @@ export interface VnextCheckpoint1Payload {
   };
 }
 
-export function buildVnextCheckpoint1Payload(params: {
+export type VnextCheckpoint1PayloadInput = Omit<VnextCheckpoint1Payload, "attempt">;
+
+const CANONICAL_UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isCanonicalUuid(value: unknown): value is string {
+  return typeof value === "string" && CANONICAL_UUID_PATTERN.test(value);
+}
+
+interface VnextCheckpoint1PayloadInputParams {
   model: string;
-  attempt: number;
   geometry: GeometryOutcomeVNext;
   evidence: EvidenceOutcomeVNext;
   geometryDurationMs: number;
@@ -57,14 +66,17 @@ export function buildVnextCheckpoint1Payload(params: {
   totalWallClockMs: number;
   geometryUsage: Record<string, unknown> | null;
   evidenceUsage: Record<string, unknown> | null;
-}): VnextCheckpoint1Payload {
+}
+
+export function buildVnextCheckpoint1PayloadInput(
+  params: VnextCheckpoint1PayloadInputParams,
+): VnextCheckpoint1PayloadInput {
   return {
     schemaVersions: {
       geometry: "geometry_observation_vnext_v1",
       evidence: "evidence_observation_vnext_v1",
     },
     model: params.model,
-    attempt: params.attempt,
     geometry: params.geometry,
     evidence: params.evidence,
     timings: {
@@ -77,6 +89,23 @@ export function buildVnextCheckpoint1Payload(params: {
       evidence: params.evidenceUsage,
     },
   };
+}
+
+export function withVnextCheckpoint1Attempt(
+  input: VnextCheckpoint1PayloadInput,
+  attempt: number,
+): VnextCheckpoint1Payload {
+  return { ...input, attempt };
+}
+
+export function buildVnextCheckpoint1Payload(
+  params: VnextCheckpoint1PayloadInputParams & { attempt: number },
+): VnextCheckpoint1Payload {
+  const { attempt, ...inputParams } = params;
+  return withVnextCheckpoint1Attempt(
+    buildVnextCheckpoint1PayloadInput(inputParams),
+    attempt,
+  );
 }
 export interface VnextCheckpoint1Response extends VnextCheckpoint1Payload {
   jobId: string;
