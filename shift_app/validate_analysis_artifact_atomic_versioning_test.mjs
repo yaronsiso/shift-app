@@ -2,12 +2,73 @@
 // Checkpoint 1 atomic persistence call. No database or network is contacted.
 
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import {
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve, sep } from "node:path";
+import { pathToFileURL } from "node:url";
+
+const buildDirectory = "./build";
+const workspacePayloadModule = resolve(buildDirectory, "vnext_checkpoint1_payload.js");
+const workspaceModuleAvailable = existsSync(workspacePayloadModule);
+let temporaryBuildDirectory = null;
+let bootstrapDiagnosticWritten = false;
+
+function safeTestHookPath(path) {
+  const resolvedPath = resolve(path);
+  const temporaryRoot = resolve(tmpdir()) + sep;
+  if (!resolvedPath.startsWith(temporaryRoot)) {
+    throw new Error("test hook paths must remain under the temporary directory");
+  }
+  return resolvedPath;
+}
+
+try {
+let selectedPayloadModule = workspacePayloadModule;
+if (!workspaceModuleAvailable) {
+  temporaryBuildDirectory = mkdtempSync(join(tmpdir(), "shift-atomic-build-"));
+  try {
+    execFileSync(
+      "tsc",
+      ["-p", "tsconfig.checkpoint1.json", "--outDir", temporaryBuildDirectory],
+      { stdio: ["ignore", "pipe", "pipe"] },
+    );
+  } catch (error) {
+    if (error?.stdout?.length) process.stderr.write(error.stdout);
+    if (error?.stderr?.length) process.stderr.write(error.stderr);
+    if (!error?.stdout?.length && !error?.stderr?.length) {
+      console.error("ATOMIC_TEST_BOOTSTRAP_FAILED: tsc is unavailable or could not start");
+    }
+    bootstrapDiagnosticWritten = true;
+    throw error;
+  }
+  selectedPayloadModule = join(temporaryBuildDirectory, "vnext_checkpoint1_payload.js");
+
+  // Test-only synchronization and failure hooks. They are inert unless the
+  // explicit opt-in flag is set, accept control files under /tmp only, and
+  // never write to stdout or to the workspace build directory.
+  if (process.env.SHIFT_ATOMIC_TEST_HOOKS === "1") {
+    const hookMode = process.env.SHIFT_ATOMIC_TEST_HOOK_MODE;
+    if (hookMode === "pause-after-compile") {
+      const readyFile = safeTestHookPath(process.env.SHIFT_ATOMIC_TEST_READY_FILE ?? "");
+      const continueFile = safeTestHookPath(process.env.SHIFT_ATOMIC_TEST_CONTINUE_FILE ?? "");
+      writeFileSync(readyFile, temporaryBuildDirectory, { encoding: "utf8", flag: "wx" });
+      const waitBuffer = new Int32Array(new SharedArrayBuffer(4));
+      const deadline = Date.now() + 30000;
+      while (!existsSync(continueFile)) {
+        if (Date.now() >= deadline) throw new Error("test hook synchronization timed out");
+        Atomics.wait(waitBuffer, 0, 0, 25);
+      }
+    } else if (hookMode === "fail-import") {
+      selectedPayloadModule = join(temporaryBuildDirectory, "missing-test-hook.js");
+    }
+  }
+}
+
+const {
   buildVnextCheckpoint1PayloadInput,
   isCanonicalUuid,
   withVnextCheckpoint1Attempt,
-} from "./build/vnext_checkpoint1_payload.js";
+} = await import(pathToFileURL(selectedPayloadModule).href);
 
 const migration = readFileSync("./0008_analysis_artifact_atomic_versioning.sql", "utf8");
 const handlerPath = "supabase/functions/analyze-sketch-vnext-checkpoint1/index.ts";
@@ -39,13 +100,59 @@ function count(sourceText, pattern) {
   return (sourceText.match(pattern) || []).length;
 }
 
+check(
+  "bootstrap imports an existing generated payload module",
+  existsSync(selectedPayloadModule),
+);
+check(
+  "bootstrap selects either the workspace module or an isolated temporary directory",
+  workspaceModuleAvailable
+    ? temporaryBuildDirectory === null && selectedPayloadModule === workspacePayloadModule
+    : temporaryBuildDirectory !== null &&
+      dirname(selectedPayloadModule) === temporaryBuildDirectory &&
+      temporaryBuildDirectory.startsWith(resolve(tmpdir()) + sep),
+);
+check(
+  "bootstrap cleanup target is never the workspace build directory",
+  temporaryBuildDirectory === null ||
+    resolve(temporaryBuildDirectory) !== resolve(buildDirectory),
+);
+
 const EXPECTED_CANONICAL_PREDICATE = "(stage = 'vnext_checkpoint1'::text)";
 const EXPECTED_SQL_PREDICATE_LITERAL = "'(stage = ''vnext_checkpoint1''::text)'";
+const EXPECTED_LOCK_TIMEOUT_SQL = "set local lock_timeout = '2s';";
+const EXPECTED_STATEMENT_TIMEOUT_SQL = "set local statement_timeout = '30s';";
+const EXPECTED_TIMEOUT_BLOCK =
+  "begin;\n" + EXPECTED_LOCK_TIMEOUT_SQL + "\n" + EXPECTED_STATEMENT_TIMEOUT_SQL;
 
 function replaceOnce(sourceText, expected, replacement) {
   const position = sourceText.indexOf(expected);
   if (position < 0) throw new Error("mutation target not found");
   return sourceText.slice(0, position) + replacement + sourceText.slice(position + expected.length);
+}
+
+function hasExactInlineTimeoutPolicy(sourceText) {
+  const executableLines = sourceText
+    .split(/\r?\n/)
+    .map((line) => line.replace(/--.*$/, "").trim())
+    .filter(Boolean);
+  const beginPosition = executableLines.indexOf("begin;");
+  const lockPosition = executableLines.indexOf(
+    "lock table public.analysis_artifacts in share row exclusive mode;",
+  );
+  const lockTimeoutAssignments = executableLines.filter((line) =>
+    /^set(?:\s+local)?\s+lock_timeout\s*=/i.test(line)
+  );
+  const statementTimeoutAssignments = executableLines.filter((line) =>
+    /^set(?:\s+local)?\s+statement_timeout\s*=/i.test(line)
+  );
+
+  return beginPosition >= 0 &&
+    lockPosition > beginPosition + 2 &&
+    executableLines[beginPosition + 1] === EXPECTED_LOCK_TIMEOUT_SQL &&
+    executableLines[beginPosition + 2] === EXPECTED_STATEMENT_TIMEOUT_SQL &&
+    lockTimeoutAssignments.length === 1 &&
+    statementTimeoutAssignments.length === 1;
 }
 
 function migrationContractViolations(sourceText) {
@@ -55,6 +162,7 @@ function migrationContractViolations(sourceText) {
   const exactPredicateComparison =
     "or v_index_predicate is distinct from\n        " + EXPECTED_SQL_PREDICATE_LITERAL;
 
+  if (!hasExactInlineTimeoutPolicy(sourceText)) violations.push("INLINE_TIMEOUT_POLICY");
   if (count(sourceText, exactCreate) !== 1) violations.push("PARTIAL_INDEX_DEFINITION");
   if (count(executable, /create\s+unique\s+index/gi) !== 1) violations.push("UNIQUE_INDEX_COUNT");
   if (/create\s+unique\s+index[\s\S]*?on\s+public\.analysis_artifacts\s*\(job_id,\s*stage,\s*version\)\s*;/i.test(executable)) {
@@ -122,6 +230,51 @@ function legacyWriterContractViolations(writerSources) {
 }
 
 // Migration boundary, scoped preflight, and non-destructive behavior.
+check("lock timeout is set locally exactly once", count(migration, /^set local lock_timeout = '2s';$/gm) === 1);
+check("statement timeout is set locally exactly once", count(migration, /^set local statement_timeout = '30s';$/gm) === 1);
+check("timeout policy is immediately after BEGIN", migration.includes(EXPECTED_TIMEOUT_BLOCK));
+check(
+  "timeout policy precedes lock, preflight, and DDL",
+  migration.indexOf(EXPECTED_STATEMENT_TIMEOUT_SQL) < migration.indexOf("lock table public.analysis_artifacts") &&
+    migration.indexOf(EXPECTED_STATEMENT_TIMEOUT_SQL) < migration.indexOf("if exists (") &&
+    migration.indexOf(EXPECTED_STATEMENT_TIMEOUT_SQL) < migration.indexOf("create unique index"),
+);
+check("timeout policy never uses session-wide SET", !/^set\s+(?:lock_timeout|statement_timeout)\s*=/gim.test(executableMigration));
+check("complete migration source satisfies the inline timeout contract", hasExactInlineTimeoutPolicy(migration));
+expectMigrationMutationRejected(
+  "mutation rejects missing timeout line",
+  replaceOnce(migration, EXPECTED_LOCK_TIMEOUT_SQL + "\n", ""),
+  "INLINE_TIMEOUT_POLICY",
+);
+expectMigrationMutationRejected(
+  "mutation rejects wrong timeout value",
+  replaceOnce(migration, EXPECTED_LOCK_TIMEOUT_SQL, "set local lock_timeout = '3s';"),
+  "INLINE_TIMEOUT_POLICY",
+);
+expectMigrationMutationRejected(
+  "mutation rejects session-wide SET",
+  replaceOnce(migration, EXPECTED_STATEMENT_TIMEOUT_SQL, "set statement_timeout = '30s';"),
+  "INLINE_TIMEOUT_POLICY",
+);
+expectMigrationMutationRejected(
+  "mutation rejects timeout policy outside transaction",
+  replaceOnce(migration, EXPECTED_TIMEOUT_BLOCK, EXPECTED_LOCK_TIMEOUT_SQL + "\n" + EXPECTED_STATEMENT_TIMEOUT_SQL + "\n\nbegin;"),
+  "INLINE_TIMEOUT_POLICY",
+);
+expectMigrationMutationRejected(
+  "mutation rejects timeout policy after lock",
+  replaceOnce(
+    replaceOnce(migration, EXPECTED_LOCK_TIMEOUT_SQL + "\n" + EXPECTED_STATEMENT_TIMEOUT_SQL + "\n", ""),
+    "lock table public.analysis_artifacts in share row exclusive mode;",
+    "lock table public.analysis_artifacts in share row exclusive mode;\n" + EXPECTED_LOCK_TIMEOUT_SQL + "\n" + EXPECTED_STATEMENT_TIMEOUT_SQL,
+  ),
+  "INLINE_TIMEOUT_POLICY",
+);
+expectMigrationMutationRejected(
+  "mutation rejects duplicate timeout line",
+  replaceOnce(migration, EXPECTED_STATEMENT_TIMEOUT_SQL, EXPECTED_STATEMENT_TIMEOUT_SQL + "\n" + EXPECTED_STATEMENT_TIMEOUT_SQL),
+  "INLINE_TIMEOUT_POLICY",
+);
 check("migration is explicitly transactional", /^begin;[\s\S]*commit;\s*$/m.test(migration));
 check(
   "migration locks writes before the scoped preflight",
@@ -440,4 +593,15 @@ console.log("SHIFT_CHECKPOINT1_TEST_SUMMARY " + JSON.stringify({
   assertionsFailed,
   completed: true,
 }));
-process.exit(assertionsFailed === 0 ? 0 : 1);
+process.exitCode = assertionsFailed === 0 ? 0 : 1;
+} catch (error) {
+  if (!bootstrapDiagnosticWritten) {
+    const safeMessage = error instanceof Error ? error.message : "unknown bootstrap error";
+    console.error("ATOMIC_TEST_BOOTSTRAP_FAILED: " + safeMessage);
+  }
+  process.exitCode = 2;
+} finally {
+  if (temporaryBuildDirectory !== null) {
+    rmSync(temporaryBuildDirectory, { recursive: true, force: true });
+  }
+}

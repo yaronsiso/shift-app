@@ -34,17 +34,20 @@ The migration takes `SHARE ROW EXCLUSIVE` and creates the unique index
 non-concurrently. It may block all writes to `analysis_artifacts` until commit.
 Apply therefore requires a maintenance window or documented lock-impact
 assessment, an explicitly selected timeout policy, production preflight, and a
-successful real-PostgreSQL migration test. This patch selects no timeout.
+successful real-PostgreSQL migration test. Migration 0008 now selects
+transaction-local `lock_timeout='2s'` and `statement_timeout='30s'` immediately
+after `BEGIN`, before its table lock, preflight, or DDL.
 
 This is still an open production gate:
 
-- PostgreSQL has not executed or compiled migrations 0007/0008 in this review
-  environment.
-- Production duplicates and production constraint metadata are unknown.
+- PostgreSQL 17.11 local isolated verification must pass again after every
+  migration change.
+- Production preflight passed, but its results must be rechecked immediately
+  before an approved apply.
 - Migration 0008 has not been applied.
 - No Edge Function has been deployed.
-- A production preflight and independent review are still required before any
-  migration apply or deployment.
+- A production preflight recheck and independent review of this timeout-policy
+  change are still required before any migration apply or deployment.
 - Migration 0008 must be applied and verified successfully before the updated
   Checkpoint 1 Edge Function is deployed; the reverse order is forbidden.
 

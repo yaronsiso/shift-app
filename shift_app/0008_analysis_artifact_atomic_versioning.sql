@@ -5,6 +5,8 @@
 -- objects when Checkpoint 1 duplicates or a same-name index collision exist.
 
 begin;
+set local lock_timeout = '2s';
+set local statement_timeout = '30s';
 
 -- Close the preflight-to-index race while the Checkpoint 1-only index is
 -- inspected or created. No artifact data is rewritten or removed.

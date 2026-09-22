@@ -3,6 +3,7 @@ import {
   TEST_SUMMARY_PREFIX,
   validateTestExecution,
 } from "./checkpoint1_test_protocol.mjs";
+import { readFileSync } from "node:fs";
 
 const EXPECTED_ID = "geometry";
 const EXPECTED_ASSERTIONS = 105;
@@ -128,7 +129,7 @@ expectProtocolFailure(
 // same strict protocol with its own identity and assertion count.
 const ORIGINAL_MUTATIONS = 15;
 const ATOMIC_EXPECTED_ID = "atomic_versioning";
-const ATOMIC_EXPECTED_ASSERTIONS = 153;
+const ATOMIC_EXPECTED_ASSERTIONS = 168;
 const originalMutationsPassed = mutationsPassed;
 const originalMutationsFailed = mutationsFailed;
 
@@ -199,7 +200,42 @@ expectAtomicProtocolFailure(
 expectAtomicProtocolFailure("atomic additional field", { stdout: atomicSummary({ unexpected: true }) }, "SUMMARY_INVALID_SHAPE");
 
 const ATOMIC_MUTATIONS = 12;
-const EXPECTED_MUTATIONS = ORIGINAL_MUTATIONS + ATOMIC_MUTATIONS;
+const ATOMIC_ACQUISITION_MUTATIONS = 1;
+
+const harnessSource = readFileSync(
+  new URL("./run_checkpoint1_tests.sh", import.meta.url),
+  "utf8",
+);
+const protectedAcquisition =
+  'ln --symbolic --no-target-directory -- "$temp_build_dir" "$build_link"';
+const unsafeAcquisition = 'ln -s -- "$temp_build_dir" "$build_link"';
+
+function validatesProtectedAcquisition(source) {
+  return source.split(protectedAcquisition).length - 1 === 1 &&
+    !source.includes(unsafeAcquisition);
+}
+
+if (!validatesProtectedAcquisition(harnessSource)) {
+  mutationsFailed++;
+  console.error("ATOMIC_ACQUISITION_POSITIVE_CONTROL_FAILED");
+}
+
+const unsafeAcquisitionMutation = harnessSource.replace(
+  protectedAcquisition,
+  unsafeAcquisition,
+);
+if (
+  unsafeAcquisitionMutation === harnessSource ||
+  validatesProtectedAcquisition(unsafeAcquisitionMutation)
+) {
+  mutationsFailed++;
+  console.error("ATOMIC_ACQUISITION_MUTATION_DID_NOT_FAIL");
+} else {
+  mutationsPassed++;
+}
+
+const EXPECTED_MUTATIONS = ORIGINAL_MUTATIONS + ATOMIC_MUTATIONS +
+  ATOMIC_ACQUISITION_MUTATIONS;
 if (originalMutationsPassed !== ORIGINAL_MUTATIONS || originalMutationsFailed !== 0) {
   mutationsFailed++;
   console.error("ORIGINAL_MUTATION_LOCK_FAILED");
